@@ -9,6 +9,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -381,20 +382,16 @@ function SensitivityCard({
 
 // ——— Skin Type Card ———
 function SkinTypeCard({
-  typeKey,
   label,
   icon: Icon,
   description,
-  emoji,
   selected,
   onSelect,
   index,
 }: {
-  typeKey: string;
   label: string;
   icon: SvgIcon;
   description: string;
-  emoji: string;
   selected: boolean;
   onSelect: () => void;
   index: number;
@@ -832,29 +829,16 @@ export function StepPeau({
   const [showQuiz, setShowQuiz] = useState(false);
 
   // Progressive disclosure watermark
-  const [revealedUpTo, setRevealedUpTo] = useState(() => {
+  const revealedUpTo = useMemo(() => {
     if (typePeau !== null) return 3;
     if (peauSensible !== null) return 2;
     return 1;
-  });
+  }, [peauSensible, typePeau]);
 
   // Section refs
   const section2Ref = useRef<HTMLDivElement>(null);
   const section3Ref = useRef<HTMLDivElement>(null);
   const prevRevealedRef = useRef(revealedUpTo);
-
-  // Update reveal watermark
-  useEffect(() => {
-    if (peauSensible !== null && revealedUpTo < 2) {
-      setRevealedUpTo(2);
-    }
-  }, [peauSensible, revealedUpTo]);
-
-  useEffect(() => {
-    if (typePeau !== null && revealedUpTo < 3) {
-      setRevealedUpTo(3);
-    }
-  }, [typePeau, revealedUpTo]);
 
   // Auto-scroll on reveal
   useEffect(() => {
@@ -1006,11 +990,9 @@ export function StepPeau({
                   return (
                     <SkinTypeCard
                       key={tp.key}
-                      typeKey={tp.key}
                       label={tp.label}
                       icon={meta.icon}
                       description={meta.description}
-                      emoji={meta.emoji}
                       selected={typePeau === tp.key}
                       onSelect={() => {
                         onTypeChange(tp.key);

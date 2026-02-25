@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
-import { ChevronDown, Plus, Minus, HelpCircle } from 'lucide-react';
+import { ChevronDown, HelpCircle } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 
 export function FAQSection() {

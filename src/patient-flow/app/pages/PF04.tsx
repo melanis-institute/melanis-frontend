@@ -21,10 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { HeaderBack } from "../components/HeaderBack";
 import { PageLayout } from "../components/PageLayout";
-import {
-  PersistentContextBar,
-  type PatientProfile,
-} from "../components/PersistentContextBar";
+import { PersistentContextBar } from "../components/PersistentContextBar";
 import {
   DUREES,
   INTENSITE_LABELS,
@@ -33,6 +30,8 @@ import {
 } from "../components/preconsult/recapHelpers";
 import type { PreConsultData } from "../components/preconsult/types";
 import { StepIndicator } from "../components/StepIndicator";
+import { relationshipToLabel } from "../account/mockAccountAdapter";
+import { useAuth } from "../auth/useAuth";
 
 // ——— Skeleton Pulse Component ———
 function SkeletonPulse({ className }: { className?: string }) {
@@ -384,13 +383,6 @@ function IntensityDots({ value }: { value: number }) {
   );
 }
 
-function normalizeProfile(profile?: string | null): PatientProfile {
-  if (profile === "moi" || profile === "enfant" || profile === "proche") {
-    return profile;
-  }
-  return "moi";
-}
-
 function formatDateLabel(date?: string) {
   if (!date) return "À définir";
   const parsed = new Date(`${date}T00:00:00`);
@@ -405,11 +397,13 @@ function formatDateLabel(date?: string) {
 export default function PF04() {
   const navigate = useNavigate();
   const { state } = useLocation();
+  const auth = useAuth();
 
   const appointmentType = state?.appointmentType ?? "presentiel";
-  const [patientProfile, setPatientProfile] = useState<PatientProfile>(() =>
-    normalizeProfile(state?.patientProfile),
-  );
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
   const selectedSlot = state?.selectedSlot ?? {
     date: "Lundi 24 Février 2026",
     time: "10:30",
@@ -489,10 +483,11 @@ export default function PF04() {
   }, [preConsultData, preConsultSkipped]);
 
   const handleConfirm = () => {
-    navigate("/patient-flow/auth", {
+    navigate("/patient-flow/confirmation-succes", {
       state: {
         appointmentType,
-        patientProfile,
+        actingProfileId: auth.actingProfileId,
+        actingRelationship: auth.actingProfile?.relationship,
         date: state?.date,
         time: state?.time,
         selectedSlot,
@@ -524,8 +519,16 @@ export default function PF04() {
           className="px-5 mt-1"
         >
           <PersistentContextBar
-            profile={patientProfile}
-            onProfileChange={setPatientProfile}
+            profileId={auth.actingProfileId}
+            profileLabel={
+              auth.actingProfile
+                ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                : null
+            }
+            profileOptions={profileOptions}
+            onProfileChange={(profileId) => {
+              void auth.setActingProfile(profileId);
+            }}
             appointmentType={appointmentType}
             practitionerName={practitioner.name}
             dateLabel={

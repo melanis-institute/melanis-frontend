@@ -1,17 +1,6 @@
-import { motion } from 'motion/react';
-import { ArrowUpRight, Instagram, Linkedin, Twitter, Mail, Facebook } from 'lucide-react';
+import { Instagram, Linkedin, Twitter, Facebook } from 'lucide-react';
 
 export function Footer() {
-  const links = [
-    { title: "Annuaire praticiens", href: "#" },
-    { title: "Centre de savoir", href: "#" },
-    { title: "Événements", href: "#" },
-    { title: "Contact", href: "#" },
-    { title: "Mentions légales", href: "#" },
-    { title: "Confidentialité", href: "#" },
-    { title: "Consentements", href: "#" },
-  ];
-
   const socialLinks = [
     { name: "Instagram", icon: Instagram, href: "#" },
     { name: "Twitter", icon: Twitter, href: "#" },

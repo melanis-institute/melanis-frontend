@@ -1,4 +1,3 @@
-import { motion } from 'motion/react';
 import { ArrowUpRight } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 import { Link } from 'react-router';

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ShieldCheck, Lock, Fingerprint, FileSearch, Database, Server, EyeOff, Key } from 'lucide-react';
+import { ShieldCheck, Lock, FileSearch, Database, Server, EyeOff, Key } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 
 export function TrustSecurity() {

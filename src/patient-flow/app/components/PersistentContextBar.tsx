@@ -1,44 +1,74 @@
 import type { ReactNode } from "react";
 import { CalendarDays, Clock3, Stethoscope, UserRound, Video } from "lucide-react";
+import type { AppointmentType, PatientProfile } from "../types/flow";
 
-type AppointmentType = "presentiel" | "video";
-export type PatientProfile = "moi" | "enfant" | "proche";
+export type { PatientProfile } from "../types/flow";
+
+export interface ProfileOption {
+  id: string;
+  label: string;
+}
 
 interface PersistentContextBarProps {
   profile?: PatientProfile | string | null;
-  onProfileChange?: (profile: PatientProfile) => void;
+  profileId?: string | null;
+  profileLabel?: string | null;
+  profileOptions?: ProfileOption[];
+  onProfileChange?: (profileId: string) => void;
   appointmentType?: AppointmentType | null;
   practitionerName?: string | null;
   dateLabel?: string | null;
   timeLabel?: string | null;
 }
 
-const PROFILE_OPTIONS: Array<{ key: PatientProfile; label: string }> = [
-  { key: "moi", label: "Pour moi" },
-  { key: "enfant", label: "Mon enfant" },
-  { key: "proche", label: "Un proche" },
+const LEGACY_PROFILE_OPTIONS: ProfileOption[] = [
+  { id: "moi", label: "Pour moi" },
+  { id: "enfant", label: "Mon enfant" },
+  { id: "proche", label: "Un proche" },
 ];
 
-function normalizeProfile(profile?: string | null): PatientProfile {
+function normalizeLegacyProfile(profile?: string | null): string {
   if (profile === "enfant" || profile === "proche" || profile === "moi") {
     return profile;
   }
   return "moi";
 }
 
-function profileToLabel(profile?: string | null) {
-  return PROFILE_OPTIONS.find((item) => item.key === normalizeProfile(profile))?.label ?? "Pour moi";
+function resolveOptions(options?: ProfileOption[]) {
+  if (!options || options.length === 0) {
+    return LEGACY_PROFILE_OPTIONS;
+  }
+  return options;
+}
+
+function resolveProfileLabel({
+  profileId,
+  profileLabel,
+  options,
+}: {
+  profileId: string;
+  profileLabel?: string | null;
+  options: ProfileOption[];
+}) {
+  if (profileLabel) return profileLabel;
+  return options.find((option) => option.id === profileId)?.label ?? "Profil patient";
 }
 
 export function PersistentContextBar({
   profile,
+  profileId,
+  profileLabel,
+  profileOptions,
   onProfileChange,
   appointmentType,
   practitionerName,
   dateLabel,
   timeLabel,
 }: PersistentContextBarProps) {
-  const safeProfile = normalizeProfile(profile);
+  const options = resolveOptions(profileOptions);
+  const safeProfileId =
+    profileId ?? normalizeLegacyProfile(typeof profile === "string" ? profile : null);
+
   const typeLabel =
     appointmentType === "video"
       ? "Vidéo"
@@ -63,9 +93,7 @@ export function PersistentContextBar({
           <span className="text-[#00415E]">
             <UserRound className="h-3.5 w-3.5" strokeWidth={1.8} />
           </span>
-          <span className="whitespace-nowrap text-[rgba(17,18,20,0.55)]">
-            Agir pour:
-          </span>
+          <span className="whitespace-nowrap text-[rgba(17,18,20,0.55)]">Agir pour:</span>
           {onProfileChange ? (
             <label className="sr-only" htmlFor="profile-switcher">
               Choisir le profil patient
@@ -74,23 +102,25 @@ export function PersistentContextBar({
           {onProfileChange ? (
             <select
               id="profile-switcher"
-              value={safeProfile}
-              onChange={(event) =>
-                onProfileChange(event.target.value as PatientProfile)
-              }
+              value={safeProfileId}
+              onChange={(event) => onProfileChange(event.target.value)}
               className="rounded-full bg-transparent pr-1 text-[#111214] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00415E] focus-visible:ring-offset-1 focus-visible:ring-offset-white"
               style={{ fontWeight: 520 }}
               aria-label="Agir pour"
             >
-              {PROFILE_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
+              {options.map((item) => (
+                <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
               ))}
             </select>
           ) : (
             <span className="whitespace-nowrap text-[#111214]" style={{ fontWeight: 520 }}>
-              {profileToLabel(safeProfile)}
+              {resolveProfileLabel({
+                profileId: safeProfileId,
+                profileLabel,
+                options,
+              })}
             </span>
           )}
         </div>

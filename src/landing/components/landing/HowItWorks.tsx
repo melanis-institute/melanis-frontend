@@ -89,8 +89,8 @@ export function HowItWorks() {
               style={{ x }}
               className="flex gap-6 md:gap-12 px-6 md:px-24 items-center h-[55vh] md:h-[60vh]"
             >
-              {steps.map((step, i) => (
-                <Card key={step.id} step={step} index={i} />
+              {steps.map((step) => (
+                <Card key={step.id} step={step} />
               ))}
               
               {/* Final CTA Card */}
@@ -133,7 +133,7 @@ export function HowItWorks() {
   );
 }
 
-function Card({ step, index }: { step: typeof steps[0], index: number }) {
+function Card({ step }: { step: typeof steps[0] }) {
   return (
     <motion.div 
         className="relative h-full w-[85vw] md:w-[60vw] lg:w-[45vw] shrink-0 flex flex-col md:flex-row bg-white rounded-[2.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.06)] group border border-[#111214]/5 select-none"

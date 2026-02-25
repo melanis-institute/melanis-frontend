@@ -1,4 +1,11 @@
-import type { AuthDraftRecord, AuthFlowContext, PendingAuthState } from "./types";
+import type {
+  AuthDraftRecord,
+  AuthDraftType,
+  AuthFlowContext,
+  PendingAuthState,
+} from "./types";
+import type { UserRole } from "./roles";
+import { normalizeRoles, roleHomeRoute } from "./roles";
 
 const FLOW_CONTEXT_KEY = "melanis_auth_flow_context_v1";
 const PENDING_AUTH_KEY = "melanis_auth_pending_v1";
@@ -68,8 +75,30 @@ export function clearFlowContext() {
   safeRemove(FLOW_CONTEXT_KEY);
 }
 
-export function resolvePostAuthRoute(flowContext: AuthFlowContext | null): string {
-  return flowContext ? "/patient-flow/auth/profil" : "/patient-flow/auth/dashboard";
+interface ResolvePostAuthRouteOptions {
+  availableRoles?: UserRole[];
+  activeRole?: UserRole | null;
+}
+
+export function resolvePostAuthRoute(
+  _flowContext: AuthFlowContext | null,
+  options?: ResolvePostAuthRouteOptions,
+): string {
+  void _flowContext;
+  const availableRoles = normalizeRoles(options?.availableRoles);
+
+  if (
+    options?.activeRole &&
+    availableRoles.includes(options.activeRole)
+  ) {
+    return roleHomeRoute(options.activeRole);
+  }
+
+  if (availableRoles.length > 1) {
+    return "/patient-flow/auth/select-role";
+  }
+
+  return roleHomeRoute(availableRoles[0]);
 }
 
 export function savePendingAuthState(state: PendingAuthState) {
@@ -115,10 +144,7 @@ function writeDrafts(drafts: Record<string, AuthDraftRecord>) {
   safeWrite(DRAFTS_KEY, drafts);
 }
 
-export function saveAuthDraft(
-  type: "signup" | "recovery",
-  payload: Record<string, unknown>
-) {
+export function saveAuthDraft(type: AuthDraftType, payload: Record<string, unknown>) {
   const drafts = readDrafts();
   const now = Date.now();
   drafts[type] = {
@@ -130,12 +156,12 @@ export function saveAuthDraft(
   writeDrafts(drafts);
 }
 
-export function loadAuthDraft(type: "signup" | "recovery"): AuthDraftRecord | null {
+export function loadAuthDraft(type: AuthDraftType): AuthDraftRecord | null {
   const drafts = readDrafts();
   return drafts[type] ?? null;
 }
 
-export function clearAuthDraft(type: "signup" | "recovery") {
+export function clearAuthDraft(type: AuthDraftType) {
   const drafts = readDrafts();
   if (!drafts[type]) return;
   delete drafts[type];

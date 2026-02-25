@@ -1,44 +1,35 @@
 import { Stethoscope, Video } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { HeaderBack } from "../components/HeaderBack";
 import { MelaniaMascot } from "../components/MelaniaMascot";
 import { OptionCard } from "../components/OptionCard";
 import { PageLayout } from "../components/PageLayout";
-import {
-  PersistentContextBar,
-  type PatientProfile,
-} from "../components/PersistentContextBar";
+import { PersistentContextBar } from "../components/PersistentContextBar";
 import { QuestionBubble } from "../components/QuestionBubble";
 import { StepIndicator } from "../components/StepIndicator";
+import { relationshipToLabel } from "../account/mockAccountAdapter";
+import { useAuth } from "../auth/useAuth";
 
 type AppointmentType = "presentiel" | "video";
-type PF01State = { patientProfile?: string };
-
-function normalizeProfile(profile?: string | null): PatientProfile {
-  if (profile === "enfant" || profile === "proche" || profile === "moi") {
-    return profile;
-  }
-  return "moi";
-}
 
 export default function PF01() {
   const [selected, setSelected] = useState<AppointmentType | null>(null);
-  const location = useLocation();
   const navigate = useNavigate();
-  const initialProfile = normalizeProfile(
-    (location.state as PF01State | null)?.patientProfile,
-  );
-  const [patientProfile, setPatientProfile] =
-    useState<PatientProfile>(initialProfile);
+  const auth = useAuth();
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
 
   const handleContinue = () => {
     if (selected) {
       navigate("/patient-flow/creneau", {
         state: {
           appointmentType: selected,
-          patientProfile,
+          actingProfileId: auth.actingProfileId,
+          actingRelationship: auth.actingProfile?.relationship,
         },
       });
     }
@@ -56,6 +47,7 @@ export default function PF01() {
         >
           <HeaderBack onBack={() => window.history.back()} />
           <StepIndicator current={1} total={5} />
+          <div className="w-[44px]" aria-hidden="true" />
         </motion.div>
 
         <motion.div
@@ -65,8 +57,16 @@ export default function PF01() {
           className="px-5 md:px-8 mt-2 md:mt-3"
         >
           <PersistentContextBar
-            profile={patientProfile}
-            onProfileChange={setPatientProfile}
+            profileId={auth.actingProfileId}
+            profileOptions={profileOptions}
+            profileLabel={
+              auth.actingProfile
+                ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                : null
+            }
+            onProfileChange={(profileId) => {
+              void auth.setActingProfile(profileId);
+            }}
             appointmentType={selected}
             practitionerName="Dr. Aïssatou Diallo"
           />

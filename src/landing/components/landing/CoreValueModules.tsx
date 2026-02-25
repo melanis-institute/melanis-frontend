@@ -2,8 +2,8 @@ import { motion } from 'motion/react';
 import { useState } from 'react';
 import { 
   Users, Activity, Lock, Stethoscope, 
-  UserCheck, ShieldCheck, Mail, Calendar, 
-  FileSearch, Sun, ArrowRight, Smartphone
+  ShieldCheck, Mail, Calendar, 
+  Sun, ArrowRight, Smartphone
 } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 

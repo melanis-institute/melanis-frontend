@@ -1,10 +1,30 @@
 import { Menu, X } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+
+    if (isOpen) {
+      html.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+      body.style.overscrollBehavior = "none";
+    }
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, [isOpen]);
 
   return (
     <motion.header
@@ -55,6 +75,8 @@ const Header = () => {
         <button
           className="lg:hidden p-2 text-[#111214]"
           onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={isOpen}
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -66,7 +88,7 @@ const Header = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="absolute top-24 left-6 right-6 bg-[#FEF0D5] rounded-2xl p-6 shadow-xl border border-[#111214]/10 lg:hidden flex flex-col gap-4"
+          className="absolute top-24 left-6 right-6 max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain bg-[#FEF0D5] rounded-2xl p-6 shadow-xl border border-[#111214]/10 lg:hidden flex flex-col gap-4"
         >
           {[
             "Services",
@@ -89,6 +111,7 @@ const Header = () => {
             <Link
               to="/patient-flow"
               className="w-full bg-[#5B1112] text-white py-3 rounded-xl font-medium shadow-sm text-center"
+              onClick={() => setIsOpen(false)}
             >
               Prendre RDV
             </Link>

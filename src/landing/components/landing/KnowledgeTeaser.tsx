@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { BookOpen, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export function KnowledgeTeaser() {
   const articles = [

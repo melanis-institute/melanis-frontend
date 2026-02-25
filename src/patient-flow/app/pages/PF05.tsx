@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ComponentType, type SVGProps } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type SVGProps,
+} from "react";
 import { useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -18,23 +25,16 @@ import {
 import { HeaderBack } from "../components/HeaderBack";
 import { PageLayout } from "../components/PageLayout";
 import { StepIndicator } from "../components/StepIndicator";
-import {
-  PersistentContextBar,
-  type PatientProfile,
-} from "../components/PersistentContextBar";
+import { PersistentContextBar } from "../components/PersistentContextBar";
+import { relationshipToLabel } from "../account/mockAccountAdapter";
+import { useAuth } from "../auth/useAuth";
+import { practitionerIdFromName } from "../appointments/mockAppointmentAdapter";
 
 type ReminderPrefs = {
   sms: boolean;
   whatsapp: boolean;
   email: boolean;
 };
-
-function normalizeProfile(profile?: string | null): PatientProfile {
-  if (profile === "moi" || profile === "enfant" || profile === "proche") {
-    return profile;
-  }
-  return "moi";
-}
 
 function formatDateLabel(date?: string) {
   if (!date) return "À définir";
@@ -152,11 +152,13 @@ function ChecklistItem({
 export default function PF05() {
   const navigate = useNavigate();
   const { state } = useLocation();
+  const auth = useAuth();
 
   const appointmentType = state?.appointmentType ?? "presentiel";
-  const [patientProfile, setPatientProfile] = useState<PatientProfile>(() =>
-    normalizeProfile(state?.patientProfile)
-  );
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
   const selectedSlot = state?.selectedSlot ?? {
     date: "Lundi 24 février 2026",
     time: "10:30",
@@ -182,6 +184,8 @@ export default function PF05() {
     paiement: false,
     questions: false,
   });
+  const timelineLoggedRef = useRef(false);
+  const appointmentLoggedRef = useRef(false);
 
   const hasPreConsult = Boolean(state?.preConsultData);
 
@@ -215,6 +219,100 @@ export default function PF05() {
     fallback.setUTCDate(fallback.getUTCDate() + 1);
     return fallback;
   }, [state?.date, state?.time, selectedSlot.time]);
+
+  const timelineSourceRef = useMemo(() => {
+    if (!auth.actingProfileId) return null;
+    const practitionerRef = String(practitioner.name ?? "praticien")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    const dateRef = String(state?.date ?? selectedSlot.date ?? "date").trim();
+    const timeRef = String(state?.time ?? selectedSlot.time ?? "time").trim();
+    return `booking:${auth.actingProfileId}:${dateRef}:${timeRef}:${practitionerRef}:${appointmentType}`;
+  }, [
+    appointmentType,
+    auth.actingProfileId,
+    practitioner.name,
+    selectedSlot.date,
+    selectedSlot.time,
+    state?.date,
+    state?.time,
+  ]);
+
+  useEffect(() => {
+    if (timelineLoggedRef.current) return;
+    if (!auth.user || !auth.actingProfileId || !timelineSourceRef) return;
+
+    timelineLoggedRef.current = true;
+
+    void auth.accountAdapter.appendTimelineEvent({
+      actorUserId: auth.user.id,
+      profileId: auth.actingProfileId,
+      type: "appointment_booked",
+      title: "Rendez-vous confirmé",
+      description: `${selectedSlot.date} à ${selectedSlot.time} avec ${practitioner.name}`,
+      source: "booking_flow",
+      sourceRef: timelineSourceRef,
+      meta: {
+        appointmentType,
+        practitionerName: practitioner.name,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+      },
+    });
+  }, [
+    appointmentType,
+    auth.accountAdapter,
+    auth.actingProfileId,
+    auth.user,
+    practitioner.name,
+    selectedSlot.date,
+    selectedSlot.time,
+    timelineSourceRef,
+  ]);
+
+  useEffect(() => {
+    if (appointmentLoggedRef.current) return;
+    if (!auth.user || !auth.actingProfileId || !timelineSourceRef) return;
+
+    appointmentLoggedRef.current = true;
+
+    const patientLabel = auth.actingProfile
+      ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`.trim()
+      : "Profil patient";
+
+    void auth.appointmentAdapter.createAppointmentFromBooking({
+      bookingSourceRef: timelineSourceRef,
+      profileId: auth.actingProfileId,
+      patientLabel,
+      practitionerId: practitionerIdFromName(String(practitioner.name ?? "")),
+      practitionerName: String(practitioner.name ?? "Praticien"),
+      practitionerSpecialty:
+        typeof practitioner.specialty === "string" ? practitioner.specialty : undefined,
+      practitionerLocation:
+        typeof practitioner.location === "string" ? practitioner.location : undefined,
+      appointmentType,
+      scheduledFor: resolvedAppointmentDate.toISOString(),
+      dateLabel: String(selectedSlot.date ?? "À définir"),
+      timeLabel: String(selectedSlot.time ?? "À définir"),
+      createdByUserId: auth.user.id,
+      preConsultData: state?.preConsultData,
+    });
+  }, [
+    appointmentType,
+    auth.actingProfile,
+    auth.actingProfileId,
+    auth.appointmentAdapter,
+    auth.user,
+    practitioner.location,
+    practitioner.name,
+    practitioner.specialty,
+    resolvedAppointmentDate,
+    selectedSlot.date,
+    selectedSlot.time,
+    state?.preConsultData,
+    timelineSourceRef,
+  ]);
 
   const setReminder = (key: keyof ReminderPrefs) => {
     setReminderPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -297,7 +395,8 @@ export default function PF05() {
     navigate("/patient-flow/detail-confirmation", {
       state: {
         ...state,
-        patientProfile,
+        actingProfileId: auth.actingProfileId,
+        actingRelationship: auth.actingProfile?.relationship,
       },
     });
   };
@@ -335,8 +434,16 @@ export default function PF05() {
           className="px-5 md:px-8 mt-2"
         >
           <PersistentContextBar
-            profile={patientProfile}
-            onProfileChange={setPatientProfile}
+            profileId={auth.actingProfileId}
+            profileLabel={
+              auth.actingProfile
+                ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                : null
+            }
+            profileOptions={profileOptions}
+            onProfileChange={(profileId) => {
+              void auth.setActingProfile(profileId);
+            }}
             appointmentType={appointmentType}
             practitionerName={practitioner.name}
             dateLabel={state?.date ? formatDateLabel(state.date) : selectedSlot.date}
@@ -591,7 +698,8 @@ export default function PF05() {
                           navigate("/patient-flow/confirmation", {
                             state: {
                               ...state,
-                              patientProfile,
+                              actingProfileId: auth.actingProfileId,
+                              actingRelationship: auth.actingProfile?.relationship,
                             },
                           });
                         }}

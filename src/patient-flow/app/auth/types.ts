@@ -1,5 +1,10 @@
+import type { BookingFlowContext } from "../types/flow";
+import type { UserRole } from "./roles";
+
 export type AuthCountryCode = "+221";
 export type OtpPurpose = "login" | "signup" | "reset_pin";
+export type AuthSocialProvider = "google" | "facebook";
+export type AuthDraftType = "signup" | "recovery";
 
 export interface AuthUser {
   id: string;
@@ -7,6 +12,8 @@ export interface AuthUser {
   phoneE164: string;
   countryCode: AuthCountryCode;
   email?: string;
+  roles: UserRole[];
+  practitionerId?: string;
   hasPin: boolean;
   createdAt: string;
   updatedAt: string;
@@ -30,29 +37,10 @@ export interface OtpChallenge {
   attemptsRemaining: number;
 }
 
-export interface AuthFlowContext {
-  returnTo?: string;
-  appointmentType?: "presentiel" | "video";
-  date?: string;
-  time?: string;
-  selectedSlot?: {
-    date?: string;
-    time?: string;
-  };
-  practitioner?: {
-    name?: string;
-    specialty?: string;
-    location?: string;
-    fee?: string;
-    [key: string]: unknown;
-  };
-  preConsultData?: unknown;
-  patientProfile?: string;
-  [key: string]: unknown;
-}
+export type AuthFlowContext = BookingFlowContext;
 
 export interface AuthDraftRecord {
-  type: "signup" | "recovery";
+  type: AuthDraftType;
   payload: Record<string, unknown>;
   savedAt: number;
   expiresAt: number;
@@ -66,6 +54,6 @@ export interface PendingAuthState {
   fullName?: string;
   email?: string;
   termsAccepted?: boolean;
-  socialProvider?: "google" | "facebook";
+  socialProvider?: AuthSocialProvider;
   tempToken?: string;
 }

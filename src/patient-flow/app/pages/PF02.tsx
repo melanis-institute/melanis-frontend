@@ -12,9 +12,10 @@ import { FilterChips } from "../components/FilterChips";
 import { TimeSlotGrid } from "../components/TimeSlotGrid";
 import {
   PersistentContextBar,
-  type PatientProfile,
 } from "../components/PersistentContextBar";
 import { motion } from "motion/react";
+import { relationshipToLabel } from "../account/mockAccountAdapter";
+import { useAuth } from "../auth/useAuth";
 
 // --- Mock data ---
 
@@ -46,13 +47,6 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "aprem", label: "Après-midi" },
   { key: "soir", label: "Soir" },
 ];
-
-function normalizeProfile(profile?: string | null): PatientProfile {
-  if (profile === "moi" || profile === "enfant" || profile === "proche") {
-    return profile;
-  }
-  return "moi";
-}
 
 function generateDates(startOffset: number, count: number): DateChip[] {
   const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -146,16 +140,15 @@ const INITIAL_DATES = generateDates(0, 10);
 export default function PF02() {
   const location = useLocation();
   const navigate = useNavigate();
+  const auth = useAuth();
   const routeState = (location.state ?? {}) as {
     appointmentType?: "presentiel" | "video";
-    patientProfile?: string;
+    actingProfileId?: string;
+    actingRelationship?: "moi" | "enfant" | "proche";
   };
 
   const appointmentType = routeState.appointmentType ?? "presentiel";
 
-  const [patientProfile, setPatientProfile] = useState<PatientProfile>(() =>
-    normalizeProfile(routeState.patientProfile)
-  );
   const [dates, setDates] = useState<DateChip[]>(INITIAL_DATES);
   const [selectedDate, setSelectedDate] = useState<string>(
     INITIAL_DATES[0]?.key ?? ""
@@ -281,6 +274,10 @@ export default function PF02() {
   };
 
   const canContinue = Boolean(selectedDate && selectedTime);
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
 
   const handleContinue = () => {
     if (!canContinue) {
@@ -291,7 +288,8 @@ export default function PF02() {
     navigate("/patient-flow/confirmation", {
       state: {
         appointmentType,
-        patientProfile,
+        actingProfileId: auth.actingProfileId,
+        actingRelationship: auth.actingProfile?.relationship,
         date: selectedDate,
         time: selectedTime,
         selectedSlot: {
@@ -314,6 +312,7 @@ export default function PF02() {
         >
           <HeaderBack onBack={() => navigate(-1)} />
           <StepIndicator current={2} total={5} />
+          <div className="w-[44px]" aria-hidden="true" />
         </motion.div>
 
         <motion.div
@@ -323,8 +322,16 @@ export default function PF02() {
           className="px-5 md:px-8 mt-2 md:mt-3"
         >
           <PersistentContextBar
-            profile={patientProfile}
-            onProfileChange={setPatientProfile}
+            profileId={auth.actingProfileId}
+            profileLabel={
+              auth.actingProfile
+                ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                : null
+            }
+            profileOptions={profileOptions}
+            onProfileChange={(profileId) => {
+              void auth.setActingProfile(profileId);
+            }}
             appointmentType={appointmentType}
             practitionerName={PRACTITIONER.name}
             dateLabel={selectedDateLabel}

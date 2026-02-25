@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ComponentType, type SVGProps, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ComponentType, type SVGProps, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Target,
@@ -23,7 +23,7 @@ import {
   IconLocal,
   IconBioVegan,
 } from "./objectif-icons";
-import { OBJECTIFS, PREFERENCES } from "./types";
+import { OBJECTIFS } from "./types";
 
 // ——— Custom icon type ———
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -519,39 +519,20 @@ export function StepObjectifs({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Progressive disclosure watermark
-  const [revealedUpTo, setRevealedUpTo] = useState(() => {
-    if (preferences.length > 0 || notesObjectifs.length > 0) return 3;
-    if (objectifs.length > 0) return 2;
+  const revealedUpTo = useMemo(() => {
+    if (
+      preferences.length > 0 ||
+      notesObjectifs.length > 0 ||
+      objectifs.length > 0
+    ) {
+      return 3;
+    }
     return 1;
-  });
+  }, [objectifs.length, preferences.length, notesObjectifs.length]);
 
   const section2Ref = useRef<HTMLDivElement>(null);
   const section3Ref = useRef<HTMLDivElement>(null);
   const prevRevealedRef = useRef(revealedUpTo);
-
-  // Reveal section 2 when objectifs selected
-  useEffect(() => {
-    if (objectifs.length > 0 && revealedUpTo < 2) {
-      setRevealedUpTo(2);
-    }
-  }, [objectifs.length, revealedUpTo]);
-
-  // Reveal section 3 when preferences selected or after delay
-  useEffect(() => {
-    if (preferences.length > 0 && revealedUpTo < 3) {
-      setRevealedUpTo(3);
-    }
-  }, [preferences.length, revealedUpTo]);
-
-  // Also reveal section 3 after delay when section 2 is visible
-  useEffect(() => {
-    if (revealedUpTo === 2) {
-      const timer = setTimeout(() => {
-        setRevealedUpTo(3);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [revealedUpTo]);
 
   // Auto-scroll on reveal
   useEffect(() => {
@@ -559,12 +540,7 @@ export function StepObjectifs({
     if (revealedUpTo > prev) {
       prevRevealedRef.current = revealedUpTo;
       const timer = setTimeout(() => {
-        const targetRef =
-          revealedUpTo === 2
-            ? section2Ref
-            : revealedUpTo === 3
-            ? section3Ref
-            : null;
+        const targetRef = revealedUpTo === 3 ? section3Ref : null;
         targetRef?.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",

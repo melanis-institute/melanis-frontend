@@ -11,6 +11,13 @@ import {
   type VerifyOtpResult,
 } from "./adapter";
 import type { AuthSession, AuthUser, OtpChallenge } from "./types";
+import type {
+  ChallengeStore,
+  StoredChallenge,
+  StoredUser,
+  TempTokenRecord,
+} from "./mockAuthAdapter.types";
+import { normalizeRoles } from "./roles";
 import { isValidOtpCode, isValidPhone221, isValidPin } from "./validation";
 
 const USERS_KEY = "melanis_auth_users_v1";
@@ -23,33 +30,84 @@ const OTP_ATTEMPTS_MAX = 5;
 const TEMP_TOKEN_EXPIRY_MS = 10 * 60_000;
 const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60_000;
 const PIN_LOCK_MS = 5 * 60_000;
+const SEEDED_USERS_VERSION = "v1";
 
-interface StoredUser extends AuthUser {
-  pinHash?: string;
-  pinSalt?: string;
-  failedPinAttempts?: number;
-  pinLockedUntil?: number;
-}
-
-interface StoredChallenge extends OtpChallenge {
-  code: string;
-  used: boolean;
-  createdAt: number;
-}
-
-interface TempTokenRecord {
-  tempToken: string;
-  challengeId: string;
-  phoneE164: string;
-  purpose: "login" | "signup" | "reset_pin";
-  expiresAt: number;
-  consumed: boolean;
-}
-
-interface ChallengeStore {
-  challenges: StoredChallenge[];
-  tempTokens: TempTokenRecord[];
-}
+const SEEDED_USERS: StoredUser[] = [
+  {
+    id: "seed_patient_1",
+    fullName: "Fatou Ndiaye",
+    phoneE164: "+221770000001",
+    countryCode: "+221",
+    email: "fatou.patient@melanis.local",
+    roles: ["patient"],
+    hasPin: false,
+    createdAt: "2026-01-01T09:00:00.000Z",
+    updatedAt: "2026-01-01T09:00:00.000Z",
+    failedPinAttempts: 0,
+  },
+  {
+    id: "seed_prac_1",
+    fullName: "Dr. Aissatou Diallo",
+    phoneE164: "+221770000002",
+    countryCode: "+221",
+    email: "aissatou.prac@melanis.local",
+    roles: ["practitioner"],
+    practitionerId: "prac_dr_aissatou_diallo",
+    hasPin: false,
+    createdAt: "2026-01-01T09:05:00.000Z",
+    updatedAt: "2026-01-01T09:05:00.000Z",
+    failedPinAttempts: 0,
+  },
+  {
+    id: "seed_staff_1",
+    fullName: "Moussa Staff",
+    phoneE164: "+221770000003",
+    countryCode: "+221",
+    email: "moussa.staff@melanis.local",
+    roles: ["staff"],
+    hasPin: false,
+    createdAt: "2026-01-01T09:10:00.000Z",
+    updatedAt: "2026-01-01T09:10:00.000Z",
+    failedPinAttempts: 0,
+  },
+  {
+    id: "seed_admin_1",
+    fullName: "Aminata Admin",
+    phoneE164: "+221770000004",
+    countryCode: "+221",
+    email: "aminata.admin@melanis.local",
+    roles: ["admin"],
+    hasPin: false,
+    createdAt: "2026-01-01T09:15:00.000Z",
+    updatedAt: "2026-01-01T09:15:00.000Z",
+    failedPinAttempts: 0,
+  },
+  {
+    id: "seed_external_1",
+    fullName: "Dr. Gora Externe",
+    phoneE164: "+221770000005",
+    countryCode: "+221",
+    email: "gora.external@melanis.local",
+    roles: ["external_practitioner"],
+    hasPin: false,
+    createdAt: "2026-01-01T09:20:00.000Z",
+    updatedAt: "2026-01-01T09:20:00.000Z",
+    failedPinAttempts: 0,
+  },
+  {
+    id: "seed_multi_1",
+    fullName: "Dr. Mariama Sy",
+    phoneE164: "+221770000006",
+    countryCode: "+221",
+    email: "mariama.multi@melanis.local",
+    roles: ["patient", "practitioner"],
+    practitionerId: "prac_dr_mariama_sy",
+    hasPin: false,
+    createdAt: "2026-01-01T09:25:00.000Z",
+    updatedAt: "2026-01-01T09:25:00.000Z",
+    failedPinAttempts: 0,
+  },
+];
 
 function hasWindow() {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
@@ -93,8 +151,44 @@ function randomToken() {
   return `${randomId("tok")}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
+function normalizeStoredUser(user: StoredUser): StoredUser {
+  return {
+    ...user,
+    roles: normalizeRoles(user.roles),
+    practitionerId:
+      typeof user.practitionerId === "string" && user.practitionerId.trim().length > 0
+        ? user.practitionerId
+        : undefined,
+  };
+}
+
 function readUsers(): StoredUser[] {
-  return safeRead<StoredUser[]>(USERS_KEY, []);
+  const users = safeRead<StoredUser[]>(USERS_KEY, []).map(normalizeStoredUser);
+
+  const seededFlagKey = `melanis_auth_seeded_${SEEDED_USERS_VERSION}`;
+  const shouldApplySeeds = !hasWindow() || localStorage.getItem(seededFlagKey) !== "1";
+  if (!shouldApplySeeds) {
+    return users;
+  }
+
+  let mutated = false;
+
+  for (const seed of SEEDED_USERS) {
+    const exists = users.some((item) => item.phoneE164 === seed.phoneE164);
+    if (exists) continue;
+    users.push(seed);
+    mutated = true;
+  }
+
+  if (mutated) {
+    writeUsers(users);
+  }
+
+  if (hasWindow()) {
+    localStorage.setItem(seededFlagKey, "1");
+  }
+
+  return users;
 }
 
 function writeUsers(users: StoredUser[]) {
@@ -343,6 +437,7 @@ export class MockAuthAdapter implements AuthAdapter {
       phoneE164,
       countryCode: "+221",
       email: input.email?.trim() || undefined,
+      roles: ["patient"],
       hasPin: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),

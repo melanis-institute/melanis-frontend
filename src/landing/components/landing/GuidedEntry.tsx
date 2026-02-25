@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState } from 'react';
+import { motion } from 'motion/react';
 import { ArrowUpRight, ArrowRight } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 

@@ -5,10 +5,7 @@ import { useLocation, useNavigate } from "react-router";
 import { HeaderBack } from "../components/HeaderBack";
 import { MelaniaMascot } from "../components/MelaniaMascot";
 import { PageLayout } from "../components/PageLayout";
-import {
-  PersistentContextBar,
-  type PatientProfile,
-} from "../components/PersistentContextBar";
+import { PersistentContextBar } from "../components/PersistentContextBar";
 import { StepHistorique } from "../components/preconsult/StepHistorique";
 import { StepIntro } from "../components/preconsult/StepIntro";
 import { StepLocalisation } from "../components/preconsult/StepLocalisation";
@@ -24,6 +21,8 @@ import { TOTAL_SUBSTEPS } from "../components/preconsult/types";
 import { usePersistedPreConsult } from "../components/preconsult/usePersistedPreConsult";
 import { QuestionBubble } from "../components/QuestionBubble";
 import { StepIndicator } from "../components/StepIndicator";
+import { relationshipToLabel } from "../account/mockAccountAdapter";
+import { useAuth } from "../auth/useAuth";
 
 const STEP_META: Record<number, { title: string; subtitle?: string }> = {
   1: {
@@ -80,13 +79,6 @@ const STAGE_MAP: Record<number, number> = {
   8: 5,
 };
 
-function normalizeProfile(profile?: string | null): PatientProfile {
-  if (profile === "moi" || profile === "enfant" || profile === "proche") {
-    return profile;
-  }
-  return "moi";
-}
-
 function formatDateLabel(date?: string) {
   if (!date) return "À définir";
   const parsed = new Date(`${date}T00:00:00`);
@@ -119,21 +111,24 @@ function getRemainingEstimate(stage: number) {
 export default function PF03() {
   const location = useLocation();
   const navigate = useNavigate();
+  const auth = useAuth();
   const routeState = useMemo(
     () =>
       (location.state ?? {}) as {
         appointmentType?: "presentiel" | "video";
         date?: string;
         time?: string;
-        patientProfile?: string;
+        actingProfileId?: string;
+        actingRelationship?: "moi" | "enfant" | "proche";
       },
     [location.state],
   );
 
   const appointmentType = routeState.appointmentType ?? "presentiel";
-  const [patientProfile, setPatientProfile] = useState<PatientProfile>(() =>
-    normalizeProfile(routeState.patientProfile),
-  );
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
 
   const {
     data,
@@ -148,7 +143,6 @@ export default function PF03() {
 
   const [subStep, setSubStep] = useState(0);
   const [direction, setDirection] = useState(1);
-  const [showSaveToast, setShowSaveToast] = useState(false);
   const [showDraftBanner, setShowDraftBanner] = useState(
     hasDraft && restoredStep > 0,
   );
@@ -308,7 +302,8 @@ export default function PF03() {
     navigate("/patient-flow/detail-confirmation", {
       state: {
         ...routeState,
-        patientProfile,
+        actingProfileId: auth.actingProfileId,
+        actingRelationship: auth.actingProfile?.relationship,
         preConsultData: data,
       },
     });
@@ -319,7 +314,8 @@ export default function PF03() {
     clearDraft,
     navigate,
     routeState,
-    patientProfile,
+    auth.actingProfile?.relationship,
+    auth.actingProfileId,
     data,
   ]);
 
@@ -348,17 +344,12 @@ export default function PF03() {
     navigate("/patient-flow/detail-confirmation", {
       state: {
         ...routeState,
-        patientProfile,
+        actingProfileId: auth.actingProfileId,
+        actingRelationship: auth.actingProfile?.relationship,
         preConsultSkipped: true,
       },
     });
-  }, [navigate, routeState, patientProfile]);
-
-  const handleSave = useCallback(() => {
-    updateSubStep(subStep);
-    setShowSaveToast(true);
-    setTimeout(() => setShowSaveToast(false), 2500);
-  }, [subStep, updateSubStep]);
+  }, [navigate, routeState, auth.actingProfileId, auth.actingProfile?.relationship]);
 
   const handleContinue = useCallback(() => {
     if (!canContinue) {
@@ -495,8 +486,16 @@ export default function PF03() {
           <div className="shrink-0">
             <div className="px-5 pt-3">
               <PersistentContextBar
-                profile={patientProfile}
-                onProfileChange={setPatientProfile}
+                profileId={auth.actingProfileId}
+                profileLabel={
+                  auth.actingProfile
+                    ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                    : null
+                }
+                profileOptions={profileOptions}
+                onProfileChange={(profileId) => {
+                  void auth.setActingProfile(profileId);
+                }}
                 appointmentType={appointmentType}
                 practitionerName="Dr. Aïssatou Diallo"
                 dateLabel={dateLabel}
@@ -581,6 +580,7 @@ export default function PF03() {
           >
             <HeaderBack onBack={goBack} />
             <StepIndicator current={3} total={5} />
+            <div className="w-[44px]" aria-hidden="true" />
           </motion.div>
 
           <motion.div
@@ -590,8 +590,16 @@ export default function PF03() {
             className="px-5 md:px-8 mt-2"
           >
             <PersistentContextBar
-              profile={patientProfile}
-              onProfileChange={setPatientProfile}
+              profileId={auth.actingProfileId}
+              profileLabel={
+                auth.actingProfile
+                  ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+                  : null
+              }
+              profileOptions={profileOptions}
+              onProfileChange={(profileId) => {
+                void auth.setActingProfile(profileId);
+              }}
               appointmentType={appointmentType}
               practitionerName="Dr. Aïssatou Diallo"
               dateLabel={dateLabel}
@@ -770,30 +778,6 @@ export default function PF03() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showSaveToast && (
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50"
-          >
-            <div
-              className="flex items-center gap-2.5 px-5 py-3 rounded-full bg-[#111214] text-white"
-              style={{
-                boxShadow:
-                  "0 4px 20px rgba(17,18,20,0.25), 0 1px 4px rgba(17,18,20,0.1)",
-              }}
-            >
-              <Save className="w-[15px] h-[15px]" strokeWidth={1.7} />
-              <span className="text-[14px]" style={{ fontWeight: 500 }}>
-                Progression sauvegardée
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </PageLayout>
   );
 }

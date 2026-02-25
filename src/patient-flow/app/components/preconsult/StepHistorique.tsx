@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ComponentType, type SVGProps, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ComponentType, type SVGProps, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   History,
@@ -753,58 +753,32 @@ export function StepHistorique({ data, onUpdate }: StepHistoriqueProps) {
   );
 
   // ——— Progressive disclosure watermark ———
-  const [revealedUpTo, setRevealedUpTo] = useState(() => {
+  const revealedUpTo = useMemo(() => {
     if (data.allergies !== null || data.medicaments !== null) return 4;
-    if (data.traitements.length > 0 || data.traitementAutre.length > 0) return 3;
+
+    const hasTraitements =
+      data.traitements.length > 0 || data.traitementAutre.length > 0;
+    const noHistory =
+      data.dejaEuProbleme === false && data.dejaConsulte === false;
+    if (hasTraitements || noHistory) return 4;
+
+    if (data.dejaEuProbleme !== null && data.dejaConsulte !== null) return 3;
     if (data.dejaEuProbleme !== null || data.dejaConsulte !== null) return 2;
     return 1;
-  });
+  }, [
+    data.allergies,
+    data.medicaments,
+    data.traitements.length,
+    data.traitementAutre,
+    data.dejaEuProbleme,
+    data.dejaConsulte,
+  ]);
 
   // Section refs
   const section2Ref = useRef<HTMLDivElement>(null);
   const section3Ref = useRef<HTMLDivElement>(null);
   const section4Ref = useRef<HTMLDivElement>(null);
   const prevRevealedRef = useRef(revealedUpTo);
-
-  // Update reveal watermark
-  useEffect(() => {
-    if (
-      (data.dejaEuProbleme !== null || data.dejaConsulte !== null) &&
-      revealedUpTo < 2
-    ) {
-      setRevealedUpTo(2);
-    }
-  }, [data.dejaEuProbleme, data.dejaConsulte, revealedUpTo]);
-
-  useEffect(() => {
-    // Reveal section 3 once any interaction in section 2 occurs
-    // or if user answered both questions in section 1
-    if (
-      data.dejaEuProbleme !== null &&
-      data.dejaConsulte !== null &&
-      revealedUpTo < 3
-    ) {
-      setRevealedUpTo(3);
-    }
-  }, [data.dejaEuProbleme, data.dejaConsulte, revealedUpTo]);
-
-  useEffect(() => {
-    // Reveal section 4 once treatments are selected or section 3 gets interaction
-    const hasTraitements =
-      data.traitements.length > 0 || data.traitementAutre.length > 0;
-    // Also reveal if both section 1 answers are "non" (no treatments to try)
-    const noHistory =
-      data.dejaEuProbleme === false && data.dejaConsulte === false;
-    if ((hasTraitements || noHistory) && revealedUpTo < 4) {
-      setRevealedUpTo(4);
-    }
-  }, [
-    data.traitements.length,
-    data.traitementAutre,
-    data.dejaEuProbleme,
-    data.dejaConsulte,
-    revealedUpTo,
-  ]);
 
   // Auto-scroll when new section appears
   useEffect(() => {

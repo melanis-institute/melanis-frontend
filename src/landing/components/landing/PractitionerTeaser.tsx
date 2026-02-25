@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Search, MapPin, Star, User, Languages, ArrowRight } from 'lucide-react';
+import { Search, MapPin, Star, Languages, ArrowRight } from 'lucide-react';
 import { AnimatedSection } from './AnimatedSection';
 
 export function PractitionerTeaser() {

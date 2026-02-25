@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ComponentType, type SVGProps } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ComponentType, type SVGProps } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertTriangle,
@@ -392,17 +392,15 @@ export function StepSymptomes({
   onIntensiteChange,
   onNotesChange,
 }: StepSymptomesProps) {
-  const [showRedFlag, setShowRedFlag] = useState(false);
   const [showNotes, setShowNotes] = useState(notesSymptomes.length > 0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Progressive disclosure: watermark — once unlocked, stays visible
-  const [revealedUpTo, setRevealedUpTo] = useState(() => {
-    // Initialize based on existing data (e.g. user navigated back)
-    if (duree !== null) return 3; // all sections visible
-    if (symptomes.length > 0) return 2; // symptoms + duration visible
-    return 1; // only symptoms visible
-  });
+  const revealedUpTo = useMemo(() => {
+    if (duree !== null) return 3;
+    if (symptomes.length > 0) return 2;
+    return 1;
+  }, [duree, symptomes.length]);
 
   // Section refs for scroll-into-view
   const section2Ref = useRef<HTMLDivElement>(null);
@@ -411,19 +409,6 @@ export function StepSymptomes({
 
   // Track previous values to detect new reveals
   const prevRevealedRef = useRef(revealedUpTo);
-
-  // Update reveal watermark based on data
-  useEffect(() => {
-    if (symptomes.length > 0 && revealedUpTo < 2) {
-      setRevealedUpTo(2);
-    }
-  }, [symptomes.length, revealedUpTo]);
-
-  useEffect(() => {
-    if (duree !== null && revealedUpTo < 3) {
-      setRevealedUpTo(3);
-    }
-  }, [duree, revealedUpTo]);
 
   // Auto-scroll when a new section is revealed
   useEffect(() => {
@@ -442,12 +427,11 @@ export function StepSymptomes({
     }
   }, [revealedUpTo]);
 
-  // Red flag detection
-  useEffect(() => {
+  const showRedFlag = useMemo(() => {
     const hasPain = symptomes.includes("Douleur");
     const hasSwelling = symptomes.includes("Gonflement");
     const severe = intensite >= 4;
-    setShowRedFlag(severe && (hasPain || hasSwelling));
+    return severe && (hasPain || hasSwelling);
   }, [symptomes, intensite]);
 
   const smartTip = getSmartTip(symptomes, duree, intensite);

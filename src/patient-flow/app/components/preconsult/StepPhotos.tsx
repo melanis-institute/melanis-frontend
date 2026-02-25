@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode, type ComponentType, type SVGProps } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode, type ComponentType, type SVGProps } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -549,9 +549,13 @@ export function StepPhotos({
 
   // Progressive disclosure
   const [revealedUpTo, setRevealedUpTo] = useState(1);
+  const computedRevealedUpTo = useMemo(
+    () => (photos.length > 0 ? Math.max(revealedUpTo, 3) : revealedUpTo),
+    [photos.length, revealedUpTo],
+  );
   const section2Ref = useRef<HTMLDivElement>(null);
   const section3Ref = useRef<HTMLDivElement>(null);
-  const prevRevealedRef = useRef(revealedUpTo);
+  const prevRevealedRef = useRef(computedRevealedUpTo);
 
   // Auto-reveal section 2 after a brief delay
   useEffect(() => {
@@ -560,13 +564,6 @@ export function StepPhotos({
     }, 600);
     return () => clearTimeout(timer);
   }, [revealedUpTo]);
-
-  // Reveal section 3 when user has interacted (added photos or after enough time)
-  useEffect(() => {
-    if (photos.length > 0 && revealedUpTo < 3) {
-      setRevealedUpTo(3);
-    }
-  }, [photos.length, revealedUpTo]);
 
   // Also reveal section 3 after a longer delay regardless
   useEffect(() => {
@@ -579,15 +576,15 @@ export function StepPhotos({
   // Auto-scroll on reveal
   useEffect(() => {
     const prev = prevRevealedRef.current;
-    if (revealedUpTo > prev) {
-      prevRevealedRef.current = revealedUpTo;
+    if (computedRevealedUpTo > prev) {
+      prevRevealedRef.current = computedRevealedUpTo;
       const timer = setTimeout(() => {
-        const targetRef = revealedUpTo === 2 ? section2Ref : revealedUpTo === 3 ? section3Ref : null;
+        const targetRef = computedRevealedUpTo === 2 ? section2Ref : computedRevealedUpTo === 3 ? section3Ref : null;
         targetRef?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [revealedUpTo]);
+  }, [computedRevealedUpTo]);
 
   // Feedback
   const feedback = getPhotoFeedback(photos.length, isVideo);
@@ -820,7 +817,7 @@ export function StepPhotos({
 
       {/* ——— Section 2: Upload Area (revealed after tips) ——— */}
       <AnimatePresence>
-        {revealedUpTo >= 2 && (
+        {computedRevealedUpTo >= 2 && (
           <motion.div
             ref={section2Ref}
             initial={{ opacity: 0, y: 20, height: 0, marginTop: 0 }}
@@ -997,7 +994,7 @@ export function StepPhotos({
 
       {/* ——— Section 3: Privacy & Skip (revealed later) ——— */}
       <AnimatePresence>
-        {revealedUpTo >= 3 && (
+        {computedRevealedUpTo >= 3 && (
           <motion.div
             ref={section3Ref}
             initial={{ opacity: 0, y: 20, height: 0, marginTop: 0 }}
