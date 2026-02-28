@@ -1,0 +1,7 @@
+services:
+  frontend:
+    image: ${IMAGE_NAME:-melanis-frontend}:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-melanis-frontend}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CONTAINER_HOST_PORT:-3100}:80"
