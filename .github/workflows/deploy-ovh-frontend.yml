@@ -116,7 +116,8 @@ jobs:
               exit 1
             fi
 
-            mkdir -p \"\${DEPLOY_DIR}\"
+            sudo mkdir -p \"\${DEPLOY_DIR}\"
+            sudo chown \"\$(id -u):\$(id -g)\" \"\${DEPLOY_DIR}\"
             cp \"\${COMPOSE_SRC}\" \"\${COMPOSE_FILE}\"
 
             docker load -i \"\${TARBALL}\"
