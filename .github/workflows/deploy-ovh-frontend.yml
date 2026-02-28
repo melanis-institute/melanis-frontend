@@ -61,7 +61,7 @@ jobs:
       OVH_USER: ${{ secrets.VPS_USER || secrets.OVH_VPS_USER }}
       OVH_PORT: ${{ secrets.VPS_PORT || secrets.OVH_VPS_PORT || '22' }}
       BUILD_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-      DEPLOY_DIR: /opt/melanis/frontend
+      DEPLOY_DIR: ~/melanis/frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -116,8 +116,7 @@ jobs:
               exit 1
             fi
 
-            sudo mkdir -p \"\${DEPLOY_DIR}\"
-            sudo chown \"\$(id -u):\$(id -g)\" \"\${DEPLOY_DIR}\"
+            mkdir -p \"\${DEPLOY_DIR}\"
             cp \"\${COMPOSE_SRC}\" \"\${COMPOSE_FILE}\"
 
             docker load -i \"\${TARBALL}\"
