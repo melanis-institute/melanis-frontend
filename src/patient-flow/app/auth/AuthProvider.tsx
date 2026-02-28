@@ -16,7 +16,9 @@ import {
   saveFlowContext,
 } from "./flow";
 import { mockAuthAdapter } from "./mockAuthAdapter";
+import { BackendAuthAdapter } from "./backendAuthAdapter";
 import { mockAccountAdapter } from "../account/mockAccountAdapter";
+import { BackendAccountAdapter } from "../account/backendAccountAdapter";
 import type {
   ConsentRecord,
   ConsentSnapshot,
@@ -29,6 +31,21 @@ import {
   type UserRole,
 } from "./roles";
 import { mockAppointmentAdapter } from "../appointments/mockAppointmentAdapter";
+import { BackendAppointmentAdapter } from "../appointments/backendAppointmentAdapter";
+import type { AuthAdapter } from "./adapter.types";
+import type { AccountAdapter } from "../account/adapter.types";
+import type { AppointmentAdapter } from "../appointments/adapter.types";
+
+const API_URL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const authAdapter: AuthAdapter = API_URL
+  ? new BackendAuthAdapter(API_URL)
+  : mockAuthAdapter;
+const accountAdapterInst: AccountAdapter = API_URL
+  ? new BackendAccountAdapter(API_URL)
+  : mockAccountAdapter;
+const appointmentAdapterInst: AppointmentAdapter = API_URL
+  ? new BackendAppointmentAdapter(API_URL)
+  : mockAppointmentAdapter;
 
 const ACTING_PROFILE_KEY = "melanis_acting_profile_id_v1";
 const ACTIVE_ROLE_KEY = "melanis_active_role_v1";
@@ -96,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshFromStorage = useCallback(async () => {
-    const storedSession = await mockAuthAdapter.getSession();
+    const storedSession = await authAdapter.getSession();
     setSession(storedSession);
 
     if (!storedSession) {
@@ -104,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const sessionUser = await mockAuthAdapter.getUserById(storedSession.userId);
+    const sessionUser = await authAdapter.getUserById(storedSession.userId);
     setUser(sessionUser);
 
     if (!sessionUser) {
@@ -127,12 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        await mockAccountAdapter.ensureSelfProfile({
+        await accountAdapterInst.ensureSelfProfile({
           userId: nextUser.id,
           fullName: nextUser.fullName,
         });
 
-        const nextProfiles = await mockAccountAdapter.listProfiles(nextUser.id);
+        const nextProfiles = await accountAdapterInst.listProfiles(nextUser.id);
         setProfiles(nextProfiles);
 
         const activeProfile = nextProfiles.find((profile) => profile.id === actingProfileId);
@@ -167,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const consents = await mockAccountAdapter.listConsents(user.id, targetProfileId);
+      const consents = await accountAdapterInst.listConsents(user.id, targetProfileId);
       setConsentSnapshot(buildConsentSnapshot(consents));
     },
     [actingProfileId, session, user],
@@ -181,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (nextSession: AuthSession) => {
       setSession(nextSession);
-      const sessionUser = await mockAuthAdapter.getUserById(nextSession.userId);
+      const sessionUser = await authAdapter.getUserById(nextSession.userId);
       setUser(sessionUser);
       clearActiveRole();
 
@@ -193,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    await mockAuthAdapter.signOut();
+    await authAdapter.signOut();
     setSession(null);
     setUser(null);
     setProfiles([]);
@@ -226,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeActingProfileId(profileId);
 
       if (user) {
-        await mockAccountAdapter.recordProfileSwitch(user.id, profileId);
+        await accountAdapterInst.recordProfileSwitch(user.id, profileId);
         await refreshConsentSnapshot(profileId);
       }
     },
@@ -309,9 +326,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      adapter: mockAuthAdapter,
-      accountAdapter: mockAccountAdapter,
-      appointmentAdapter: mockAppointmentAdapter,
+      adapter: authAdapter,
+      accountAdapter: accountAdapterInst,
+      appointmentAdapter: appointmentAdapterInst,
       session,
       user,
       isAuthenticated: Boolean(session && user),
