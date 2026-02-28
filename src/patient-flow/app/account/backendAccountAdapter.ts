@@ -28,11 +28,11 @@ export class BackendAccountAdapter implements AccountAdapter {
     this.http = createApiClient(baseUrl);
   }
 
-  async ensureSelfProfile(_: EnsureSelfProfileInput): Promise<PatientProfileRecord> {
+  async ensureSelfProfile(_input: EnsureSelfProfileInput): Promise<PatientProfileRecord> {
     return this.http.post<PatientProfileRecord>("/api/v1/patients/profiles/self");
   }
 
-  async listProfiles(_: string): Promise<PatientProfileRecord[]> {
+  async listProfiles(_userId: string): Promise<PatientProfileRecord[]> {
     return this.http.get<PatientProfileRecord[]>("/api/v1/patients/profiles");
   }
 
@@ -163,7 +163,7 @@ export class BackendAccountAdapter implements AccountAdapter {
     await this.http.post<unknown>("/api/v1/patients/profile-switch", undefined, { profileId });
   }
 
-  async listAuditEvents(_: string): Promise<AuditEvent[]> {
+  async listAuditEvents(_userId: string): Promise<AuditEvent[]> {
     return this.http.get<AuditEvent[]>("/api/v1/patients/audit-events");
   }
 }
