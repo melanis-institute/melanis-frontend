@@ -18,7 +18,7 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
-  APP_DOMAIN: front.melanis-institute.com
+  APP_DOMAIN: melanis-institute.com
   IMAGE_NAME: melanis-frontend
   CONTAINER_NAME: melanis-frontend
   CONTAINER_HOST_PORT: "3100"
