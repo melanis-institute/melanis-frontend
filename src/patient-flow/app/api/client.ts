@@ -41,7 +41,11 @@ function readToken(): string | null {
 }
 
 export class ApiClient {
-  constructor(private readonly baseUrl: string) {}
+  private readonly baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   buildUrl(path: string, params?: Record<string, string | number | boolean | null | undefined>): string {
     const url = new URL(path, this.baseUrl);
