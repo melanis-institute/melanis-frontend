@@ -82,6 +82,8 @@ export function mapAuthErrorToMessage(
       return "Le PIN doit contenir exactement 4 chiffres.";
     case "TEMP_TOKEN_INVALID":
       return "Session de vérification expirée. Recommencez la vérification.";
+    case "RATE_LIMITED":
+      return "Trop de requêtes. Patientez puis réessayez.";
     case "TERMS_REQUIRED":
       return "Vous devez accepter les conditions pour créer un compte.";
     default:

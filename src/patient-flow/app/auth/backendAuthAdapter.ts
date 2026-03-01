@@ -26,6 +26,7 @@ const ERROR_CODE_MAP: Record<string, AuthErrorCode> = {
   PIN_LOCKED: "PIN_LOCKED",
   TEMP_TOKEN_INVALID: "TEMP_TOKEN_INVALID",
   TEMP_TOKEN_EXPIRED: "TEMP_TOKEN_INVALID",
+  RATE_LIMITED: "RATE_LIMITED",
   TERMS_NOT_ACCEPTED: "TERMS_REQUIRED",
 };
 
@@ -47,6 +48,13 @@ function writeSession(session: AuthSession | null): void {
     return;
   }
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function parseServerDate(value: string): number | null {
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+  const normalized = hasTimezone ? value : `${value}Z`;
+  const timestamp = Date.parse(normalized);
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 export class BackendAuthAdapter implements AuthAdapter {
@@ -154,7 +162,8 @@ export class BackendAuthAdapter implements AuthAdapter {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       const session = JSON.parse(raw) as AuthSession;
-      if (Date.parse(session.expiresAt) <= Date.now()) {
+      const expiresAt = parseServerDate(session.expiresAt);
+      if (expiresAt === null || expiresAt <= Date.now()) {
         writeSession(null);
         return null;
       }
