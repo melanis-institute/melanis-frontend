@@ -418,7 +418,7 @@ export class MockAuthAdapter implements AuthAdapter {
     };
   }
 
-  async createAccount(input: CreateAccountInput): Promise<AuthUser> {
+  async createAccount(input: CreateAccountInput): Promise<AuthSession> {
     if (!input.termsAccepted) {
       throw new AuthAdapterError("TERMS_REQUIRED", "Terms must be accepted");
     }
@@ -447,7 +447,9 @@ export class MockAuthAdapter implements AuthAdapter {
     users.push(user);
     writeUsers(users);
 
-    return user;
+    const session = await createSession(user.id, true);
+    writeSession(session);
+    return session;
   }
 
   async setPin(input: SetPinInput): Promise<void> {

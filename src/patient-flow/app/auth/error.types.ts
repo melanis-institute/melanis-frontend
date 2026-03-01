@@ -12,4 +12,5 @@ export type AuthErrorCode =
   | "PIN_NOT_SET"
   | "PIN_WEAK"
   | "TEMP_TOKEN_INVALID"
+  | "RATE_LIMITED"
   | "TERMS_REQUIRED";

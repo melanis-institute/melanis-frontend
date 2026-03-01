@@ -62,7 +62,6 @@ import type {
   AuthLocationState,
   PinMode,
   VerificationMode,
-  VerificationRouteState,
 } from "./types";
 import type { PatientProfile } from "../../types/flow";
 
@@ -223,6 +222,25 @@ function areFlowContextsEqual(
   return JSON.stringify(first ?? {}) === JSON.stringify(second ?? {});
 }
 
+function parseServerDate(value?: string): number | null {
+  if (!value) return null;
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+  const normalized = hasTimezone ? value : `${value}Z`;
+  const timestamp = Date.parse(normalized);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function isPendingAuthState(value: unknown): value is PendingAuthState {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.challengeId === "string" &&
+    typeof record.phoneE164 === "string" &&
+    typeof record.purpose === "string" &&
+    typeof record.createdAt === "number"
+  );
+}
+
 export default function AU01() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -297,7 +315,15 @@ export default function AU01() {
   const goToStep = useCallback(
     (
       nextStep: AuthStep,
-      opts?: { replace?: boolean; identityMode?: IdentityFlowMode },
+      opts?: {
+        replace?: boolean;
+        identityMode?: IdentityFlowMode;
+        pendingState?: PendingAuthState | null;
+        otpMode?: OtpPurpose;
+        pinPhoneE164?: string | null;
+        pinTempToken?: string | null;
+        pinRouteMode?: PinMode;
+      },
     ) => {
       setStep(nextStep);
       setError(null);
@@ -317,17 +343,17 @@ export default function AU01() {
         });
       }
       if (nextStep === "OTP") {
-        navigate(`/patient-flow/auth/verification?mode=${entryMode}`, {
+        navigate(`/patient-flow/auth/verification?mode=${opts?.otpMode ?? entryMode}`, {
           replace: opts?.replace ?? false,
-          state: pending,
+          state: opts?.pendingState ?? pending,
         });
       }
       if (nextStep === "PIN") {
-        navigate(`/patient-flow/auth/pin?mode=${pinMode}`, {
+        navigate(`/patient-flow/auth/pin?mode=${opts?.pinRouteMode ?? pinMode}`, {
           replace: opts?.replace ?? false,
           state: {
-            phoneE164,
-            tempToken: tempToken ?? pending?.tempToken,
+            phoneE164: opts?.pinPhoneE164 ?? phoneE164,
+            tempToken: opts?.pinTempToken ?? tempToken ?? pending?.tempToken,
           },
         });
       }
@@ -408,11 +434,11 @@ export default function AU01() {
       setStep("PHONE");
     } else if (path.endsWith("/auth/verification")) {
       setEntryMode(parseVerificationMode(searchParams.get("mode")));
-      const statePending = (location.state ?? null) as VerificationRouteState;
-      const resolvedPending =
-        statePending && typeof statePending === "object" && "challengeId" in statePending
-          ? statePending
-          : loadPendingAuthState();
+      const routePending = isPendingAuthState(location.state) ? location.state : null;
+      const storedPending = loadPendingAuthState();
+      const resolvedPending = [routePending, storedPending]
+        .filter((item): item is PendingAuthState => item !== null)
+        .sort((first, second) => second.createdAt - first.createdAt)[0] ?? null;
       setPending(resolvedPending);
       setStep("OTP");
     } else if (path.endsWith("/auth/pin")) {
@@ -461,11 +487,14 @@ export default function AU01() {
     if (step !== "OTP" || !pending?.challengeId) return;
 
     const tick = () => {
-      if (!pending.resendAt || !pending.expiresAt) return;
-      const resendAt = Date.parse(pending.resendAt);
-      const expiresAt = Date.parse(pending.expiresAt);
-      setSecondsLeft(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
-      setExpiryLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+      const resendAt = parseServerDate(pending.resendAt);
+      const expiresAt = parseServerDate(pending.expiresAt);
+      if (resendAt !== null) {
+        setSecondsLeft(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
+      }
+      if (expiresAt !== null) {
+        setExpiryLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+      }
     };
 
     tick();
@@ -510,7 +539,10 @@ export default function AU01() {
         setDebugCode(challenge.devCode ?? null);
         setOtp(["", "", "", "", "", ""]);
         savePendingAuthState(nextPending);
-        goToStep("OTP");
+        goToStep("OTP", {
+          pendingState: nextPending,
+          otpMode: purpose,
+        });
       } catch (authError) {
         if (authError instanceof AuthAdapterError) {
           setError(mapAuthErrorToMessage(authError.code, authError.meta));
@@ -566,6 +598,12 @@ export default function AU01() {
     if (!pending) {
       setError("Session OTP expirée. Recommencez.");
       goToStep("PHONE", { replace: true });
+      return;
+    }
+
+    const pendingExpiresAt = parseServerDate(pending.expiresAt);
+    if (pendingExpiresAt !== null && pendingExpiresAt <= Date.now()) {
+      setError("Ce code a expiré. Demandez un nouveau code.");
       return;
     }
 
@@ -632,19 +670,13 @@ export default function AU01() {
         }
 
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-        await auth.adapter.createAccount({
+        const session = await auth.adapter.createAccount({
           tempToken: verification.tempToken,
           fullName: fullName || "Nouveau patient",
           phoneE164: pending.phoneE164,
           countryCode: "+221",
           email: email.trim() || undefined,
           termsAccepted: acceptedTerms,
-        });
-
-        const session = await auth.adapter.completeOtpLogin({
-          tempToken: verification.tempToken,
-          phoneE164: pending.phoneE164,
-          trustedDevice: true,
         });
 
         await auth.login(session);

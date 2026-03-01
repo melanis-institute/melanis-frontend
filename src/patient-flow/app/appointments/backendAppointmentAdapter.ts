@@ -52,7 +52,11 @@ export class BackendAppointmentAdapter implements AppointmentAdapter {
   ): Promise<AppointmentRecord> {
     return this.http.post<AppointmentRecord>(
       `/api/v1/appointments/${input.appointmentId}/transition`,
-      { toStatus: input.toStatus },
+      {
+        appointmentId: input.appointmentId,
+        actorUserId: input.actorUserId,
+        toStatus: input.toStatus,
+      },
     );
   }
 }
