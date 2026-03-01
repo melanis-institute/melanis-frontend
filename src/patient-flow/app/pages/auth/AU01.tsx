@@ -46,7 +46,6 @@ import {
   savePendingAuthState,
   toFlowContext,
 } from "../../auth/flow";
-import { getMockOtpChallenge, getMockOtpCode } from "../../auth/mockAuthAdapter";
 import type { AuthFlowContext, AuthUser, OtpPurpose, PendingAuthState } from "../../auth/types";
 import { useAuth } from "../../auth/useAuth";
 import {
@@ -462,23 +461,17 @@ export default function AU01() {
     if (step !== "OTP" || !pending?.challengeId) return;
 
     const tick = () => {
-      const challenge = getMockOtpChallenge(pending.challengeId);
-      if (!challenge) {
-        setError("Le code OTP n'est plus disponible. Demandez-en un nouveau.");
-        return;
-      }
-
-      const resendAt = Date.parse(challenge.resendAt);
-      const expiresAt = Date.parse(challenge.expiresAt);
+      if (!pending.resendAt || !pending.expiresAt) return;
+      const resendAt = Date.parse(pending.resendAt);
+      const expiresAt = Date.parse(pending.expiresAt);
       setSecondsLeft(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
       setExpiryLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
     };
 
-    setDebugCode(getMockOtpCode(pending.challengeId));
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [step, pending?.challengeId]);
+  }, [step, pending?.challengeId, pending?.resendAt, pending?.expiresAt]);
 
   const requestOtp = useCallback(
     async (purpose: OtpPurpose) => {
@@ -505,6 +498,8 @@ export default function AU01() {
           challengeId: challenge.challengeId,
           phoneE164: nextPhoneE164,
           createdAt: Date.now(),
+          resendAt: challenge.resendAt,
+          expiresAt: challenge.expiresAt,
           fullName: fullName || undefined,
           email: email.trim() || undefined,
           termsAccepted: purpose === "signup" ? acceptedTerms : undefined,
@@ -512,6 +507,7 @@ export default function AU01() {
 
         setEntryMode(purpose);
         setPending(nextPending);
+        setDebugCode(challenge.devCode ?? null);
         setOtp(["", "", "", "", "", ""]);
         savePendingAuthState(nextPending);
         goToStep("OTP");
@@ -694,12 +690,14 @@ export default function AU01() {
         ...pending,
         challengeId: challenge.challengeId,
         createdAt: Date.now(),
+        resendAt: challenge.resendAt,
+        expiresAt: challenge.expiresAt,
       };
 
       setPending(nextPending);
       savePendingAuthState(nextPending);
       setOtp(["", "", "", "", "", ""]);
-      setDebugCode(getMockOtpCode(challenge.challengeId));
+      setDebugCode(challenge.devCode ?? null);
     } catch (authError) {
       if (authError instanceof AuthAdapterError) {
         setError(mapAuthErrorToMessage(authError.code, authError.meta));
@@ -1504,7 +1502,35 @@ function OtpStep({
         </button>
         <p className="text-xs text-[#111214]/35">Expire dans {expiryLeft}s</p>
         {debugCode ? (
-          <p className="text-xs text-[#00415E]/60">Code mock: {debugCode}</p>
+          <div
+            role="status"
+            aria-label="Code OTP de débogage"
+            style={{
+              marginTop: "12px",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1.5px dashed rgba(180,120,0,0.4)",
+              background: "rgba(255,200,0,0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+            }}
+          >
+            <span style={{ fontSize: "11px", color: "rgba(120,80,0,0.7)", fontWeight: 600, letterSpacing: "0.03em" }}>
+              DEV — Code OTP
+            </span>
+            <span style={{ fontFamily: "monospace", fontSize: "22px", fontWeight: 700, letterSpacing: "0.18em", color: "#7a5000" }}>
+              {debugCode}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(debugCode)}
+              style={{ fontSize: "11px", color: "rgba(120,80,0,0.6)", border: "1px solid rgba(120,80,0,0.25)", borderRadius: "6px", padding: "2px 8px", background: "transparent", cursor: "pointer" }}
+            >
+              Copier
+            </button>
+          </div>
         ) : null}
       </div>
     </motion.div>

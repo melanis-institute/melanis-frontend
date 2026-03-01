@@ -35,6 +35,8 @@ export interface OtpChallenge {
   expiresAt: string;
   resendAt: string;
   attemptsRemaining: number;
+  /** Only present in dev/test environments — the raw OTP code for debugging. */
+  devCode?: string;
 }
 
 export type AuthFlowContext = BookingFlowContext;
@@ -51,6 +53,8 @@ export interface PendingAuthState {
   challengeId: string;
   phoneE164: string;
   createdAt: number;
+  resendAt?: string;
+  expiresAt?: string;
   fullName?: string;
   email?: string;
   termsAccepted?: boolean;

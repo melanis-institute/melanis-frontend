@@ -359,7 +359,7 @@ export class MockAuthAdapter implements AuthAdapter {
     store.challenges = [challenge, ...store.challenges].slice(0, 20);
     writeChallengeStore(store);
 
-    return challenge;
+    return { ...challenge, devCode: challenge.code };
   }
 
   async verifyOtp(input: VerifyOtpInput): Promise<VerifyOtpResult> {
