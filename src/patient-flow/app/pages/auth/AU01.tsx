@@ -489,7 +489,7 @@ export default function AU01() {
       }
       setStep("PHONE");
     }
-  }, [location.pathname, location.state, searchParams, locationState.resumeDraft, phoneNumber]);
+  }, [location.pathname, location.state, searchParams, locationState.resumeDraft, locationState.prefillPhone, locationState.inscriptionStep, locationState.initialEntryMode, phoneNumber, navigate, incomingFlow]);
 
   useEffect(() => {
     if (entryMode !== "signup") return;
