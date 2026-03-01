@@ -1,6 +1,7 @@
 import type {
   AuthCountryCode,
   AuthSession,
+  AuthUser,
   OtpChallenge,
   OtpPurpose,
 } from "./types";
