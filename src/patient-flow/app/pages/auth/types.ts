@@ -12,6 +12,8 @@ export interface AuthLocationState {
   flowContext?: unknown;
   resetSuccess?: boolean;
   resumeDraft?: boolean;
+  inscriptionStep?: "identity" | "email";
+  initialEntryMode?: OtpPurpose;
 }
 
 export type VerificationMode = OtpPurpose;

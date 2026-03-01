@@ -339,13 +339,22 @@ export default function AU01() {
       if (nextStep === "IDENTITY") {
         navigate("/patient-flow/auth/inscription", {
           replace: opts?.replace ?? false,
-          state: { flowContext: incomingFlow, prefillPhone: normalizePhone221(phoneNumber) },
+          state: {
+            flowContext: incomingFlow,
+            prefillPhone: normalizePhone221(phoneNumber),
+            inscriptionStep: "identity",
+            resumeDraft: true,
+          },
         });
       }
       if (nextStep === "EMAIL") {
         navigate("/patient-flow/auth/inscription", {
           replace: opts?.replace ?? false,
-          state: { flowContext: incomingFlow, prefillPhone: normalizePhone221(phoneNumber) },
+          state: {
+            flowContext: incomingFlow,
+            prefillPhone: normalizePhone221(phoneNumber),
+            inscriptionStep: "email",
+          },
         });
       }
       if (nextStep === "OTP") {
@@ -419,9 +428,31 @@ export default function AU01() {
       setEntryMode("login");
       setStep("PHONE");
     } else if (path.endsWith("/auth/inscription")) {
+      const draft = loadAuthDraft("signup");
+      const phoneFromState = normalizePhone221(locationState.prefillPhone ?? "");
+      const phoneFromDraft = draft?.payload.phone
+        ? normalizePhone221(String(draft.payload.phone))
+        : "";
+      const phoneFromCurrent = normalizePhone221(phoneNumber);
+
+      const hasValidPhone =
+        isValidPhone221(phoneFromState) ||
+        isValidPhone221(phoneFromDraft) ||
+        isValidPhone221(phoneFromCurrent);
+
+      if (!hasValidPhone) {
+        navigate("/patient-flow/auth", {
+          replace: true,
+          state: {
+            flowContext: incomingFlow,
+            initialEntryMode: "signup" as OtpPurpose,
+          },
+        });
+        return;
+      }
+
       setEntryMode("signup");
       setIdentityFlowMode("signup");
-      const draft = loadAuthDraft("signup");
       if (locationState.resumeDraft && draft) {
         setFirstName(String(draft.payload.firstName ?? ""));
         setLastName(String(draft.payload.lastName ?? ""));
@@ -430,7 +461,7 @@ export default function AU01() {
         setAcceptedTerms(Boolean(draft.payload.acceptedTerms));
         setPhoneNumber(String(draft.payload.phone ?? phoneNumber));
       }
-      setStep("IDENTITY");
+      setStep(locationState.inscriptionStep === "email" ? "EMAIL" : "IDENTITY");
     } else if (path.endsWith("/auth/mot-de-passe-oublie")) {
       setEntryMode("reset_pin");
       const draft = loadAuthDraft("recovery");
@@ -453,6 +484,9 @@ export default function AU01() {
     } else if (path.endsWith("/auth/dashboard")) {
       setStep("DASHBOARD");
     } else {
+      if (locationState.initialEntryMode) {
+        setEntryMode(locationState.initialEntryMode);
+      }
       setStep("PHONE");
     }
   }, [location.pathname, location.state, searchParams, locationState.resumeDraft, phoneNumber]);
@@ -813,9 +847,13 @@ export default function AU01() {
     }
 
     if (!isValidPhone221(localPhone)) {
-      setEntryMode("signup");
-      setStatus("Ajoutez votre numéro sénégalais pour continuer l'inscription.");
-      goToStep("PHONE");
+      navigate("/patient-flow/auth", {
+        replace: true,
+        state: {
+          flowContext: incomingFlow,
+          initialEntryMode: "signup" as OtpPurpose,
+        },
+      });
       return;
     }
 
