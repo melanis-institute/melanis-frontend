@@ -328,7 +328,13 @@ export default function AU01() {
       setStep(nextStep);
       setError(null);
       if (nextStep === "PHONE") {
-        navigate("/patient-flow/auth", { replace: opts?.replace ?? false, state: { flowContext: incomingFlow } });
+        navigate("/patient-flow/auth", {
+          replace: opts?.replace ?? false,
+          state: {
+            flowContext: incomingFlow,
+            prefillPhone: normalizePhone221(phoneNumber),
+          },
+        });
       }
       if (nextStep === "IDENTITY") {
         navigate("/patient-flow/auth/inscription", {
@@ -790,9 +796,26 @@ export default function AU01() {
       return;
     }
 
-    const localPhone = normalizePhone221(phoneNumber);
+    let localPhone = normalizePhone221(phoneNumber);
     if (!isValidPhone221(localPhone)) {
-      setError("Ajoutez un numéro sénégalais valide avant de continuer.");
+      const signupDraft = loadAuthDraft("signup");
+      const draftPhone =
+        signupDraft && typeof signupDraft.payload.phone === "string"
+          ? signupDraft.payload.phone
+          : null;
+      if (draftPhone) {
+        const draftLocalPhone = normalizePhone221(draftPhone);
+        if (isValidPhone221(draftLocalPhone)) {
+          localPhone = draftLocalPhone;
+          setPhoneNumber(draftLocalPhone);
+        }
+      }
+    }
+
+    if (!isValidPhone221(localPhone)) {
+      setEntryMode("signup");
+      setStatus("Ajoutez votre numéro sénégalais pour continuer l'inscription.");
+      goToStep("PHONE");
       return;
     }
 
