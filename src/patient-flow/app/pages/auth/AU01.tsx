@@ -632,19 +632,13 @@ export default function AU01() {
         }
 
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-        await auth.adapter.createAccount({
+        const session = await auth.adapter.createAccount({
           tempToken: verification.tempToken,
           fullName: fullName || "Nouveau patient",
           phoneE164: pending.phoneE164,
           countryCode: "+221",
           email: email.trim() || undefined,
           termsAccepted: acceptedTerms,
-        });
-
-        const session = await auth.adapter.completeOtpLogin({
-          tempToken: verification.tempToken,
-          phoneE164: pending.phoneE164,
-          trustedDevice: true,
         });
 
         await auth.login(session);

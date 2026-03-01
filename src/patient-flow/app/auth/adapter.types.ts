@@ -1,7 +1,6 @@
 import type {
   AuthCountryCode,
   AuthSession,
-  AuthUser,
   OtpChallenge,
   OtpPurpose,
 } from "./types";
@@ -59,7 +58,7 @@ export interface ResetPinInput {
 export interface AuthAdapter {
   requestOtp(input: RequestOtpInput): Promise<OtpChallenge>;
   verifyOtp(input: VerifyOtpInput): Promise<VerifyOtpResult>;
-  createAccount(input: CreateAccountInput): Promise<AuthUser>;
+  createAccount(input: CreateAccountInput): Promise<AuthSession>;
   setPin(input: SetPinInput): Promise<void>;
   loginWithPin(input: LoginWithPinInput): Promise<AuthSession>;
   completeOtpLogin(input: CompleteOtpLoginInput): Promise<AuthSession>;

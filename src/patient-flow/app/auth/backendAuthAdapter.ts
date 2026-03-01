@@ -79,9 +79,9 @@ export class BackendAuthAdapter implements AuthAdapter {
     }
   }
 
-  async createAccount(input: CreateAccountInput): Promise<AuthUser> {
+  async createAccount(input: CreateAccountInput): Promise<AuthSession> {
     try {
-      return await this.http.post<AuthUser>("/api/v1/auth/accounts", {
+      const session = await this.http.post<AuthSession>("/api/v1/auth/accounts", {
         tempToken: input.tempToken,
         fullName: input.fullName,
         phoneE164: input.phoneE164,
@@ -89,6 +89,8 @@ export class BackendAuthAdapter implements AuthAdapter {
         email: input.email,
         termsAccepted: input.termsAccepted,
       });
+      writeSession(session);
+      return session;
     } catch (err) {
       rethrowAsAuthError(err);
     }
