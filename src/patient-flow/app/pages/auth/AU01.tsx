@@ -623,7 +623,7 @@ export default function AU01() {
     setPin(["", "", "", ""]);
     setPinMode("login");
     setStatus(null);
-    goToStep("PIN");
+    goToStep("PIN", { pinRouteMode: "login" });
   };
 
   const handleOtpBack = () => {
@@ -697,7 +697,7 @@ export default function AU01() {
 
         setPinMode("setup");
         setPin(["", "", "", ""]);
-        goToStep("PIN");
+        goToStep("PIN", { pinRouteMode: "setup" });
         return;
       }
 
@@ -727,13 +727,13 @@ export default function AU01() {
 
         setPinMode("setup");
         setPin(["", "", "", ""]);
-        goToStep("PIN");
+        goToStep("PIN", { pinRouteMode: "setup" });
         return;
       }
 
       setPinMode("reset");
       setPin(["", "", "", ""]);
-      goToStep("PIN");
+      goToStep("PIN", { pinRouteMode: "reset" });
     } catch (authError) {
       if (authError instanceof AuthAdapterError) {
         setError(mapAuthErrorToMessage(authError.code, authError.meta));
