@@ -50,6 +50,9 @@ const PractitionerAppointmentsScreen = lazy(
 const PractitionerAppointmentDetailScreen = lazy(
   () => import("@portal/features/practitioner/appointment-detail-screen"),
 );
+const PractitionerCalendarScreen = lazy(
+  () => import("@portal/features/practitioner/calendar-screen"),
+);
 const StaffHomeScreen = lazy(() => import("@portal/features/staff/home-screen"));
 const AdminHomeScreen = lazy(() => import("@portal/features/admin/home-screen"));
 const ExternalPractitionerHomeScreen = lazy(
@@ -172,6 +175,14 @@ function PRAC03Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerAppointmentDetailScreen />
+    </Suspense>
+  );
+}
+
+function PRAC04Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PractitionerCalendarScreen />
     </Suspense>
   );
 }
@@ -348,6 +359,10 @@ export const portalRoutes: RouteObject[] = [
                       {
                         path: "appointments/:appointmentId",
                         Component: PRAC03Lazy,
+                      },
+                      {
+                        path: "calendar",
+                        Component: PRAC04Lazy,
                       },
                     ],
                   },
