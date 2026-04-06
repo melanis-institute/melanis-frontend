@@ -1,10 +1,10 @@
 import { render } from "@testing-library/react";
 import { Outlet, RouterProvider, createMemoryRouter, type RouteObject } from "react-router";
-import { AuthContext } from "../patient-flow/app/auth/AuthProvider";
-import { mockAccountAdapter } from "../patient-flow/app/account/mockAccountAdapter";
-import { mockAppointmentAdapter } from "../patient-flow/app/appointments/mockAppointmentAdapter";
-import { mockAuthAdapter } from "../patient-flow/app/auth/mockAuthAdapter";
-import type { AuthContextValue } from "../patient-flow/app/auth/provider.types";
+import { mockAccountAdapter } from "@portal/domains/account/mockAccountAdapter";
+import { mockAppointmentAdapter } from "@portal/domains/appointments/mockAppointmentAdapter";
+import { AuthContext } from "@portal/session/AuthProvider";
+import { mockAuthAdapter } from "@portal/domains/auth/mockAuthAdapter";
+import type { AuthContextValue } from "@portal/session/provider.types";
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];

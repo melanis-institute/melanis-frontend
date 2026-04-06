@@ -1,73 +1,152 @@
-# React + TypeScript + Vite
+# Melanis Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Melanis Frontend is the React + TypeScript + Vite frontend for the Melanis product.
 
-Currently, two official plugins are available:
+It currently hosts two product surfaces inside one runtime:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- `marketing`: the public landing experience
+- `patient`: the authenticated patient and practitioner application
 
-## React Compiler
+The codebase is intentionally organized to keep both surfaces in one repo while making their boundaries explicit.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Stack
 
-## Expanding the ESLint configuration
+- React 19
+- React Router 7
+- TypeScript
+- Vite
+- Tailwind CSS
+- Vitest + Testing Library
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Routes
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- `/` and `/landing`: marketing surface
+- `/patient-flow/*`: patient and practitioner application
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Route composition now lives in:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `src/app/router`
+- `src/marketing/routes.tsx`
+- `src/patient/app/routes.tsx`
+
+## Source Layout
+
+```text
+src/
+  app/         app bootstrap, providers, root router
+  marketing/   landing-only screens and sections
+  patient/     patient/practitioner flows, adapters, features
+  shared/      approved cross-surface utilities and UI primitives
+  test/        shared test helpers
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Important internal conventions:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `marketing` must not import from `patient`
+- `patient` and `marketing` may import from `shared`
+- new imports should use aliases, not deep relative paths
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Available aliases:
+
+- `@app/*`
+- `@marketing/*`
+- `@patient/*`
+- `@shared/*`
+- `@test/*`
+
+## Patient App Structure
+
+The patient surface keeps app-level concerns under `src/patient/app` and feature entrypoints under `src/patient/features`.
+
+Use this pattern for new feature work:
+
+```text
+src/patient/features/<feature>/
+  screen.tsx
+  components/
+  hooks/
+  lib/
+  types.ts
 ```
+
+Page routes under `src/patient/app/pages` should stay thin over time and delegate to feature modules.
+
+## Shared UI and Storage
+
+Reusable UI primitives live in `src/shared/ui`.
+
+Current shared primitives include:
+
+- `Button`
+- `Input`
+- `Field`
+- `Card`
+- `Badge`
+- `SectionHeader`
+- `EmptyState`
+- `ScreenShell`
+- `LoadingState`
+
+Browser persistence must go through `src/shared/lib/storage.ts`.
+Do not call `localStorage` directly from feature code.
+
+## Adapters and Runtime Modes
+
+The patient app supports two runtime modes:
+
+- mock adapters when `VITE_API_BASE_URL` is not set
+- backend adapters when `VITE_API_BASE_URL` is set
+
+Runtime adapter selection lives in `src/patient/app/runtime/adapters.ts`.
+
+Example:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+Without `VITE_API_BASE_URL`, the app uses local mock data and browser persistence.
+
+Contract source of truth for real API mode:
+
+- backend OpenAPI: `../melanis-backend/docs/openapi.v1.yaml`
+- shared note: `../docs/API_CONTRACT_SOURCE_OF_TRUTH.md`
+
+## Commands
+
+```bash
+npm run dev
+npm run lint
+npm test
+npm run build
+npm run check
+```
+
+## Testing
+
+The default test stack is Vitest + Testing Library.
+
+Shared test helpers live in `src/test`.
+
+When adding or refactoring features, prefer covering:
+
+- routing and guard behavior
+- role-based access behavior
+- persistence and restore behavior
+- adapter contracts
+
+## Working Rules
+
+- use semantic Tailwind tokens instead of raw colors for new shared UI
+- keep cross-surface logic in `shared`, not in `marketing` or `patient`
+- keep auth/session state in context; avoid adding a global state library in the foundation pass
+- prefer extracting repeated UI into shared or feature-local primitives before growing route files
+
+## Architecture Notes
+
+See:
+
+- `docs/architecture.md`
+- `docs/adr/0001-single-frontend-with-bounded-surfaces.md`
+- `docs/adr/0002-adapter-selection-at-runtime.md`
+- `docs/adr/0003-no-global-state-library-in-foundation-pass.md`

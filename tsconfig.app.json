@@ -15,6 +15,14 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@marketing/*": ["src/app/marketing/*"],
+      "@portal/*": ["src/app/portal/*"],
+      "@shared/*": ["src/shared/*"],
+      "@test/*": ["src/test/*"]
+    },
 
     /* Linting */
     "strict": true,

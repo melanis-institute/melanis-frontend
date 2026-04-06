@@ -6,6 +6,14 @@
     "module": "ESNext",
     "types": ["node"],
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@marketing/*": ["src/marketing/*"],
+      "@patient/*": ["src/patient/*"],
+      "@shared/*": ["src/shared/*"],
+      "@test/*": ["src/test/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",

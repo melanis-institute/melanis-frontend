@@ -1,1 +1,1 @@
-export { default } from "./patient-flow/app/App";
+export { default } from "@app/core/App";
