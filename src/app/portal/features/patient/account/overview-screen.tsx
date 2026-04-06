@@ -1,5 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { relationshipToLabel } from "@portal/domains/account/labels";
+import type {
+  AuditEvent,
+  ConsentRecord,
+  NotificationChannelPreference,
+  NotificationPreference,
+  PatientProfileRecord,
+  SkinScoreRecord,
+} from "@portal/domains/account/types";
+import type { AppointmentRecord } from "@portal/domains/appointments/types";
+import { TYPES_PEAU } from "@portal/features/patient/preconsult/components/types";
+import type { AuthFlowContext } from "@portal/session/types";
+import { useAuth } from "@portal/session/useAuth";
+import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
+import { readStorageJson } from "@shared/lib/storage";
 import {
   Activity,
   AlertCircle,
@@ -23,25 +36,11 @@ import {
   TrendingUp,
   User,
   Users,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { readStorageJson } from "@shared/lib/storage";
-import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
-import { useAuth } from "@portal/session/useAuth";
-import { relationshipToLabel } from "@portal/domains/account/labels";
-import type { AuthFlowContext } from "@portal/session/types";
-import type { AppointmentRecord } from "@portal/domains/appointments/types";
-import { TYPES_PEAU } from "@portal/features/patient/preconsult/components/types";
-import type {
-  AuditEvent,
-  ConsentRecord,
-  NotificationChannelPreference,
-  NotificationPreference,
-  PatientProfileRecord,
-  SkinScoreRecord,
-} from "@portal/domains/account/types";
 
 const FITZPATRICK = [
   { type: "I", color: "#FDE8C8", label: "Type I" },
@@ -52,7 +51,10 @@ const FITZPATRICK = [
   { type: "VI", color: "#2E1206", label: "Type VI" },
 ] as const;
 
-type PreferenceSection = Exclude<keyof NotificationPreference, "id" | "profileId" | "updatedAt">;
+type PreferenceSection = Exclude<
+  keyof NotificationPreference,
+  "id" | "profileId" | "updatedAt"
+>;
 
 const PREFERENCE_SECTION_KEYS: PreferenceSection[] = [
   "reminders",
@@ -207,16 +209,22 @@ function loadDraftPreConsultSnapshot(): PreConsultSnapshot | null {
   if (!parsed || typeof parsed !== "object") {
     return null;
   }
-  if (typeof parsed.savedAt === "number" && Date.now() - parsed.savedAt > 48 * 60 * 60 * 1000) {
+  if (
+    typeof parsed.savedAt === "number" &&
+    Date.now() - parsed.savedAt > 48 * 60 * 60 * 1000
+  ) {
     return null;
   }
   return toPreConsultSnapshot(parsed.data);
 }
 
-function buildSkinCardModel(snapshot: PreConsultSnapshot | null): SkinCardModel {
+function buildSkinCardModel(
+  snapshot: PreConsultSnapshot | null,
+): SkinCardModel {
   const typePeauLabel =
     snapshot?.typePeau != null
-      ? TYPES_PEAU.find((entry) => entry.key === snapshot.typePeau)?.label ?? "Non renseigné"
+      ? (TYPES_PEAU.find((entry) => entry.key === snapshot.typePeau)?.label ??
+        "Non renseigné")
       : "Non renseigné";
 
   const peauSensibleLabel =
@@ -227,12 +235,16 @@ function buildSkinCardModel(snapshot: PreConsultSnapshot | null): SkinCardModel 
         : "Sensibilité non renseignée";
 
   const activeFitzIndex =
-    snapshot?.phototype != null && snapshot.phototype >= 1 && snapshot.phototype <= 6
+    snapshot?.phototype != null &&
+    snapshot.phototype >= 1 &&
+    snapshot.phototype <= 6
       ? snapshot.phototype - 1
       : 4;
 
   const phototypeLabel =
-    snapshot?.phototype != null && snapshot.phototype >= 1 && snapshot.phototype <= 6
+    snapshot?.phototype != null &&
+    snapshot.phototype >= 1 &&
+    snapshot.phototype <= 6
       ? FITZPATRICK[snapshot.phototype - 1].label
       : "Phototype non renseigné";
 
@@ -250,7 +262,10 @@ function buildSkinCardModel(snapshot: PreConsultSnapshot | null): SkinCardModel 
     allergies = ["Aucune allergie signalée"];
   } else if (snapshot?.allergies === true) {
     const details = splitDetailText(snapshot.allergiesDetail);
-    allergies = details.length > 0 ? details.slice(0, 4) : ["Allergies signalées (détails à compléter)"];
+    allergies =
+      details.length > 0
+        ? details.slice(0, 4)
+        : ["Allergies signalées (détails à compléter)"];
   }
 
   return {
@@ -260,14 +275,28 @@ function buildSkinCardModel(snapshot: PreConsultSnapshot | null): SkinCardModel 
     phototypeLabel,
     sensitivities,
     allergies,
-    sourceLabel: snapshot ? "Basé sur votre dernière pré-consultation" : "Complétez une pré-consultation pour enrichir ce profil",
+    sourceLabel: snapshot
+      ? "Basé sur votre dernière pré-consultation"
+      : "Complétez une pré-consultation pour enrichir ce profil",
   };
 }
 
 function treatmentTimingLabel(name: string) {
-  if (name.toLowerCase().includes("spf") || name.toLowerCase().includes("solaire")) return "Matin";
-  if (name.toLowerCase().includes("crème") || name.toLowerCase().includes("creme")) return "Matin & soir";
-  if (name.toLowerCase().includes("sérum") || name.toLowerCase().includes("serum")) return "Le soir";
+  if (
+    name.toLowerCase().includes("spf") ||
+    name.toLowerCase().includes("solaire")
+  )
+    return "Matin";
+  if (
+    name.toLowerCase().includes("crème") ||
+    name.toLowerCase().includes("creme")
+  )
+    return "Matin & soir";
+  if (
+    name.toLowerCase().includes("sérum") ||
+    name.toLowerCase().includes("serum")
+  )
+    return "Le soir";
   if (name.toLowerCase().includes("antibiot")) return "Selon ordonnance";
   if (name.toLowerCase().includes("cortico")) return "Selon ordonnance";
   if (name.toLowerCase().includes("antifong")) return "Selon ordonnance";
@@ -279,7 +308,12 @@ function treatmentIcon(name: string) {
   if (lower.includes("spf") || lower.includes("solaire")) {
     return { icon: Sun, color: "rgba(245,158,11,0.08)" };
   }
-  if (lower.includes("crème") || lower.includes("creme") || lower.includes("sérum") || lower.includes("serum")) {
+  if (
+    lower.includes("crème") ||
+    lower.includes("creme") ||
+    lower.includes("sérum") ||
+    lower.includes("serum")
+  ) {
     return { icon: Droplets, color: "rgba(91,17,18,0.07)" };
   }
   return { icon: Pill, color: "rgba(17,18,20,0.06)" };
@@ -292,7 +326,8 @@ function buildMedicalCardModel(
 ): MedicalCardModel {
   const practitionerName =
     latestAppointment?.practitionerName?.trim() ||
-    (typeof flowContext?.practitioner?.name === "string" && flowContext.practitioner.name.trim().length > 0
+    (typeof flowContext?.practitioner?.name === "string" &&
+    flowContext.practitioner.name.trim().length > 0
       ? flowContext.practitioner.name
       : null);
   const practitionerLocation =
@@ -316,7 +351,10 @@ function buildMedicalCardModel(
     }
   }
 
-  if (treatmentNames.length === 0 && snapshot?.objectifs.includes("Suivi de traitement")) {
+  if (
+    treatmentNames.length === 0 &&
+    snapshot?.objectifs.includes("Suivi de traitement")
+  ) {
     treatmentNames.push("Suivi de traitement à définir");
   }
 
@@ -402,7 +440,12 @@ function countEnabledChannels(preferences: NotificationPreference | null) {
 
   return PREFERENCE_SECTION_KEYS.reduce((acc, key) => {
     const section = preferences[key] as NotificationChannelPreference;
-    return acc + Number(section.sms) + Number(section.whatsapp) + Number(section.email);
+    return (
+      acc +
+      Number(section.sms) +
+      Number(section.whatsapp) +
+      Number(section.email)
+    );
   }, 0);
 }
 
@@ -448,7 +491,10 @@ function mapAuditToActivity(events: AuditEvent[]): ActivityItem[] {
       };
     }
 
-    if (event.action === "dependent.created" || event.action === "dependent.linked") {
+    if (
+      event.action === "dependent.created" ||
+      event.action === "dependent.linked"
+    ) {
       return {
         id: event.id,
         icon: Users,
@@ -514,7 +560,8 @@ function Sparkline({ data }: { data: Array<{ day: string; score: number }> }) {
   const max = Math.max(...scores) + 2;
   const denominator = Math.max(1, safeData.length - 1);
   const scaleX = (i: number) => PAD + (i / denominator) * (W - PAD * 2);
-  const scaleY = (v: number) => H - PAD - ((v - min) / (max - min)) * (H - PAD * 2);
+  const scaleY = (v: number) =>
+    H - PAD - ((v - min) / (max - min)) * (H - PAD * 2);
   const points = safeData.map((d, i) => ({ x: scaleX(i), y: scaleY(d.score) }));
 
   const path = points.reduce((acc, point, index) => {
@@ -566,7 +613,12 @@ function Sparkline({ data }: { data: Array<{ day: string; score: number }> }) {
             strokeWidth={index === safeData.length - 1 ? 0 : 1.5}
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 400, damping: 20 }}
+            transition={{
+              delay: 0.5 + index * 0.08,
+              type: "spring",
+              stiffness: 400,
+              damping: 20,
+            }}
           />
         ))}
       </svg>
@@ -577,7 +629,9 @@ function Sparkline({ data }: { data: Array<{ day: string; score: number }> }) {
             key={`${entry.day}-${index}`}
             className={[
               "text-[9px] uppercase tracking-wider",
-              index === safeData.length - 1 ? "font-semibold text-[#5B1112]" : "text-[#111214]/30",
+              index === safeData.length - 1
+                ? "font-semibold text-[#5B1112]"
+                : "text-[#111214]/30",
             ].join(" ")}
           >
             {entry.day}
@@ -608,7 +662,8 @@ function ProfileHero({
       >
         <p className="text-sm font-semibold">Aucun profil patient actif</p>
         <p className="mt-1 text-xs text-[#5B1112]/80">
-          Sélectionnez un profil pour gérer les consentements, préférences et accès famille.
+          Sélectionnez un profil pour gérer les consentements, préférences et
+          accès famille.
         </p>
         <Link
           to="/patient-flow/account/select-profile"
@@ -626,7 +681,10 @@ function ProfileHero({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="relative overflow-hidden rounded-[2.5rem] p-6 md:p-8"
-      style={{ background: "linear-gradient(140deg, #fff9f0 0%, #FEF0D5 55%, #fde8be 100%)" }}
+      style={{
+        background:
+          "linear-gradient(140deg, #fff9f0 0%, #FEF0D5 55%, #fde8be 100%)",
+      }}
     >
       <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#5B1112]/5 blur-3xl" />
       <div className="pointer-events-none absolute -left-8 bottom-0 h-40 w-40 rounded-full bg-white/40 blur-2xl" />
@@ -637,7 +695,10 @@ function ProfileHero({
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
         >
-          <motion.div animate={{ scale: hovered ? 1.03 : 1 }} transition={{ duration: 0.3 }}>
+          <motion.div
+            animate={{ scale: hovered ? 1.03 : 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <div className="flex h-28 w-28 items-center justify-center rounded-[1.75rem] border-4 border-white bg-[#5B1112]/8 shadow-xl md:h-32 md:w-32">
               <span
                 className="font-serif text-[#5B1112]"
@@ -671,7 +732,10 @@ function ProfileHero({
                 Profil patient actif
               </p>
 
-              <h1 className="font-serif text-[#111214]" style={{ fontSize: 30, lineHeight: 1.1 }}>
+              <h1
+                className="font-serif text-[#111214]"
+                style={{ fontSize: 30, lineHeight: 1.1 }}
+              >
                 {profile.firstName} {profile.lastName}
               </h1>
 
@@ -706,19 +770,23 @@ function ProfileHero({
             <span className="rounded-full bg-[#111214] px-3 py-1.5 text-[10px] font-medium text-[#FEF0D5]">
               <span className="inline-flex items-center gap-1.5">
                 <User size={9} className="text-[#FEF0D5]" />{" "}
-                {profile.relationship === "moi" ? "Profil principal" : "Profil dépendant"}
+                {profile.relationship === "moi"
+                  ? "Profil principal"
+                  : "Profil dépendant"}
               </span>
             </span>
             {formatCreatedAt(profile.createdAt) ? (
               <span className="rounded-full border border-[#111214]/10 bg-white px-3 py-1.5 text-[10px] font-medium text-[#111214]/60">
                 <span className="inline-flex items-center gap-1.5">
-                  <MapPin size={9} /> Profil créé en {formatCreatedAt(profile.createdAt)}
+                  <MapPin size={9} /> Profil créé en{" "}
+                  {formatCreatedAt(profile.createdAt)}
                 </span>
               </span>
             ) : null}
             <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-[10px] font-medium text-amber-600">
               <span className="inline-flex items-center gap-1.5">
-                <Shield size={9} /> Consentements: {signedConsents}/{totalConsents}
+                <Shield size={9} /> Consentements: {signedConsents}/
+                {totalConsents}
               </span>
             </span>
           </div>
@@ -774,36 +842,48 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {cards.map(({ icon: Icon, label, value, unit, sub, color, accent }, index) => (
-        <motion.div
-          key={label}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 + index * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col gap-3 rounded-[1.75rem] border border-white bg-white/80 p-5 shadow-[0_2px_20px_rgba(0,0,0,0.04)]"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: accent }}>
-              <Icon size={15} style={{ color }} />
+      {cards.map(
+        ({ icon: Icon, label, value, unit, sub, color, accent }, index) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              delay: 0.08 + index * 0.06,
+              duration: 0.4,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className="flex flex-col gap-3 rounded-[1.75rem] border border-white bg-white/80 p-5 shadow-[0_2px_20px_rgba(0,0,0,0.04)]"
+          >
+            <div className="flex items-center justify-between">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-xl"
+                style={{ background: accent }}
+              >
+                <Icon size={15} style={{ color }} />
+              </div>
+              <ChevronRight size={12} className="text-[#111214]/20" />
             </div>
-            <ChevronRight size={12} className="text-[#111214]/20" />
-          </div>
 
-          <div>
-            <div className="flex items-baseline gap-0.5">
-              <span className="font-serif text-[#111214]" style={{ fontSize: 26, lineHeight: 1 }}>
-                {value}
-              </span>
-              <span className="ml-0.5 text-xs text-[#111214]/35">{unit}</span>
+            <div>
+              <div className="flex items-baseline gap-0.5">
+                <span
+                  className="font-serif text-[#111214]"
+                  style={{ fontSize: 26, lineHeight: 1 }}
+                >
+                  {value}
+                </span>
+                <span className="ml-0.5 text-xs text-[#111214]/35">{unit}</span>
+              </div>
+              <p className="mt-0.5 text-[10px] text-[#111214]/40">{label}</p>
             </div>
-            <p className="mt-0.5 text-[10px] text-[#111214]/40">{label}</p>
-          </div>
 
-          <p className="text-[9px] font-medium" style={{ color }}>
-            {sub}
-          </p>
-        </motion.div>
-      ))}
+            <p className="text-[9px] font-medium" style={{ color }}>
+              {sub}
+            </p>
+          </motion.div>
+        ),
+      )}
     </div>
   );
 }
@@ -819,7 +899,9 @@ function SkinProfileCard({ model }: { model: SkinCardModel }) {
       className="flex flex-col gap-5 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl"
     >
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Profil cutané</p>
+        <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+          Profil cutané
+        </p>
         <button className="flex items-center gap-1 text-[10px] font-medium text-[#5B1112]/60 transition-colors hover:text-[#5B1112]">
           <Edit3 size={10} /> Modifier
         </button>
@@ -830,9 +912,15 @@ function SkinProfileCard({ model }: { model: SkinCardModel }) {
           <Droplets size={16} className="text-[#5B1112]/60" />
         </div>
         <div>
-          <p className="text-[9px] uppercase tracking-wider text-[#111214]/35">Type de peau</p>
-          <p className="text-sm font-medium text-[#111214]">{model.typePeauLabel}</p>
-          <p className="mt-0.5 text-[10px] text-[#111214]/45">{model.peauSensibleLabel}</p>
+          <p className="text-[9px] uppercase tracking-wider text-[#111214]/35">
+            Type de peau
+          </p>
+          <p className="text-sm font-medium text-[#111214]">
+            {model.typePeauLabel}
+          </p>
+          <p className="mt-0.5 text-[10px] text-[#111214]/45">
+            {model.peauSensibleLabel}
+          </p>
         </div>
       </div>
 
@@ -870,14 +958,20 @@ function SkinProfileCard({ model }: { model: SkinCardModel }) {
           ))}
 
           <div className="ml-2 border-l border-[#111214]/8 pl-3">
-            <p className="text-xs font-medium text-[#111214]/70">{FITZPATRICK[activeFitz].type}</p>
-            <p className="mt-0.5 text-[9px] text-[#111214]/35">{model.phototypeLabel}</p>
+            <p className="text-xs font-medium text-[#111214]/70">
+              {FITZPATRICK[activeFitz].type}
+            </p>
+            <p className="mt-0.5 text-[9px] text-[#111214]/35">
+              {model.phototypeLabel}
+            </p>
           </div>
         </div>
       </div>
 
       <div>
-        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Sensibilités</p>
+        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          Sensibilités
+        </p>
         <div className="flex flex-wrap gap-2">
           {model.sensitivities.map((item) => (
             <span
@@ -898,14 +992,17 @@ function SkinProfileCard({ model }: { model: SkinCardModel }) {
       </div>
 
       <div>
-        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Allergies</p>
+        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          Allergies
+        </p>
         <div className="flex flex-wrap gap-2">
           {model.allergies.map((item) => (
             <span
               key={item}
               className={[
                 "rounded-full px-3 py-1.5 text-[10px] font-medium",
-                item.toLowerCase().includes("aucune") || item.toLowerCase().includes("non renseigné")
+                item.toLowerCase().includes("aucune") ||
+                item.toLowerCase().includes("non renseigné")
                   ? "border border-[rgba(17,18,20,0.12)] bg-white text-[rgba(17,18,20,0.58)]"
                   : "border border-amber-100 bg-amber-50 text-amber-600",
               ].join(" ")}
@@ -930,7 +1027,9 @@ function MedicalCard({
   model: MedicalCardModel;
   consents: ConsentRecord[];
 }) {
-  const signedConsents = consents.filter((consent) => consent.status === "signed").length;
+  const signedConsents = consents.filter(
+    (consent) => consent.status === "signed",
+  ).length;
 
   return (
     <motion.div
@@ -939,14 +1038,18 @@ function MedicalCard({
       transition={{ delay: 0.24, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="flex flex-col gap-5 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl"
     >
-      <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Suivi médical</p>
+      <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+        Suivi médical
+      </p>
 
       <div className="flex items-center gap-4 rounded-[1.5rem] bg-[#111214]/3 p-4">
         <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[1rem] bg-[#5B1112]/8">
           <Award size={18} className="text-[#5B1112]/60" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/35">Dernier praticien associé</p>
+          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/35">
+            Dernier praticien associé
+          </p>
           <p className="truncate text-sm font-medium text-[#111214]">
             {model.practitionerName ?? "Aucun praticien enregistré"}
           </p>
@@ -954,7 +1057,10 @@ function MedicalCard({
             {model.practitionerLocation ?? model.sourceLabel}
           </p>
         </div>
-        <Link to="/patient-flow/auth/dashboard#appointments" className="flex-shrink-0">
+        <Link
+          to="/patient-flow/auth/dashboard#appointments"
+          className="flex-shrink-0"
+        >
           <motion.div
             whileHover={{ scale: 1.08 }}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm"
@@ -966,8 +1072,12 @@ function MedicalCard({
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Traitements en cours</p>
-          <span className="text-[10px] text-[#111214]/40">{model.historyLabel}</span>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+            Traitements en cours
+          </p>
+          <span className="text-[10px] text-[#111214]/40">
+            {model.historyLabel}
+          </span>
         </div>
 
         {model.treatments.length === 0 ? (
@@ -991,8 +1101,12 @@ function MedicalCard({
                   <treatment.icon size={14} className="text-[#5B1112]/60" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-[#111214]">{treatment.name}</p>
-                  <p className="mt-0.5 text-[9px] text-[#111214]/35">{treatment.timing}</p>
+                  <p className="truncate text-xs font-medium text-[#111214]">
+                    {treatment.name}
+                  </p>
+                  <p className="mt-0.5 text-[9px] text-[#111214]/35">
+                    {treatment.timing}
+                  </p>
                 </div>
                 <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50">
                   <CheckCircle size={10} className="text-emerald-500" />
@@ -1005,17 +1119,26 @@ function MedicalCard({
 
       <div className="rounded-[1rem] border border-[#5B1112]/12 bg-[#5B1112]/4 px-3.5 py-2.5">
         <p className="text-[10px] text-[#5B1112]/80">
-          Consentements actifs: <span className="font-semibold">{signedConsents}/{consents.length}</span>
+          Consentements actifs:{" "}
+          <span className="font-semibold">
+            {signedConsents}/{consents.length}
+          </span>
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Link to="/patient-flow/account/consents" className="rounded-[1rem] border border-[#111214]/10 bg-[#111214]/3 px-3 py-2.5 text-xs text-[#111214]/70 hover:bg-[#111214]/5">
+        <Link
+          to="/patient-flow/account/consents"
+          className="rounded-[1rem] border border-[#111214]/10 bg-[#111214]/3 px-3 py-2.5 text-xs text-[#111214]/70 hover:bg-[#111214]/5"
+        >
           <span className="inline-flex items-center gap-2">
             <Shield size={12} /> Consentements
           </span>
         </Link>
-        <Link to="/patient-flow/account/dependents" className="rounded-[1rem] border border-[#111214]/10 bg-[#111214]/3 px-3 py-2.5 text-xs text-[#111214]/70 hover:bg-[#111214]/5">
+        <Link
+          to="/patient-flow/account/dependents"
+          className="rounded-[1rem] border border-[#111214]/10 bg-[#111214]/3 px-3 py-2.5 text-xs text-[#111214]/70 hover:bg-[#111214]/5"
+        >
           <span className="inline-flex items-center gap-2">
             <Users size={12} /> Gérer les dépendants
           </span>
@@ -1045,17 +1168,23 @@ function ProgressCard({ data }: { data: ScoreSeriesPoint[] }) {
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Évolution du score</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+            Évolution du score
+          </p>
           <p className="mt-0.5 text-xs text-[#111214]/40">{daysLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-emerald-500">
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold">
-              <TrendingUp size={10} /> {diff > 0 ? "+" : ""}{diff} pts
+              <TrendingUp size={10} /> {diff > 0 ? "+" : ""}
+              {diff} pts
             </span>
           </div>
           <div className="text-right">
-            <span className="font-serif text-[#5B1112]" style={{ fontSize: 22, lineHeight: 1 }}>
+            <span
+              className="font-serif text-[#5B1112]"
+              style={{ fontSize: 22, lineHeight: 1 }}
+            >
               {currentScore}
             </span>
             <p className="text-[9px] text-[#111214]/35">Score actuel</p>
@@ -1067,22 +1196,34 @@ function ProgressCard({ data }: { data: ScoreSeriesPoint[] }) {
 
       <div className="flex items-center justify-between border-t border-[#111214]/5 pt-1">
         <div className="text-center">
-          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">Min</p>
-          <p className="font-serif text-[#111214]/60" style={{ fontSize: 16 }}>{min}</p>
+          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">
+            Min
+          </p>
+          <p className="font-serif text-[#111214]/60" style={{ fontSize: 16 }}>
+            {min}
+          </p>
         </div>
 
         <div className="mx-4 h-px flex-1 bg-gradient-to-r from-[#111214]/6 via-[#5B1112]/10 to-[#111214]/6" />
 
         <div className="text-center">
-          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">Moy.</p>
-          <p className="font-serif text-[#111214]/60" style={{ fontSize: 16 }}>{avg}</p>
+          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">
+            Moy.
+          </p>
+          <p className="font-serif text-[#111214]/60" style={{ fontSize: 16 }}>
+            {avg}
+          </p>
         </div>
 
         <div className="mx-4 h-px flex-1 bg-gradient-to-r from-[#111214]/6 via-[#5B1112]/10 to-[#111214]/6" />
 
         <div className="text-center">
-          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">Max</p>
-          <p className="font-serif text-[#5B1112]" style={{ fontSize: 16 }}>{max}</p>
+          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/30">
+            Max
+          </p>
+          <p className="font-serif text-[#5B1112]" style={{ fontSize: 16 }}>
+            {max}
+          </p>
         </div>
       </div>
     </motion.div>
@@ -1140,7 +1281,9 @@ function PreferencesCard({
       transition={{ delay: 0.36, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="flex flex-col gap-2 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl"
     >
-      <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Préférences & accès</p>
+      <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+        Préférences & accès
+      </p>
 
       {items.map(({ Icon, label, sub, to }) => (
         <Link key={label} to={to}>
@@ -1149,13 +1292,21 @@ function PreferencesCard({
             className="group flex cursor-pointer items-center gap-4 rounded-[1.5rem] px-4 py-3.5 transition-colors hover:bg-[#111214]/3"
           >
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#111214]/4 transition-colors group-hover:bg-[#5B1112]/8">
-              <Icon size={15} className="text-[#111214]/45 transition-colors group-hover:text-[#5B1112]/60" />
+              <Icon
+                size={15}
+                className="text-[#111214]/45 transition-colors group-hover:text-[#5B1112]/60"
+              />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-[#111214]/75">{label}</p>
-              <p className="mt-0.5 truncate text-[10px] text-[#111214]/35">{sub}</p>
+              <p className="mt-0.5 truncate text-[10px] text-[#111214]/35">
+                {sub}
+              </p>
             </div>
-            <ChevronRight size={14} className="flex-shrink-0 text-[#111214]/20 transition-colors group-hover:text-[#5B1112]/40" />
+            <ChevronRight
+              size={14}
+              className="flex-shrink-0 text-[#111214]/20 transition-colors group-hover:text-[#5B1112]/40"
+            />
           </motion.div>
         </Link>
       ))}
@@ -1173,9 +1324,21 @@ function ProfileRightPanel({
   totalConsents: number;
 }) {
   const quickActions = [
-    { Icon: Shield, label: "Consentements", to: "/patient-flow/account/consents" },
-    { Icon: Users, label: "Dépendants", to: "/patient-flow/account/dependents" },
-    { Icon: Bell, label: "Notifications", to: "/patient-flow/account/notifications" },
+    {
+      Icon: Shield,
+      label: "Consentements",
+      to: "/patient-flow/account/consents",
+    },
+    {
+      Icon: Users,
+      label: "Dépendants",
+      to: "/patient-flow/account/dependents",
+    },
+    {
+      Icon: Bell,
+      label: "Notifications",
+      to: "/patient-flow/account/notifications",
+    },
     { Icon: FileText, label: "Profils", to: "/patient-flow/profiles" },
   ] as const;
 
@@ -1193,9 +1356,18 @@ function ProfileRightPanel({
         <div className="relative z-10">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#FEF0D5]/35">Conformité</p>
-              <h3 className="font-serif text-[#FEF0D5]" style={{ fontSize: 20 }}>Centre de consentement</h3>
-              <p className="mt-0.5 text-xs text-white/35">État des autorisations patient</p>
+              <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#FEF0D5]/35">
+                Conformité
+              </p>
+              <h3
+                className="font-serif text-[#FEF0D5]"
+                style={{ fontSize: 20 }}
+              >
+                Centre de consentement
+              </h3>
+              <p className="mt-0.5 text-xs text-white/35">
+                État des autorisations patient
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[#FEF0D5]/8">
               <Shield size={18} className="text-[#FEF0D5]" />
@@ -1204,15 +1376,25 @@ function ProfileRightPanel({
 
           <div className="mb-4">
             <div className="mb-1.5 flex justify-between">
-              <span className="text-[9px] uppercase tracking-wider text-white/35">Consentements signés</span>
-              <span className="text-[10px] font-medium text-[#FEF0D5]/70">{signedConsents} / {totalConsents}</span>
+              <span className="text-[9px] uppercase tracking-wider text-white/35">
+                Consentements signés
+              </span>
+              <span className="text-[10px] font-medium text-[#FEF0D5]/70">
+                {signedConsents} / {totalConsents}
+              </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
               <motion.div
                 className="h-full rounded-full bg-[#FEF0D5]/50"
                 initial={{ width: 0 }}
-                animate={{ width: `${totalConsents > 0 ? (signedConsents / totalConsents) * 100 : 0}%` }}
-                transition={{ delay: 0.8, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                animate={{
+                  width: `${totalConsents > 0 ? (signedConsents / totalConsents) * 100 : 0}%`,
+                }}
+                transition={{
+                  delay: 0.8,
+                  duration: 1,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
               />
             </div>
           </div>
@@ -1235,7 +1417,9 @@ function ProfileRightPanel({
         transition={{ delay: 0.3 }}
         className="rounded-[2rem] border border-white bg-white/70 p-6 shadow-[0_4px_30px_rgba(0,0,0,0.03)] backdrop-blur-xl"
       >
-        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Accès rapide</p>
+        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          Accès rapide
+        </p>
         <div className="flex flex-col gap-2">
           {quickActions.map(({ Icon, label, to }) => (
             <Link key={label} to={to}>
@@ -1249,7 +1433,10 @@ function ProfileRightPanel({
                 <p className="flex-1 text-xs font-medium text-[#111214]/65 transition-colors group-hover:text-[#111214]">
                   {label}
                 </p>
-                <ChevronRight size={12} className="text-[#111214]/18 transition-colors group-hover:text-[#5B1112]/40" />
+                <ChevronRight
+                  size={12}
+                  className="text-[#111214]/18 transition-colors group-hover:text-[#5B1112]/40"
+                />
               </motion.div>
             </Link>
           ))}
@@ -1262,7 +1449,9 @@ function ProfileRightPanel({
         transition={{ delay: 0.4 }}
         className="rounded-[2rem] border border-white bg-white/70 p-6 shadow-[0_4px_30px_rgba(0,0,0,0.03)] backdrop-blur-xl"
       >
-        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Activité récente</p>
+        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          Activité récente
+        </p>
 
         <div className="flex flex-col gap-0">
           {activity.length === 0 ? (
@@ -1282,18 +1471,26 @@ function ProfileRightPanel({
                 className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl"
                 style={{
                   background:
-                    color === "#5B1112" ? "rgba(91,17,18,0.07)" : "rgba(17,18,20,0.05)",
+                    color === "#5B1112"
+                      ? "rgba(91,17,18,0.07)"
+                      : "rgba(17,18,20,0.05)",
                 }}
               >
                 <Icon size={12} style={{ color }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-[#111214]/70">{label}</p>
-                <p className="mt-0.5 truncate text-[9px] text-[#111214]/35">{sub}</p>
+                <p className="truncate text-xs font-medium text-[#111214]/70">
+                  {label}
+                </p>
+                <p className="mt-0.5 truncate text-[9px] text-[#111214]/35">
+                  {sub}
+                </p>
               </div>
               <div className="flex flex-shrink-0 items-center gap-1">
                 <Clock size={8} className="text-[#111214]/25" />
-                <span className="whitespace-nowrap text-[8px] text-[#111214]/30">{time}</span>
+                <span className="whitespace-nowrap text-[8px] text-[#111214]/30">
+                  {time}
+                </span>
               </div>
             </motion.div>
           ))}
@@ -1322,7 +1519,8 @@ function ProfilePageContent({
   medicalModel: MedicalCardModel;
   scoreSeries: ScoreSeriesPoint[];
 }) {
-  const totalConsents = stats.signedConsents + stats.pendingConsents + stats.revokedConsents;
+  const totalConsents =
+    stats.signedConsents + stats.pendingConsents + stats.revokedConsents;
 
   return (
     <div className="min-h-full xl:grid xl:grid-cols-[1fr_300px] xl:items-start xl:gap-10">
@@ -1341,7 +1539,10 @@ function ProfilePageContent({
         </div>
 
         <ProgressCard data={scoreSeries} />
-        <PreferencesCard activeProfile={activeProfile} preferences={preferences} />
+        <PreferencesCard
+          activeProfile={activeProfile}
+          preferences={preferences}
+        />
       </div>
 
       <div className="hidden xl:block">
@@ -1359,10 +1560,13 @@ export default function AU07ProfileOverview() {
   const navigate = useNavigate();
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
-  const [draftPreConsult, setDraftPreConsult] = useState<PreConsultSnapshot | null>(null);
+  const [draftPreConsult, setDraftPreConsult] =
+    useState<PreConsultSnapshot | null>(null);
 
   const [consents, setConsents] = useState<ConsentRecord[]>([]);
-  const [preferences, setPreferences] = useState<NotificationPreference | null>(null);
+  const [preferences, setPreferences] = useState<NotificationPreference | null>(
+    null,
+  );
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [skinScores, setSkinScores] = useState<SkinScoreRecord[]>([]);
@@ -1383,16 +1587,16 @@ export default function AU07ProfileOverview() {
     let cancelled = false;
 
     const load = async () => {
-        if (!userId) {
-          if (!cancelled) {
-            setLoading(false);
-            setConsents([]);
-            setPreferences(null);
-            setAuditEvents([]);
-            setSkinScores([]);
-          }
-          return;
+      if (!userId) {
+        if (!cancelled) {
+          setLoading(false);
+          setConsents([]);
+          setPreferences(null);
+          setAuditEvents([]);
+          setSkinScores([]);
         }
+        return;
+      }
 
       try {
         setLoading(true);
@@ -1408,11 +1612,13 @@ export default function AU07ProfileOverview() {
 
         if (auth.actingProfileId) {
           promises.push(
-            auth.accountAdapter.listConsents(userId, auth.actingProfileId).then((items) => {
-              if (!cancelled) {
-                setConsents(items);
-              }
-            }),
+            auth.accountAdapter
+              .listConsents(userId, auth.actingProfileId)
+              .then((items) => {
+                if (!cancelled) {
+                  setConsents(items);
+                }
+              }),
           );
 
           promises.push(
@@ -1426,11 +1632,13 @@ export default function AU07ProfileOverview() {
           );
 
           promises.push(
-            auth.accountAdapter.listSkinScores(userId, auth.actingProfileId, 7).then((records) => {
-              if (!cancelled) {
-                setSkinScores(records);
-              }
-            }),
+            auth.accountAdapter
+              .listSkinScores(userId, auth.actingProfileId, 7)
+              .then((records) => {
+                if (!cancelled) {
+                  setSkinScores(records);
+                }
+              }),
           );
 
           promises.push(
@@ -1470,7 +1678,12 @@ export default function AU07ProfileOverview() {
     return () => {
       cancelled = true;
     };
-  }, [auth.accountAdapter, auth.appointmentAdapter, auth.actingProfileId, userId]);
+  }, [
+    auth.accountAdapter,
+    auth.appointmentAdapter,
+    auth.actingProfileId,
+    userId,
+  ]);
 
   const activeProfile = useMemo(
     () => auth.actingProfile ?? auth.profiles[0] ?? null,
@@ -1486,17 +1699,26 @@ export default function AU07ProfileOverview() {
   }, [activeProfile, auth.user?.fullName]);
 
   const stats = useMemo<ProfileStats>(() => {
-    const signedConsents = consents.filter((consent) => consent.status === "signed").length;
-    const pendingConsents = consents.filter((consent) => consent.status === "pending").length;
-    const revokedConsents = consents.filter((consent) => consent.status === "revoked").length;
+    const signedConsents = consents.filter(
+      (consent) => consent.status === "signed",
+    ).length;
+    const pendingConsents = consents.filter(
+      (consent) => consent.status === "pending",
+    ).length;
+    const revokedConsents = consents.filter(
+      (consent) => consent.status === "revoked",
+    ).length;
 
-    const dependentProfiles = auth.profiles.filter((profile) => profile.relationship !== "moi").length;
+    const dependentProfiles = auth.profiles.filter(
+      (profile) => profile.relationship !== "moi",
+    ).length;
     const activeChannels = countEnabledChannels(preferences);
     const sortedScores = [...skinScores].sort((first, second) =>
       first.measuredAt.localeCompare(second.measuredAt),
     );
     const firstScore = sortedScores[0]?.score ?? 0;
-    const lastScore = sortedScores[sortedScores.length - 1]?.score ?? firstScore;
+    const lastScore =
+      sortedScores[sortedScores.length - 1]?.score ?? firstScore;
     const scoreDelta = lastScore - firstScore;
     const scoreTrendPercent =
       firstScore > 0 ? Math.round((scoreDelta / firstScore) * 100) : 0;
@@ -1513,11 +1735,16 @@ export default function AU07ProfileOverview() {
     };
   }, [auth.profiles, consents, preferences, skinScores]);
 
-  const activity = useMemo(() => mapAuditToActivity(auditEvents), [auditEvents]);
+  const activity = useMemo(
+    () => mapAuditToActivity(auditEvents),
+    [auditEvents],
+  );
 
   const scoreSeries = useMemo<ScoreSeriesPoint[]>(() => {
     return [...skinScores]
-      .sort((first, second) => first.measuredAt.localeCompare(second.measuredAt))
+      .sort((first, second) =>
+        first.measuredAt.localeCompare(second.measuredAt),
+      )
       .map((entry) => ({
         day: toWeekdayLabel(entry.measuredAt),
         score: entry.score,
@@ -1525,20 +1752,31 @@ export default function AU07ProfileOverview() {
   }, [skinScores]);
 
   const preConsultSnapshot = useMemo(
-    () => toPreConsultSnapshot(auth.flowContext?.preConsultData) ?? draftPreConsult,
+    () =>
+      toPreConsultSnapshot(auth.flowContext?.preConsultData) ?? draftPreConsult,
     [auth.flowContext?.preConsultData, draftPreConsult],
   );
 
   const latestAppointment = useMemo<AppointmentRecord | null>(() => {
     if (appointments.length === 0) return null;
-    return [...appointments].sort((first, second) =>
-      second.scheduledFor.localeCompare(first.scheduledFor),
-    )[0] ?? null;
+    return (
+      [...appointments].sort((first, second) =>
+        second.scheduledFor.localeCompare(first.scheduledFor),
+      )[0] ?? null
+    );
   }, [appointments]);
 
-  const skinModel = useMemo(() => buildSkinCardModel(preConsultSnapshot), [preConsultSnapshot]);
+  const skinModel = useMemo(
+    () => buildSkinCardModel(preConsultSnapshot),
+    [preConsultSnapshot],
+  );
   const medicalModel = useMemo(
-    () => buildMedicalCardModel(preConsultSnapshot, auth.flowContext, latestAppointment),
+    () =>
+      buildMedicalCardModel(
+        preConsultSnapshot,
+        auth.flowContext,
+        latestAppointment,
+      ),
     [auth.flowContext, latestAppointment, preConsultSnapshot],
   );
 
@@ -1578,12 +1816,18 @@ export default function AU07ProfileOverview() {
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-2 md:hidden">
-        <Link to="/patient-flow/account/consents" className="rounded-xl border border-[#111214]/10 bg-white/80 px-3 py-2 text-xs text-[#111214]/70">
+        <Link
+          to="/patient-flow/account/consents"
+          className="rounded-xl border border-[#111214]/10 bg-white/80 px-3 py-2 text-xs text-[#111214]/70"
+        >
           <span className="inline-flex items-center gap-2">
             <Shield size={12} /> Consentements
           </span>
         </Link>
-        <Link to="/patient-flow/account/dependents" className="rounded-xl border border-[#111214]/10 bg-white/80 px-3 py-2 text-xs text-[#111214]/70">
+        <Link
+          to="/patient-flow/account/dependents"
+          className="rounded-xl border border-[#111214]/10 bg-white/80 px-3 py-2 text-xs text-[#111214]/70"
+        >
           <span className="inline-flex items-center gap-2">
             <Users size={12} /> Dépendants
           </span>
