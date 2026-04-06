@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
 import {
   Bell,
   Calendar,
@@ -8,12 +7,12 @@ import {
   LogOut,
   ScanFace,
   Search,
-  TrendingUp,
   User,
   type LucideIcon,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
-import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
 
 const PATHS = {
   home: "/patient-flow/auth/dashboard",
@@ -23,19 +22,27 @@ const PATHS = {
   scan: "/patient-flow/auth/dashboard#scan",
 } as const;
 
+const DEFAULT_PROFILE_AVATAR = "/default-avatar-profile.svg";
+
 interface DashboardLayoutProps {
   fullName: string;
   onLogout: () => void | Promise<void>;
   children: ReactNode;
 }
 
-function isPathActive(locationPathname: string, locationHash: string, target: string, exact = true): boolean {
+function isPathActive(
+  locationPathname: string,
+  locationHash: string,
+  target: string,
+  exact = true,
+): boolean {
   const [targetPath, targetHash] = target.split("#");
   const targetHashValue = targetHash ? `#${targetHash}` : "";
 
   const pathMatch = exact
     ? locationPathname === targetPath
-    : locationPathname === targetPath || locationPathname.startsWith(`${targetPath}/`);
+    : locationPathname === targetPath ||
+      locationPathname.startsWith(`${targetPath}/`);
 
   if (!pathMatch) return false;
   if (targetHashValue) return locationHash === targetHashValue;
@@ -88,7 +95,10 @@ function BottomNavItem({
   isActive: boolean;
 }) {
   return (
-    <Link to={path} className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2">
+    <Link
+      to={path}
+      className="flex h-full flex-1 flex-col items-center justify-end pb-2 pt-1"
+    >
       <motion.div
         whileTap={{ scale: 0.85 }}
         className={`relative rounded-2xl p-2 transition-all duration-300 ${
@@ -99,26 +109,31 @@ function BottomNavItem({
       >
         <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
       </motion.div>
-      <AnimatePresence>
-        {isActive ? (
-          <motion.span
-            key={path}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            className="absolute bottom-1 text-[9px] font-bold uppercase tracking-wider text-[#5B1112]"
-          >
-            {label}
-          </motion.span>
-        ) : null}
-      </AnimatePresence>
+      <div className="mt-1 flex h-3 items-center justify-center">
+        <AnimatePresence>
+          {isActive ? (
+            <motion.span
+              key={path}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="text-center text-[9px] font-bold uppercase leading-none tracking-wider text-[#5B1112]"
+            >
+              {label}
+            </motion.span>
+          ) : null}
+        </AnimatePresence>
+      </div>
     </Link>
   );
 }
 
 function ScanCenterButton({ isActive }: { isActive: boolean }) {
   return (
-    <Link to={PATHS.scan} className="relative flex flex-1 flex-col items-center justify-center py-2">
+    <Link
+      to={PATHS.scan}
+      className="flex h-full flex-1 flex-col items-center justify-end pb-2 pt-1"
+    >
       <motion.div whileTap={{ scale: 0.9 }} className="relative -translate-y-5">
         {isActive ? (
           <motion.div
@@ -131,7 +146,9 @@ function ScanCenterButton({ isActive }: { isActive: boolean }) {
 
         <div
           className={`flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#FEF0D5] shadow-xl transition-all duration-300 ${
-            isActive ? "bg-[#5B1112] shadow-[#5B1112]/40" : "bg-[#111214] shadow-[#111214]/20"
+            isActive
+              ? "bg-[#5B1112] shadow-[#5B1112]/40"
+              : "bg-[#111214] shadow-[#111214]/20"
           }`}
         >
           <ScanFace size={22} className="text-white" />
@@ -139,7 +156,7 @@ function ScanCenterButton({ isActive }: { isActive: boolean }) {
       </motion.div>
 
       <span
-        className={`absolute bottom-1 text-[9px] font-bold uppercase tracking-wider transition-colors ${
+        className={`-mt-3 flex h-3 items-center text-center text-[9px] font-bold uppercase leading-none tracking-wider transition-colors ${
           isActive ? "text-[#5B1112]" : "text-[#111214]/30"
         }`}
       >
@@ -149,7 +166,11 @@ function ScanCenterButton({ isActive }: { isActive: boolean }) {
   );
 }
 
-export function DashboardLayout({ fullName, onLogout, children }: DashboardLayoutProps) {
+export function DashboardLayout({
+  fullName,
+  onLogout,
+  children,
+}: DashboardLayoutProps) {
   const location = useLocation();
 
   const menuItems = [
@@ -179,12 +200,17 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
           <div className="relative z-10 mb-10 flex items-center gap-3 px-1">
             <MelaniaMascot size={38} animated delay={0.1} />
             <div>
-              <span className="font-serif text-[#111214]" style={{ fontSize: 20, letterSpacing: "-0.02em" }}>
+              <span
+                className="font-serif text-[#111214]"
+                style={{ fontSize: 20, letterSpacing: "-0.02em" }}
+              >
                 melanis
               </span>
               <div className="-mt-0.5 flex items-center gap-1">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">En ligne</span>
+                <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
+                  En ligne
+                </span>
               </div>
             </div>
           </div>
@@ -192,7 +218,12 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
           <nav className="relative z-10 flex-1 space-y-0.5">
             {[
               ...menuItems.slice(0, 2),
-              { icon: ScanFace, label: "Scan IA", path: PATHS.scan, exact: true },
+              {
+                icon: ScanFace,
+                label: "Scan IA",
+                path: PATHS.scan,
+                exact: true,
+              },
               ...menuItems.slice(2),
             ].map((item) => (
               <SidebarItem
@@ -205,73 +236,11 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
             ))}
           </nav>
 
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="relative z-10 mb-4 rounded-2xl border border-[#FEF0D5] bg-gradient-to-br from-[#FEF0D5]/70 to-[#FEF0D5]/30 p-4"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#111214]/30">Score Peau</p>
-              <div className="flex items-center gap-1 text-emerald-500">
-                <TrendingUp size={10} />
-                <span className="text-[10px] font-semibold">+3</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="relative" style={{ width: 44, height: 44 }}>
-                <svg width={44} height={44} style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx={22} cy={22} r={17} fill="none" stroke="rgba(91,17,18,0.08)" strokeWidth={5} />
-                  <motion.circle
-                    cx={22}
-                    cy={22}
-                    r={17}
-                    fill="none"
-                    stroke="#5B1112"
-                    strokeWidth={5}
-                    strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 17}
-                    initial={{ strokeDashoffset: 2 * Math.PI * 17 }}
-                    animate={{ strokeDashoffset: 2 * Math.PI * 17 * (1 - 0.78) }}
-                    transition={{ delay: 0.8, duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-serif text-[#5B1112]" style={{ fontSize: 12 }}>
-                    78
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-serif text-[#111214]" style={{ fontSize: 15 }}>
-                  Excellent
-                </p>
-                <p className="text-[9px] text-[#111214]/40">Hydratation optimale</p>
-              </div>
-            </div>
-          </motion.div>
-
-          <div className="group relative z-10 mb-5 cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#111214] p-5 text-white">
-            <div className="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-[#5B1112] opacity-60 blur-xl transition-transform duration-700 group-hover:scale-150" />
-            <div className="relative z-10">
-              <div className="mb-2 flex items-center gap-1.5">
-                <TrendingUp size={12} className="text-[#FEF0D5]" />
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#FEF0D5]/50">Premium</p>
-              </div>
-              <h4 className="mb-0.5 font-serif text-[#FEF0D5]" style={{ fontSize: 16 }}>
-                Melanis+
-              </h4>
-              <p className="text-[10px] leading-relaxed text-white/40">Suivi IA illimite</p>
-            </div>
-          </div>
-
           <div className="relative z-10 border-t border-[#111214]/5 pt-4">
             <div className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/50">
               <div className="relative flex-shrink-0">
                 <img
-                  src="https://images.unsplash.com/photo-1584425222858-d013bdda5b54?q=80&w=100&auto=format&fit=crop"
+                  src={DEFAULT_PROFILE_AVATAR}
                   alt="Profil"
                   className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
                 />
@@ -279,8 +248,12 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[#111214]">{fullName}</p>
-                <p className="truncate text-[10px] text-[#111214]/40">Dakar, Senegal</p>
+                <p className="truncate text-sm font-semibold text-[#111214]">
+                  {fullName}
+                </p>
+                <p className="truncate text-[10px] text-[#111214]/40">
+                  Dakar, Senegal
+                </p>
               </div>
 
               <button
@@ -289,7 +262,10 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
                 aria-label="Se deconnecter"
                 className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/70"
               >
-                <LogOut size={15} className="text-[#111214]/25 group-hover:text-[#5B1112]" />
+                <LogOut
+                  size={15}
+                  className="text-[#111214]/25 group-hover:text-[#5B1112]"
+                />
               </button>
             </div>
           </div>
@@ -300,7 +276,10 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/30 bg-[#FEF0D5]/85 px-5 py-3 backdrop-blur-xl lg:hidden">
           <div className="flex items-center gap-2.5">
             <MelaniaMascot size={34} animated={false} />
-            <span className="font-serif text-[#111214]" style={{ fontSize: 18, letterSpacing: "-0.02em" }}>
+            <span
+              className="font-serif text-[#111214]"
+              style={{ fontSize: 18, letterSpacing: "-0.02em" }}
+            >
               melanis
             </span>
           </div>
@@ -309,9 +288,12 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
             <button className="rounded-full border border-white/60 bg-white/60 p-2 text-[#111214]/60 shadow-sm transition-colors hover:bg-white">
               <Bell size={18} />
             </button>
-            <Link to={PATHS.profile} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white shadow-md">
+            <Link
+              to={PATHS.profile}
+              className="h-9 w-9 overflow-hidden rounded-full border-2 border-white shadow-md"
+            >
               <img
-                src="https://images.unsplash.com/photo-1584425222858-d013bdda5b54?q=80&w=100&auto=format&fit=crop"
+                src={DEFAULT_PROFILE_AVATAR}
                 className="h-full w-full object-cover"
                 alt="Profil"
               />
@@ -321,14 +303,6 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
 
         <header className="hidden items-center justify-between px-10 py-6 lg:flex">
           <div>
-            <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#111214]/30">
-              {new Date().toLocaleDateString("fr-FR", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
             <h2 className="font-serif text-[#111214]" style={{ fontSize: 22 }}>
               Tableau de bord
             </h2>
@@ -336,7 +310,10 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
 
           <div className="flex items-center gap-3">
             <div className="flex w-72 items-center rounded-full border border-white/70 bg-white/60 px-4 py-2.5 shadow-sm transition-all backdrop-blur-md focus-within:bg-white focus-within:shadow-md">
-              <Search size={16} className="mr-2.5 flex-shrink-0 text-[#111214]/35" />
+              <Search
+                size={16}
+                className="mr-2.5 flex-shrink-0 text-[#111214]/35"
+              />
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -353,7 +330,7 @@ export function DashboardLayout({ fullName, onLogout, children }: DashboardLayou
               className="h-9 w-9 overflow-hidden rounded-full border-2 border-white shadow-md transition-transform hover:scale-105"
             >
               <img
-                src="https://images.unsplash.com/photo-1584425222858-d013bdda5b54?q=80&w=100&auto=format&fit=crop"
+                src={DEFAULT_PROFILE_AVATAR}
                 className="h-full w-full object-cover"
                 alt="Profil"
               />

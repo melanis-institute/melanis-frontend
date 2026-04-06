@@ -18,18 +18,31 @@ export default function PF01() {
   const [selected, setSelected] = useState<AppointmentType | null>(null);
   const navigate = useNavigate();
   const auth = useAuth();
+  const effectiveProfileId = auth.actingProfileId ?? auth.profiles[0]?.id ?? null;
+  const effectiveProfile = auth.actingProfile ?? auth.profiles[0] ?? null;
   const profileOptions = auth.profiles.map((profile) => ({
     id: profile.id,
     label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
   }));
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selected) {
+      if (!effectiveProfileId) {
+        navigate("/patient-flow/account/select-profile", {
+          state: { returnTo: "/patient-flow" },
+        });
+        return;
+      }
+
+      if (auth.actingProfileId !== effectiveProfileId) {
+        await auth.setActingProfile(effectiveProfileId);
+      }
+
       navigate("/patient-flow/creneau", {
         state: {
           appointmentType: selected,
-          actingProfileId: auth.actingProfileId,
-          actingRelationship: auth.actingProfile?.relationship,
+          actingProfileId: effectiveProfileId,
+          actingRelationship: effectiveProfile?.relationship,
         },
       });
     }
@@ -57,18 +70,17 @@ export default function PF01() {
           className="px-5 md:px-8 mt-2 md:mt-3"
         >
           <PersistentContextBar
-            profileId={auth.actingProfileId}
+            profileId={effectiveProfileId}
             profileOptions={profileOptions}
             profileLabel={
-              auth.actingProfile
-                ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`
+              effectiveProfile
+                ? `${effectiveProfile.firstName} ${effectiveProfile.lastName}`
                 : null
             }
             onProfileChange={(profileId) => {
               void auth.setActingProfile(profileId);
             }}
             appointmentType={selected}
-            practitionerName="Dr. Aïssatou Diallo"
           />
         </motion.div>
 
@@ -145,7 +157,7 @@ export default function PF01() {
               pointerEvents: selected ? "auto" : "none",
             }}
             transition={{ duration: 0.3, ease: "easeOut" }}
-            onClick={handleContinue}
+            onClick={() => void handleContinue()}
             className="
               pf-primary-cta
               w-full h-[52px] rounded-[16px] text-white text-[16px] tracking-[-0.2px]

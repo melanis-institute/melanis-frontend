@@ -67,7 +67,9 @@ export function PersistentContextBar({
 }: PersistentContextBarProps) {
   const options = resolveOptions(profileOptions);
   const safeProfileId =
-    profileId ?? normalizeLegacyProfile(typeof profile === "string" ? profile : null);
+    profileId ??
+    options[0]?.id ??
+    normalizeLegacyProfile(typeof profile === "string" ? profile : null);
 
   const typeLabel =
     appointmentType === "video"

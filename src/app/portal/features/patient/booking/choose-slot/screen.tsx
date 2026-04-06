@@ -333,7 +333,6 @@ export default function PF02() {
               void auth.setActingProfile(profileId);
             }}
             appointmentType={appointmentType}
-            practitionerName={PRACTITIONER.name}
             dateLabel={selectedDateLabel}
             timeLabel={selectedTime ?? "À définir"}
           />

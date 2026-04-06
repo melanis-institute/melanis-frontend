@@ -65,7 +65,7 @@ const VALIDATION_MESSAGES: Record<number, string> = {
   3: "Renseignez les symptômes et la durée pour continuer.",
   5: "Indiquez si votre peau est sensible.",
   7: "Sélectionnez au moins un objectif de consultation.",
-  8: "Validez les consentements pour finaliser.",
+  8: "Vérifiez votre récapitulatif pour finaliser.",
 };
 
 const STAGE_MAP: Record<number, number> = {
@@ -259,7 +259,7 @@ export default function PF03() {
       case 7:
         return data.objectifs.length > 0;
       case 8:
-        return data.consentDonnees && data.consentExactitude;
+        return true;
       default:
         return false;
     }
@@ -442,12 +442,6 @@ export default function PF03() {
           <StepRecap
             data={data}
             onEdit={goToStep}
-            onConsentDonneesChange={(consentDonnees) =>
-              updateData({ consentDonnees })
-            }
-            onConsentExactitudeChange={(consentExactitude) =>
-              updateData({ consentExactitude })
-            }
           />
         );
       default:

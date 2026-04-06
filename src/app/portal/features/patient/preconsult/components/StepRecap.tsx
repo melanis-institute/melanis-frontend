@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Edit3,
@@ -9,8 +9,6 @@ import {
   Camera,
   Target,
   Check,
-  ShieldCheck,
-  FileCheck2,
   Stethoscope,
   Sparkles,
   AlertCircle,
@@ -414,122 +412,6 @@ function PhotoCount({ count }: { count: number }) {
   );
 }
 
-// ——— Consent toggle ———
-function ConsentToggle({
-  checked,
-  onChange,
-  icon: Icon,
-  label,
-  index,
-}: {
-  checked: boolean;
-  onChange: (val: boolean) => void;
-  icon: LucideIcon;
-  label: string;
-  index: number;
-}) {
-  return (
-    <motion.button
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
-      onClick={() => onChange(!checked)}
-      className={`
-        w-full flex items-start gap-3.5 p-4 rounded-[18px] cursor-pointer
-        text-left transition-all duration-250 overflow-hidden relative
-        ${checked ? "ring-[1.5px] ring-[#00415E]/20" : ""}
-      `}
-      style={{
-        background: checked
-          ? "linear-gradient(135deg, rgba(0, 65, 94, 0.04) 0%, rgba(254, 240, 213, 0.15) 100%)"
-          : "white",
-        boxShadow: checked
-          ? "none"
-          : "0 1px 3px rgba(17,18,20,0.03), 0 2px 6px rgba(17,18,20,0.02)",
-      }}
-    >
-      {/* Left accent bar */}
-      <motion.div
-        className="absolute left-0 top-[12px] bottom-[12px] w-[2.5px] rounded-r-full"
-        initial={false}
-        animate={{
-          scaleY: checked ? 1 : 0,
-          opacity: checked ? 0.5 : 0,
-        }}
-        transition={{ duration: 0.25 }}
-        style={{ background: "#00415E", transformOrigin: "center" }}
-      />
-
-      {/* Icon */}
-      <div
-        className="flex-shrink-0 w-[30px] h-[30px] rounded-[9px] flex items-center justify-center mt-0.5 transition-colors"
-        style={{
-          background: checked
-            ? "rgba(0, 65, 94, 0.1)"
-            : "rgba(17, 18, 20, 0.04)",
-        }}
-      >
-        <Icon
-          className="w-[14px] h-[14px] transition-colors"
-          style={{
-            color: checked ? "#00415E" : "rgba(17, 18, 20, 0.3)",
-          }}
-          strokeWidth={1.7}
-        />
-      </div>
-
-      {/* Label */}
-      <span
-        className="flex-1 text-[13px] leading-[1.55] tracking-[-0.05px] transition-colors pt-[5px]"
-        style={{
-          color: checked ? "rgba(0, 65, 94, 0.75)" : "rgba(17, 18, 20, 0.55)",
-          fontWeight: checked ? 500 : 450,
-        }}
-      >
-        {label}
-      </span>
-
-      {/* Checkbox */}
-      <div className="flex-shrink-0 mt-1">
-        <motion.div
-          className="w-[24px] h-[24px] rounded-[8px] flex items-center justify-center"
-          initial={false}
-          animate={{
-            backgroundColor: checked ? "#00415E" : "transparent",
-            borderColor: checked
-              ? "#00415E"
-              : "rgba(17, 18, 20, 0.15)",
-          }}
-          transition={{ duration: 0.2 }}
-          style={{
-            border: checked ? "none" : "1.5px solid rgba(17,18,20,0.15)",
-          }}
-        >
-          <AnimatePresence>
-            {checked && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 22,
-                }}
-              >
-                <Check
-                  className="w-[14px] h-[14px] text-white"
-                  strokeWidth={2.5}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </div>
-    </motion.button>
-  );
-}
-
 // ——— Divider ———
 function SectionDivider({ delay }: { delay: number }) {
   return (
@@ -550,17 +432,10 @@ function SectionDivider({ delay }: { delay: number }) {
 interface StepRecapProps {
   data: PreConsultData;
   onEdit: (step: number) => void;
-  onConsentDonneesChange: (val: boolean) => void;
-  onConsentExactitudeChange: (val: boolean) => void;
 }
 
 // ——— Main Component ———
-export function StepRecap({
-  data,
-  onEdit,
-  onConsentDonneesChange,
-  onConsentExactitudeChange,
-}: StepRecapProps) {
+export function StepRecap({ data, onEdit }: StepRecapProps) {
   const completeness = useMemo(() => computeCompleteness(data), [data]);
   const summary = useMemo(
     () => getSummaryMessage(completeness.pct),
@@ -597,13 +472,6 @@ export function StepRecap({
     historiqueItems.push(
       `Médicaments${data.medicamentsDetail ? `: ${data.medicamentsDetail}` : ""}`
     );
-
-  // ——— Animated reveal of sections ———
-  const [showConsent, setShowConsent] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setShowConsent(true), 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   return (
     <div className="space-y-0">
@@ -895,102 +763,6 @@ export function StepRecap({
         )}
       </SectionGroup>
 
-      <SectionDivider delay={0.65} />
-
-      {/* ——— Consent Section ——— */}
-      <AnimatePresence>
-        {showConsent && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {/* Section header */}
-            <div className="flex items-center gap-2.5 mb-3">
-              <div
-                className="w-[28px] h-[28px] rounded-[9px] flex items-center justify-center"
-                style={{ background: "rgba(0, 65, 94, 0.08)" }}
-              >
-                <ShieldCheck
-                  className="w-[14px] h-[14px] text-[#00415E]"
-                  strokeWidth={1.8}
-                />
-              </div>
-              <span
-                className="text-[13px] tracking-[-0.1px]"
-                style={{ color: "rgba(0, 65, 94, 0.7)", fontWeight: 620 }}
-              >
-                Consentement
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              <ConsentToggle
-                checked={data.consentDonnees}
-                onChange={onConsentDonneesChange}
-                icon={ShieldCheck}
-                label="J'accepte le traitement de mes données de santé dans le cadre de cette consultation."
-                index={0}
-              />
-              <ConsentToggle
-                checked={data.consentExactitude}
-                onChange={onConsentExactitudeChange}
-                icon={FileCheck2}
-                label="Je confirme que les informations fournies sont exactes à ma connaissance."
-                index={1}
-              />
-            </div>
-
-            {/* Both consents checked → reassurance card */}
-            <AnimatePresence>
-              {data.consentDonnees && data.consentExactitude && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, height: 0, marginTop: 0 }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                    height: "auto",
-                    marginTop: 14,
-                  }}
-                  exit={{ opacity: 0, y: -4, height: 0, marginTop: 0 }}
-                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  className="overflow-hidden"
-                >
-                  <div
-                    className="flex items-start gap-3 px-4 py-4 rounded-[18px]"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, rgba(0, 65, 94, 0.04) 0%, rgba(254, 240, 213, 0.2) 100%)",
-                      border: "1px solid rgba(0, 65, 94, 0.08)",
-                    }}
-                  >
-                    <div className="w-[30px] h-[30px] rounded-[10px] bg-[#00415E]/10 flex items-center justify-center flex-shrink-0">
-                      <Sparkles
-                        className="w-[15px] h-[15px] text-[#00415E]"
-                        strokeWidth={1.7}
-                      />
-                    </div>
-                    <div>
-                      <p
-                        className="text-[13.5px] text-[#00415E]/80 tracking-[-0.1px]"
-                        style={{ fontWeight: 600 }}
-                      >
-                        Prêt pour votre consultation !
-                      </p>
-                      <p
-                        className="text-[12px] text-[#00415E]/45 leading-[1.55] mt-1 tracking-[-0.05px]"
-                        style={{ fontWeight: 420 }}
-                      >
-                        Le Dr. Diallo recevra ce dossier avant votre rendez-vous pour vous offrir un accompagnement personnalisé dès la première minute.
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

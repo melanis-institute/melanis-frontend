@@ -1,5 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import type {
+  NotificationChannelPreference,
+  SkinScoreRecord,
+  PatientRecordEvent,
+  ScreeningCadence,
+  ScreeningReminder,
+  ScreeningReminderStatus,
+} from "@portal/domains/account/types";
+import type { AppointmentRecord } from "@portal/domains/appointments/types";
+import { useAuth } from "@portal/session/useAuth";
+import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
+import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
 import {
   Activity,
   ArrowUpRight,
@@ -15,7 +25,6 @@ import {
   ImagePlus,
   Pill,
   Plus,
-  RotateCcw,
   ScanFace,
   Sparkles,
   Star,
@@ -23,20 +32,11 @@ import {
   User,
   Video,
   Wind,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
-import { useAuth } from "@portal/session/useAuth";
-import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
-import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
-import type {
-  NotificationChannelPreference,
-  PatientRecordEvent,
-  ScreeningCadence,
-  ScreeningReminder,
-  ScreeningReminderStatus,
-} from "@portal/domains/account/types";
 
 const DASHBOARD_PATH = "/patient-flow/auth/dashboard";
 const PROFILE_PATH = "/patient-flow/account";
@@ -72,11 +72,18 @@ interface UpcomingAppointment {
   dateLabel: string;
   timeLabel: string;
   isVideo: boolean;
+  scheduledFor: string;
 }
 
 interface DashboardHomeProps {
   firstName: string;
-  upcoming: UpcomingAppointment;
+  hasActingProfile: boolean;
+  upcoming: UpcomingAppointment | null;
+  upcomingLoading: boolean;
+  upcomingError: string | null;
+  skinScores: SkinScoreRecord[];
+  skinScoresLoading: boolean;
+  skinScoresError: string | null;
 }
 
 function getGreeting() {
@@ -93,7 +100,7 @@ function getFirstName(fullName?: string): string {
 }
 
 function formatTimeLabel(value?: string): string {
-  if (!value) return "14h30";
+  if (!value) return "--";
   const trimmed = value.trim();
   if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
     return trimmed.replace(":", "h");
@@ -101,28 +108,37 @@ function formatTimeLabel(value?: string): string {
   return trimmed;
 }
 
-function parseMinutesUntil(timeLabel: string): number | null {
-  const normalized = timeLabel.trim().toLowerCase().replace(/\s+/g, "");
-  const match = normalized.match(/^(\d{1,2})(?:h|:)(\d{2})$/);
-
-  if (!match) return null;
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) {
-    return null;
-  }
-
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(hour, minute, 0, 0);
-
-  return Math.round((target.getTime() - now.getTime()) / 60000);
+function formatTimeFromDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "--";
+  return formatTimeLabel(
+    parsed.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  );
 }
 
-function isLikelyToday(label: string): boolean {
-  return label.trim().toLowerCase().includes("aujourd");
+function formatAppointmentDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "--";
+  const now = new Date();
+  const isToday =
+    parsed.getDate() === now.getDate() &&
+    parsed.getMonth() === now.getMonth() &&
+    parsed.getFullYear() === now.getFullYear();
+  if (isToday) return "Aujourd'hui";
+  return parsed.toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function minutesUntilDate(value: string): number | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return Math.round((parsed.getTime() - Date.now()) / 60000);
 }
 
 function formatDateTime(value: string) {
@@ -166,13 +182,16 @@ function timelineIcon(type: PatientRecordEvent["type"]): LucideIcon {
   if (type === "appointment_booked") return Calendar;
   if (type === "consent_signed" || type === "consent_revoked") return Bell;
   if (type === "profile_updated") return User;
-  if (type === "dependent_created" || type === "dependent_unlinked") return Plus;
+  if (type === "dependent_created" || type === "dependent_unlinked")
+    return Plus;
   return Activity;
 }
 
 function reminderStatusTone(status: ScreeningReminderStatus) {
-  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (status === "snoozed") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "completed")
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "snoozed")
+    return "border-amber-200 bg-amber-50 text-amber-700";
   return "border-[#111214]/10 bg-[#111214]/5 text-[#111214]/60";
 }
 
@@ -184,14 +203,90 @@ function channelSummary(channels: NotificationChannelPreference) {
   return labels.length > 0 ? labels.join(" · ") : "Aucun canal";
 }
 
-function SkinScoreRing({ score = 78, size = 72 }: { score?: number; size?: number }) {
+function scoreSourceLabel(source: SkinScoreRecord["source"]): string {
+  if (source === "scan") return "Scan IA";
+  if (source === "manual") return "Saisie manuelle";
+  return "Score calculé";
+}
+
+function scoreStatusLabel(score: number): string {
+  if (score >= 80) return "Excellent etat";
+  if (score >= 65) return "Equilibre stable";
+  if (score >= 50) return "Peau a surveiller";
+  return "Suivi recommande";
+}
+
+function scoreTrendLabel(delta: number | null): string {
+  if (delta === null) return "Premier score enregistré";
+  if (delta > 0) return `+${delta} vs precedent`;
+  if (delta < 0) return `${delta} vs precedent`;
+  return "Stable vs precedent";
+}
+
+function selectUpcomingAppointment(
+  appointments: AppointmentRecord[],
+): AppointmentRecord | null {
+  const sorted = [...appointments].sort((first, second) => {
+    const firstTime = new Date(first.scheduledFor).getTime();
+    const secondTime = new Date(second.scheduledFor).getTime();
+    const safeFirst = Number.isNaN(firstTime) ? Number.MAX_SAFE_INTEGER : firstTime;
+    const safeSecond =
+      Number.isNaN(secondTime) ? Number.MAX_SAFE_INTEGER : secondTime;
+    return safeFirst - safeSecond;
+  });
+
+  const now = Date.now();
+
+  return (
+    sorted.find((appointment) => {
+      if (appointment.status === "completed") return false;
+      const scheduledAt = new Date(appointment.scheduledFor).getTime();
+      return !Number.isNaN(scheduledAt) && scheduledAt >= now;
+    }) ??
+    sorted.find((appointment) => appointment.status !== "completed") ??
+    null
+  );
+}
+
+function toUpcomingAppointment(
+  appointment: AppointmentRecord,
+): UpcomingAppointment {
+  const fallbackLocation = appointment.appointmentType === "video"
+    ? "Consultation video"
+    : "Cabinet";
+  return {
+    practitioner: appointment.practitionerName,
+    location: appointment.practitionerLocation ?? fallbackLocation,
+    dateLabel:
+      appointment.dateLabel && appointment.dateLabel.trim().length > 0
+        ? appointment.dateLabel
+        : formatAppointmentDate(appointment.scheduledFor),
+    timeLabel:
+      appointment.timeLabel && appointment.timeLabel.trim().length > 0
+        ? formatTimeLabel(appointment.timeLabel)
+        : formatTimeFromDate(appointment.scheduledFor),
+    isVideo: appointment.appointmentType === "video",
+    scheduledFor: appointment.scheduledFor,
+  };
+}
+
+function SkinScoreRing({
+  score = 78,
+  size = 72,
+}: {
+  score?: number;
+  size?: number;
+}) {
   const strokeWidth = size * 0.09;
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
 
   return (
-    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+    <div
+      className="relative flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         <circle
           cx={center}
@@ -211,7 +306,9 @@ function SkinScoreRing({ score = 78, size = 72 }: { score?: number; size?: numbe
           strokeLinecap="round"
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference - (score / 100) * circumference }}
+          animate={{
+            strokeDashoffset: circumference - (score / 100) * circumference,
+          }}
           transition={{ duration: 1.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
         />
       </svg>
@@ -289,17 +386,17 @@ function QuickActions() {
     return (
       <div className="rounded-[1.5rem] border border-[#5B1112]/15 bg-white/85 p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5B1112]/70">
-          Hub actions profil
+          Hub actions
         </p>
         <p className="mt-2 text-sm text-[#111214]/65">
-          Sélectionnez d’abord le profil patient actif pour afficher vos actions.
+          Commencez par réserver un rendez-vous. Le reste des actions se
+          débloquera ensuite automatiquement.
         </p>
         <Link
-          to="/patient-flow/account/select-profile"
-          state={{ returnTo: PATHS.appointments }}
+          to={PATHS.booking}
           className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#5B1112] px-4 py-2 text-xs font-medium text-white"
         >
-          Sélectionner un profil
+          Prendre un rendez-vous
           <ArrowUpRight size={12} />
         </Link>
       </div>
@@ -324,8 +421,12 @@ function QuickActions() {
                   <Icon size={14} className="text-[#5B1112]/70" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#111214]/75">{title}</p>
-                  <p className="mt-1 text-[11px] text-[#111214]/42">{subtitle}</p>
+                  <p className="text-sm font-medium text-[#111214]/75">
+                    {title}
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#111214]/42">
+                    {subtitle}
+                  </p>
                 </div>
                 <ArrowUpRight size={12} className="text-[#111214]/30" />
               </div>
@@ -358,12 +459,18 @@ function QuickActions() {
 function AppointmentCard({
   delay = 0,
   appointment,
+  hasActingProfile,
+  loading,
+  error,
 }: {
   delay?: number;
-  appointment: UpcomingAppointment;
+  appointment: UpcomingAppointment | null;
+  hasActingProfile: boolean;
+  loading: boolean;
+  error: string | null;
 }) {
-  const minsUntil = isLikelyToday(appointment.dateLabel)
-    ? parseMinutesUntil(appointment.timeLabel)
+  const minsUntil = appointment
+    ? minutesUntilDate(appointment.scheduledFor)
     : null;
   const isClose = minsUntil !== null && minsUntil > 0 && minsUntil <= 30;
   const showCountdown = minsUntil !== null && minsUntil > 0 && minsUntil <= 120;
@@ -379,89 +486,197 @@ function AppointmentCard({
       <div className="pointer-events-none absolute bottom-[-2.5rem] left-1/3 h-36 w-36 rounded-full bg-[#FEF0D5]/4 blur-2xl" />
 
       <div className="relative z-10 flex flex-1 flex-col gap-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#FEF0D5]/35">
-              Prochain Rendez-vous
-            </p>
-            <h3 className="font-serif" style={{ fontSize: 20 }}>
-              {appointment.practitioner}
-            </h3>
-            <p className="mt-0.5 text-xs text-[#FEF0D5]/45">{appointment.location}</p>
-          </div>
+        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#FEF0D5]/35">
+          Prochain Rendez-vous
+        </p>
 
-          <Link
-            to={PATHS.booking}
-            className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-white/15"
-          >
-            Voir <ArrowUpRight size={10} />
-          </Link>
-        </div>
+        {!hasActingProfile ? (
+          <>
+            <div>
+              <h3 className="font-serif" style={{ fontSize: 20 }}>
+                Aucun rendez-vous pour le moment
+              </h3>
+              <p className="mt-2 text-sm text-[#FEF0D5]/55">
+                Lancez la réservation et choisissez le profil pendant le parcours.
+              </p>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-xl bg-white/10 px-3 py-1.5 text-[11px] font-medium text-[#FEF0D5]">
-            {appointment.dateLabel}
-          </span>
-          <span className="rounded-xl bg-white/10 px-3 py-1.5 text-[11px] font-medium text-[#FEF0D5]">
-            {appointment.timeLabel}
-          </span>
-          <span className="rounded-xl bg-[#5B1112]/60 px-3 py-1.5 text-[11px] font-medium text-white/85">
-            {appointment.isVideo ? "Video" : "Cabinet"}
-          </span>
-
-          {showCountdown ? (
-            <motion.span
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-1 rounded-xl bg-amber-500/20 px-3 py-1.5 text-[11px] font-medium text-amber-300"
+            <Link
+              to={PATHS.booking}
+              className="mt-auto inline-flex items-center justify-center gap-2 rounded-[1.25rem] bg-[#5B1112] py-3 text-sm font-medium text-white shadow-lg shadow-[#5B1112]/35"
             >
-              <Clock size={9} />
-              dans {minsUntil} min
-            </motion.span>
-          ) : null}
-        </div>
+              Prendre un rendez-vous
+              <ArrowUpRight size={12} />
+            </Link>
+          </>
+        ) : loading ? (
+          <div className="flex flex-1 items-center rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-5 text-sm text-[#FEF0D5]/60">
+            Chargement du prochain rendez-vous...
+          </div>
+        ) : error ? (
+          <>
+            <div className="rounded-[1.5rem] border border-[#FEF0D5]/18 bg-white/8 px-4 py-4 text-sm text-[#FEF0D5]/75">
+              {error}
+            </div>
+            <Link
+              to={PATHS.booking}
+              className="mt-auto inline-flex items-center justify-center gap-2 rounded-[1.25rem] border border-white/10 bg-white/10 py-3 text-sm font-medium text-white/80"
+            >
+              Réserver un RDV
+              <ArrowUpRight size={12} />
+            </Link>
+          </>
+        ) : !appointment ? (
+          <>
+            <div>
+              <h3 className="font-serif" style={{ fontSize: 20 }}>
+                Aucun rendez-vous à venir
+              </h3>
+              <p className="mt-2 text-sm text-[#FEF0D5]/55">
+                Ce profil n'a pas encore de rendez-vous planifié.
+              </p>
+            </div>
 
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          className={`mt-auto flex items-center justify-center gap-2 rounded-[1.25rem] py-3 text-sm font-medium transition-all ${
-            isClose
-              ? "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/40"
-              : "border border-white/8 bg-white/10 text-white/75 hover:bg-white/18"
-          }`}
-        >
-          {isClose && appointment.isVideo ? <Video size={14} /> : <Clock size={14} />}
-          {isClose && appointment.isVideo ? "Rejoindre la video" : "Preparer le RDV"}
-        </motion.button>
+            <Link
+              to={PATHS.booking}
+              className="mt-auto inline-flex items-center justify-center gap-2 rounded-[1.25rem] bg-[#5B1112] py-3 text-sm font-medium text-white shadow-lg shadow-[#5B1112]/35"
+            >
+              Réserver un RDV
+              <ArrowUpRight size={12} />
+            </Link>
+          </>
+        ) : (
+          <>
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-serif" style={{ fontSize: 20 }}>
+                  {appointment.practitioner}
+                </h3>
+                <p className="mt-0.5 text-xs text-[#FEF0D5]/45">
+                  {appointment.location}
+                </p>
+              </div>
+
+              <Link
+                to={PATHS.booking}
+                className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-white/15"
+              >
+                Voir <ArrowUpRight size={10} />
+              </Link>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-xl bg-white/10 px-3 py-1.5 text-[11px] font-medium text-[#FEF0D5]">
+                {appointment.dateLabel}
+              </span>
+              <span className="rounded-xl bg-white/10 px-3 py-1.5 text-[11px] font-medium text-[#FEF0D5]">
+                {appointment.timeLabel}
+              </span>
+              <span className="rounded-xl bg-[#5B1112]/60 px-3 py-1.5 text-[11px] font-medium text-white/85">
+                {appointment.isVideo ? "Video" : "Cabinet"}
+              </span>
+
+              {showCountdown ? (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-1 rounded-xl bg-amber-500/20 px-3 py-1.5 text-[11px] font-medium text-amber-300"
+                >
+                  <Clock size={9} />
+                  dans {minsUntil} min
+                </motion.span>
+              ) : null}
+            </div>
+
+            <div className="mt-auto flex flex-col gap-2">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#FEF0D5]/35">
+                {formatDateTime(appointment.scheduledFor)}
+              </p>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex items-center justify-center gap-2 rounded-[1.25rem] py-3 text-sm font-medium transition-all ${
+                  isClose
+                    ? "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/40"
+                    : "border border-white/8 bg-white/10 text-white/75 hover:bg-white/18"
+                }`}
+              >
+                {isClose && appointment.isVideo ? (
+                  <Video size={14} />
+                ) : (
+                  <Clock size={14} />
+                )}
+                {isClose && appointment.isVideo
+                  ? "Rejoindre la video"
+                  : "Preparer le RDV"}
+              </motion.div>
+            </div>
+          </>
+        )}
       </div>
     </motion.div>
   );
 }
 
-function TodayCard({ delay = 0 }: { delay?: number }) {
-  const [activeDay, setActiveDay] = useState(2);
+function TodayCard({
+  delay = 0,
+  hasActingProfile,
+  skinScores,
+  loading,
+  error,
+}: {
+  delay?: number;
+  hasActingProfile: boolean;
+  skinScores: SkinScoreRecord[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const sortedScores = useMemo(
+    () =>
+      [...skinScores].sort((first, second) =>
+        first.measuredAt.localeCompare(second.measuredAt),
+      ),
+    [skinScores],
+  );
+  const [selectedScoreId, setSelectedScoreId] = useState<string | null>(null);
 
-  const baseDate = new Date();
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(baseDate);
-    date.setDate(baseDate.getDate() - 2 + index);
-    return {
-      abbr: date
-        .toLocaleDateString("fr-FR", { weekday: "short" })
-        .replace(".", "")
-        .slice(0, 3),
-      num: date.getDate().toString().padStart(2, "0"),
-    };
-  });
-
-  const isToday = activeDay === 2;
-
-  const chips = [
-    { Icon: CloudSun, label: "UV 8/12", warn: true },
-    { Icon: Droplets, label: "Hydrat. 72%", warn: false },
-    { Icon: Wind, label: "Harmattan", warn: false },
-    { Icon: Activity, label: "Peau: Bon", warn: false },
-  ];
+  const visibleScores = sortedScores.slice(-7);
+  const visibleStartIndex = Math.max(sortedScores.length - visibleScores.length, 0);
+  const selectedScore =
+    sortedScores.find((score) => score.id === selectedScoreId) ??
+    sortedScores[sortedScores.length - 1] ??
+    null;
+  const activeIndex = selectedScore
+    ? sortedScores.findIndex((score) => score.id === selectedScore.id)
+    : -1;
+  const previousScore =
+    activeIndex > 0 ? sortedScores[activeIndex - 1] ?? null : null;
+  const scoreDelta =
+    selectedScore && previousScore
+      ? selectedScore.score - previousScore.score
+      : null;
+  const scoreStatus = selectedScore
+    ? scoreStatusLabel(selectedScore.score)
+    : null;
+  const chips = selectedScore
+    ? [
+        {
+          Icon: Sparkles,
+          label: scoreSourceLabel(selectedScore.source),
+          warn: false,
+        },
+        {
+          Icon: Activity,
+          label: `${sortedScores.length} mesure${sortedScores.length > 1 ? "s" : ""} sur 7j`,
+          warn: false,
+        },
+        {
+          Icon: Clock,
+          label: `MAJ il y a ${formatRelativeFromNow(selectedScore.measuredAt)}`,
+          warn: false,
+        },
+      ]
+    : [];
 
   return (
     <motion.div
@@ -470,92 +685,158 @@ function TodayCard({ delay = 0 }: { delay?: number }) {
       transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="relative flex min-h-[220px] flex-col gap-4 overflow-hidden rounded-[2rem] p-6"
       style={{
-        background: "linear-gradient(140deg, #fff9f0 0%, #FEF0D5 60%, #fde8be 100%)",
+        background:
+          "linear-gradient(140deg, #fff9f0 0%, #FEF0D5 60%, #fde8be 100%)",
       }}
     >
       <div className="pointer-events-none absolute -bottom-8 -right-8 h-40 w-40 rounded-full bg-[#5B1112]/4 blur-3xl" />
 
       <div className="relative z-10 flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Aujourd'hui</p>
-          <AnimatePresence>
-            {!isToday ? (
-              <motion.button
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 8 }}
-                transition={{ duration: 0.18 }}
-                onClick={() => setActiveDay(2)}
-                className="flex items-center gap-1 text-[10px] font-medium text-[#5B1112]/65 transition-colors hover:text-[#5B1112]"
-              >
-                <RotateCcw size={9} />
-                Retour a aujourd'hui
-              </motion.button>
-            ) : null}
-          </AnimatePresence>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {days.map((day, index) => (
-            <motion.button
-              key={`${day.abbr}-${day.num}`}
-              whileTap={{ scale: 0.88 }}
-              onClick={() => setActiveDay(index)}
-              className={`flex flex-shrink-0 flex-col items-center justify-center rounded-[1.25rem] transition-all duration-300 ${
-                index === activeDay
-                  ? "h-[3.4rem] w-[2.9rem] bg-[#5B1112] text-white shadow-md shadow-[#5B1112]/25"
-                  : "h-[3rem] w-[2.5rem] bg-white/55 text-[#111214]/40 hover:bg-white/75"
-              }`}
-            >
-              <span className="mb-0.5 text-[8px] font-semibold uppercase tracking-wider">{day.abbr}</span>
-              <span className={`font-serif ${index === activeDay ? "text-lg" : "text-sm"}`}>{day.num}</span>
-            </motion.button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-4">
-          <SkinScoreRing score={78} size={70} />
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-[#5B1112]" style={{ fontSize: 28, lineHeight: 1 }}>
-                78
-              </span>
-              <span className="flex items-center gap-0.5 text-emerald-500">
-                <TrendingUp size={10} />
-                <span className="text-[10px] font-semibold">+3 vs hier</span>
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-[#111214]/40">Excellent etat</p>
-            <p className="mt-1 text-[10px] text-[#111214]/30">Tendance stable sur 7j</p>
-          </div>
-
-          <div className="flex-shrink-0 opacity-75">
-            <MelaniaMascot size={54} delay={delay + 0.3} />
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5">
-          <p className="text-[10px] italic leading-snug text-[#111214]/55">
-            "Hydratation optimale aujourd'hui - continue avec ton serum !"
+          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+            Aujourd'hui
           </p>
+          {selectedScore ? (
+            <span className="text-[10px] font-medium text-[#5B1112]/65">
+              {formatDate(selectedScore.measuredAt)}
+            </span>
+          ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {chips.map(({ Icon, label, warn }) => (
-            <div
-              key={label}
-              className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[10px] font-medium ${
-                warn
-                  ? "border border-amber-100 bg-amber-50 text-amber-600"
-                  : "border border-white/70 bg-white/55 text-[#111214]/50"
-              }`}
-            >
-              <Icon size={10} className={warn ? "text-amber-500" : "text-[#5B1112]/40"} />
-              {label}
+        {!hasActingProfile ? (
+          <div className="rounded-[1.5rem] border border-[#111214]/10 bg-white/60 px-4 py-5 text-sm text-[#111214]/55">
+            Le suivi peau apparaîtra après votre premier scan.
+          </div>
+        ) : loading ? (
+          <div className="rounded-[1.5rem] border border-[#111214]/10 bg-white/60 px-4 py-5 text-sm text-[#111214]/55">
+            Chargement du suivi peau...
+          </div>
+        ) : error ? (
+          <div className="rounded-[1.5rem] border border-[#5B1112]/10 bg-white/70 px-4 py-5 text-sm text-[#5B1112]">
+            {error}
+          </div>
+        ) : !selectedScore ? (
+          <div className="flex flex-1 flex-col gap-4 rounded-[1.5rem] border border-dashed border-[#111214]/14 bg-white/55 px-4 py-5">
+            <div>
+              <p className="font-serif text-[#111214]" style={{ fontSize: 20 }}>
+                Aucun score disponible
+              </p>
+              <p className="mt-2 text-sm text-[#111214]/52">
+                Ce profil n'a pas encore de mesure peau enregistrée.
+              </p>
             </div>
-          ))}
-        </div>
+            <Link
+              to={PATHS.scan}
+              className="inline-flex items-center gap-2 self-start rounded-full bg-[#5B1112] px-4 py-2 text-xs font-medium text-white"
+            >
+              Lancer un premier scan
+              <ArrowUpRight size={12} />
+            </Link>
+          </div>
+        ) : (
+          <>
+            {visibleScores.length > 1 ? (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {visibleScores.map((score, index) => {
+                  const actualIndex = visibleStartIndex + index;
+                  const scoreDate = new Date(score.measuredAt);
+                  const abbr = scoreDate
+                    .toLocaleDateString("fr-FR", { weekday: "short" })
+                    .replace(".", "")
+                    .slice(0, 3);
+                  const num = scoreDate
+                    .getDate()
+                    .toString()
+                    .padStart(2, "0");
+
+                  return (
+                    <motion.button
+                      key={score.id}
+                      whileTap={{ scale: 0.88 }}
+                      onClick={() => setSelectedScoreId(score.id)}
+                      className={`flex flex-shrink-0 flex-col items-center justify-center rounded-[1.25rem] transition-all duration-300 ${
+                        actualIndex === activeIndex
+                          ? "h-[3.4rem] w-[2.9rem] bg-[#5B1112] text-white shadow-md shadow-[#5B1112]/25"
+                          : "h-[3rem] w-[2.5rem] bg-white/55 text-[#111214]/40 hover:bg-white/75"
+                      }`}
+                    >
+                      <span className="mb-0.5 text-[8px] font-semibold uppercase tracking-wider">
+                        {abbr}
+                      </span>
+                      <span
+                        className={`font-serif ${actualIndex === activeIndex ? "text-lg" : "text-sm"}`}
+                      >
+                        {num}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-4">
+              <SkinScoreRing score={selectedScore.score} size={70} />
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="font-serif text-[#5B1112]"
+                    style={{ fontSize: 28, lineHeight: 1 }}
+                  >
+                    {selectedScore.score}
+                  </span>
+                  {scoreDelta !== null ? (
+                    <span
+                      className={`flex items-center gap-0.5 ${
+                        scoreDelta >= 0 ? "text-emerald-500" : "text-amber-600"
+                      }`}
+                    >
+                      <TrendingUp size={10} />
+                      <span className="text-[10px] font-semibold">
+                        {scoreTrendLabel(scoreDelta)}
+                      </span>
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 text-xs text-[#111214]/40">{scoreStatus}</p>
+                <p className="mt-1 text-[10px] text-[#111214]/30">
+                  Mesure enregistrée le {formatDateTime(selectedScore.measuredAt)}
+                </p>
+              </div>
+
+              <div className="flex-shrink-0 opacity-75">
+                <MelaniaMascot size={54} delay={delay + 0.3} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5">
+              <p className="text-[10px] italic leading-snug text-[#111214]/55">
+                {scoreDelta === null
+                  ? "Premier point de suivi enregistré pour ce profil."
+                  : `Tendance récente: ${scoreTrendLabel(scoreDelta).toLowerCase()}.`}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {chips.map(({ Icon, label, warn }) => (
+                <div
+                  key={label}
+                  className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[10px] font-medium ${
+                    warn
+                      ? "border border-amber-100 bg-amber-50 text-amber-600"
+                      : "border border-white/70 bg-white/55 text-[#111214]/50"
+                  }`}
+                >
+                  <Icon
+                    size={10}
+                    className={warn ? "text-amber-500" : "text-[#5B1112]/40"}
+                  />
+                  {label}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </motion.div>
   );
@@ -616,7 +897,11 @@ function RoutineItem({
           ) : null}
         </div>
 
-        {subtitle ? <p className="mt-0.5 truncate text-[10px] text-[#111214]/35">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className="mt-0.5 truncate text-[10px] text-[#111214]/35">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
 
       {trailing ? <div className="flex-shrink-0">{trailing}</div> : null}
@@ -705,11 +990,14 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
     matin: ROUTINE_DATA.matin.map((item) => item.initDone),
     soir: ROUTINE_DATA.soir.map((item) => item.initDone),
   });
-  const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>([]);
-  const [screeningReminders, setScreeningReminders] = useState<ScreeningReminder[]>([]);
-  const [screeningChannels, setScreeningChannels] = useState<NotificationChannelPreference | null>(
-    null,
+  const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>(
+    [],
   );
+  const [screeningReminders, setScreeningReminders] = useState<
+    ScreeningReminder[]
+  >([]);
+  const [screeningChannels, setScreeningChannels] =
+    useState<NotificationChannelPreference | null>(null);
   const [isHubLoading, setIsHubLoading] = useState(false);
   const [hubError, setHubError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -719,11 +1007,14 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   const toggle = (currentTab: RoutineTab, index: number) => {
     setChecked((prev) => ({
       ...prev,
-      [currentTab]: prev[currentTab].map((value, mapIndex) => (mapIndex === index ? !value : value)),
+      [currentTab]: prev[currentTab].map((value, mapIndex) =>
+        mapIndex === index ? !value : value,
+      ),
     }));
   };
 
-  const totalDone = checked.matin.filter(Boolean).length + checked.soir.filter(Boolean).length;
+  const totalDone =
+    checked.matin.filter(Boolean).length + checked.soir.filter(Boolean).length;
   const totalItems = ROUTINE_DATA.matin.length + ROUTINE_DATA.soir.length;
   const progress = (totalDone / totalItems) * 100;
 
@@ -767,7 +1058,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
 
   const updateReminder = async (
     reminderId: string,
-    patch: Partial<Pick<ScreeningReminder, "cadence" | "status" | "nextDueAt" | "channels">>,
+    patch: Partial<
+      Pick<ScreeningReminder, "cadence" | "status" | "nextDueAt" | "channels">
+    >,
   ) => {
     if (!userId || !actingProfileId) return;
     setSavingReminderId(reminderId);
@@ -780,7 +1073,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
         patch,
       });
       setScreeningReminders((prev) =>
-        prev.map((reminder) => (reminder.id === reminderId ? updated : reminder)),
+        prev.map((reminder) =>
+          reminder.id === reminderId ? updated : reminder,
+        ),
       );
     } catch {
       setHubError("La mise à jour du rappel a échoué. Réessayez.");
@@ -789,7 +1084,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
     }
   };
 
-  const toggleScreeningChannel = async (channel: keyof NotificationChannelPreference) => {
+  const toggleScreeningChannel = async (
+    channel: keyof NotificationChannelPreference,
+  ) => {
     if (!userId || !actingProfileId || !screeningChannels) return;
     const nextChannels = {
       ...screeningChannels,
@@ -815,8 +1112,12 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
         patch: { screening: nextChannels },
       });
 
-      const updatedReminders = await Promise.all([...reminderUpdates, prefsUpdate]).then(
-        (results) => results.slice(0, screeningReminders.length) as ScreeningReminder[],
+      const updatedReminders = await Promise.all([
+        ...reminderUpdates,
+        prefsUpdate,
+      ]).then(
+        (results) =>
+          results.slice(0, screeningReminders.length) as ScreeningReminder[],
       );
 
       setScreeningReminders((prev) =>
@@ -849,18 +1150,17 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
           Dossier & rappels
         </p>
         <h3 className="mt-2 font-serif text-[#111214]" style={{ fontSize: 22 }}>
-          Dossier patient verrouillé
+          Dossier patient vide
         </h3>
         <p className="mt-2 text-sm text-[#111214]/62">
-          Choisissez le profil patient actif pour consulter la timeline, les rappels et les
-          préférences de dépistage.
+          Le dossier, les rappels et les préférences apparaîtront après votre
+          premier rendez-vous ou votre premier scan.
         </p>
         <Link
-          to="/patient-flow/account/select-profile"
-          state={{ returnTo: PATHS.records }}
+          to={PATHS.booking}
           className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#5B1112] px-4 py-2 text-xs font-medium text-white"
         >
-          Sélectionner un profil
+          Prendre un rendez-vous
           <ArrowUpRight size={12} />
         </Link>
       </motion.div>
@@ -876,7 +1176,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
     >
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">Routine du jour</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+            Routine du jour
+          </p>
           <span className="text-[10px] font-semibold text-[#5B1112]">
             {totalDone}/{totalItems} complete
           </span>
@@ -887,7 +1189,11 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
             className="h-full rounded-full bg-gradient-to-r from-[#5B1112] to-[#8B1A1B]"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
-            transition={{ delay: delay + 0.3, duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            transition={{
+              delay: delay + 0.3,
+              duration: 1.2,
+              ease: [0.16, 1, 0.3, 1],
+            }}
           />
         </div>
       </div>
@@ -939,7 +1245,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
             <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#111214]/30">
               Dossier patient
             </p>
-            <p className="mt-1 text-xs text-[#111214]/50">Timeline clinique (événements récents)</p>
+            <p className="mt-1 text-xs text-[#111214]/50">
+              Timeline clinique (événements récents)
+            </p>
           </div>
           {isHubLoading ? (
             <span className="text-[10px] text-[#111214]/45">Chargement...</span>
@@ -969,12 +1277,17 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
                     <Icon size={12} className="text-[#5B1112]/70" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-[#111214]/75">{event.title}</p>
+                    <p className="text-xs font-medium text-[#111214]/75">
+                      {event.title}
+                    </p>
                     {event.description ? (
-                      <p className="mt-0.5 text-[10px] text-[#111214]/45">{event.description}</p>
+                      <p className="mt-0.5 text-[10px] text-[#111214]/45">
+                        {event.description}
+                      </p>
                     ) : null}
                     <p className="mt-1 text-[9px] uppercase tracking-wider text-[#111214]/35">
-                      {formatDateTime(event.occurredAt)} · il y a {formatRelativeFromNow(event.occurredAt)}
+                      {formatDateTime(event.occurredAt)} · il y a{" "}
+                      {formatRelativeFromNow(event.occurredAt)}
                     </p>
                   </div>
                 </div>
@@ -990,7 +1303,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
             <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#111214]/30">
               Rappels dépistage
             </p>
-            <p className="mt-1 text-xs text-[#111214]/50">Liste des rappels et statut actuel</p>
+            <p className="mt-1 text-xs text-[#111214]/50">
+              Liste des rappels et statut actuel
+            </p>
           </div>
           <button
             type="button"
@@ -999,7 +1314,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
             aria-expanded={isSettingsOpen}
             aria-controls="pat23-settings"
           >
-            {isSettingsOpen ? "Masquer les paramètres" : "Ouvrir les paramètres"}
+            {isSettingsOpen
+              ? "Masquer les paramètres"
+              : "Ouvrir les paramètres"}
           </button>
         </div>
 
@@ -1016,7 +1333,9 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-[#111214]/76">{reminder.screeningType}</p>
+                    <p className="text-xs font-medium text-[#111214]/76">
+                      {reminder.screeningType}
+                    </p>
                     <p className="mt-0.5 text-[10px] text-[#111214]/42">
                       Prochaine échéance: {formatDate(reminder.nextDueAt)}
                     </p>
@@ -1040,17 +1359,20 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
                       value={reminder.cadence}
                       onChange={(event) =>
                         void updateReminder(reminder.id, {
-                          cadence: event.currentTarget.value as ScreeningCadence,
+                          cadence: event.currentTarget
+                            .value as ScreeningCadence,
                         })
                       }
                       disabled={savingReminderId === reminder.id}
                       className="mt-1 w-full rounded-lg border border-[#111214]/12 bg-white px-2 py-1.5 text-[11px] text-[#111214]/75"
                     >
-                      {(Object.keys(CADENCE_LABELS) as ScreeningCadence[]).map((cadence) => (
-                        <option key={cadence} value={cadence}>
-                          {CADENCE_LABELS[cadence]}
-                        </option>
-                      ))}
+                      {(Object.keys(CADENCE_LABELS) as ScreeningCadence[]).map(
+                        (cadence) => (
+                          <option key={cadence} value={cadence}>
+                            {CADENCE_LABELS[cadence]}
+                          </option>
+                        ),
+                      )}
                     </select>
                   </label>
 
@@ -1060,13 +1382,16 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
                       value={reminder.status}
                       onChange={(event) =>
                         void updateReminder(reminder.id, {
-                          status: event.currentTarget.value as ScreeningReminderStatus,
+                          status: event.currentTarget
+                            .value as ScreeningReminderStatus,
                         })
                       }
                       disabled={savingReminderId === reminder.id}
                       className="mt-1 w-full rounded-lg border border-[#111214]/12 bg-white px-2 py-1.5 text-[11px] text-[#111214]/75"
                     >
-                      {(Object.keys(STATUS_LABELS) as ScreeningReminderStatus[]).map((status) => (
+                      {(
+                        Object.keys(STATUS_LABELS) as ScreeningReminderStatus[]
+                      ).map((status) => (
                         <option key={status} value={status}>
                           {STATUS_LABELS[status]}
                         </option>
@@ -1128,14 +1453,48 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function WeeklyScanCard({ delay = 0 }: { delay?: number }) {
+function WeeklyScanCard({
+  delay = 0,
+  hasActingProfile,
+  skinScores,
+  loading,
+  error,
+}: {
+  delay?: number;
+  hasActingProfile: boolean;
+  skinScores: SkinScoreRecord[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const sortedScores = useMemo(
+    () =>
+      [...skinScores].sort((first, second) =>
+        first.measuredAt.localeCompare(second.measuredAt),
+      ),
+    [skinScores],
+  );
+  const latestScore = sortedScores[sortedScores.length - 1] ?? null;
+  const scansLast7Days = useMemo(() => {
+    if (!latestScore) return 0;
+    const latestMeasuredAt = new Date(latestScore.measuredAt).getTime();
+    if (Number.isNaN(latestMeasuredAt)) return 0;
+    const threshold = latestMeasuredAt - 7 * 24 * 60 * 60 * 1000;
+    return sortedScores.filter((score) => {
+      const measuredAt = new Date(score.measuredAt).getTime();
+      return !Number.isNaN(measuredAt) && measuredAt >= threshold;
+    }).length;
+  }, [latestScore, sortedScores]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="flex items-center gap-4 rounded-[2rem] border border-[#5B1112]/8 p-5"
-      style={{ background: "linear-gradient(135deg, #fff9f0 0%, #FEF0D5 70%, #fde8bf 100%)" }}
+      style={{
+        background:
+          "linear-gradient(135deg, #fff9f0 0%, #FEF0D5 70%, #fde8bf 100%)",
+      }}
     >
       <motion.div
         animate={{ scale: [1, 1.04, 1] }}
@@ -1146,15 +1505,37 @@ function WeeklyScanCard({ delay = 0 }: { delay?: number }) {
       </motion.div>
 
       <div className="min-w-0 flex-1">
-        <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#5B1112]/45">Cette semaine</p>
+        <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#5B1112]/45">
+          Cette semaine
+        </p>
         <p className="font-serif text-[#111214]" style={{ fontSize: 16 }}>
           Scan IA hebdomadaire
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-[#111214]/35">Derniere : il y a 6 jours</span>
-          <span className="h-1 w-1 flex-shrink-0 rounded-full bg-[#111214]/20" />
-          <span className="text-[10px] font-medium text-[#5B1112]/55">Prochaine : demain</span>
-        </div>
+        {!hasActingProfile ? (
+          <p className="mt-1 text-[10px] text-[#111214]/42">
+            Lancez un premier scan pour démarrer le suivi.
+          </p>
+        ) : loading ? (
+          <p className="mt-1 text-[10px] text-[#111214]/42">
+            Chargement des scans...
+          </p>
+        ) : error ? (
+          <p className="mt-1 text-[10px] text-[#5B1112]">{error}</p>
+        ) : latestScore ? (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-[#111214]/35">
+              Dernier scan : il y a {formatRelativeFromNow(latestScore.measuredAt)}
+            </span>
+            <span className="h-1 w-1 flex-shrink-0 rounded-full bg-[#111214]/20" />
+            <span className="text-[10px] font-medium text-[#5B1112]/55">
+              {scansLast7Days} scan{scansLast7Days > 1 ? "s" : ""} sur 7 jours
+            </span>
+          </div>
+        ) : (
+          <p className="mt-1 text-[10px] text-[#111214]/42">
+            Aucun scan enregistré pour ce profil pour le moment.
+          </p>
+        )}
       </div>
 
       <Link to={PATHS.scan} className="flex-shrink-0">
@@ -1163,7 +1544,7 @@ function WeeklyScanCard({ delay = 0 }: { delay?: number }) {
           whileTap={{ scale: 0.96 }}
           className="flex items-center gap-1.5 rounded-full bg-[#5B1112] px-4 py-2.5 text-xs font-medium text-white shadow-md shadow-[#5B1112]/22"
         >
-          Scanner
+          {latestScore ? "Scanner" : "Premier scan"}
           <ChevronRight size={12} />
         </motion.div>
       </Link>
@@ -1173,9 +1554,24 @@ function WeeklyScanCard({ delay = 0 }: { delay?: number }) {
 
 function RightPanel() {
   const shortcuts = [
-    { Icon: ScanFace, label: "Scanner", to: PATHS.scan, desc: "Analyse IA cutanee" },
-    { Icon: Camera, label: "Ajouter photos", to: PATHS.photos, desc: "Galerie et suivi visuel" },
-    { Icon: Plus, label: "Nouveau cas", to: PATHS.cases, desc: "Creer un suivi" },
+    {
+      Icon: ScanFace,
+      label: "Scanner",
+      to: PATHS.scan,
+      desc: "Analyse IA cutanee",
+    },
+    {
+      Icon: Camera,
+      label: "Ajouter photos",
+      to: PATHS.photos,
+      desc: "Galerie et suivi visuel",
+    },
+    {
+      Icon: Plus,
+      label: "Nouveau cas",
+      to: PATHS.cases,
+      desc: "Creer un suivi",
+    },
   ];
 
   const stats = [
@@ -1222,7 +1618,9 @@ function RightPanel() {
         transition={{ delay: 0.35 }}
         className="rounded-[2rem] border border-white bg-white/70 p-6 shadow-[0_4px_30px_rgba(0,0,0,0.03)] backdrop-blur-xl"
       >
-        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">Raccourcis</p>
+        <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          Raccourcis
+        </p>
         <div className="flex flex-col gap-2">
           {shortcuts.map(({ Icon, label, to, desc }, index) => (
             <Link key={`${label}-${index}`} to={to}>
@@ -1237,7 +1635,9 @@ function RightPanel() {
                   <p className="truncate text-xs font-medium text-[#111214]/65 transition-colors group-hover:text-[#111214]">
                     {label}
                   </p>
-                  <p className="truncate text-[9px] text-[#111214]/30">{desc}</p>
+                  <p className="truncate text-[9px] text-[#111214]/30">
+                    {desc}
+                  </p>
                 </div>
                 <ChevronRight
                   size={12}
@@ -1266,13 +1666,22 @@ function RightPanel() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + index * 0.07 }}
               className={`flex flex-col items-center gap-1 rounded-[1.25rem] py-3 ${
-                warn ? "border border-amber-100/80 bg-amber-50" : "bg-[#111214]/3"
+                warn
+                  ? "border border-amber-100/80 bg-amber-50"
+                  : "bg-[#111214]/3"
               }`}
             >
-              <Icon size={13} className={warn ? "text-amber-500" : "text-[#5B1112]/50"} />
+              <Icon
+                size={13}
+                className={warn ? "text-amber-500" : "text-[#5B1112]/50"}
+              />
               <div className="flex items-baseline gap-px">
-                <span className="font-serif text-sm text-[#111214]">{value}</span>
-                <span style={{ fontSize: 8, color: "rgba(17,18,20,0.35)" }}>{unit}</span>
+                <span className="font-serif text-sm text-[#111214]">
+                  {value}
+                </span>
+                <span style={{ fontSize: 8, color: "rgba(17,18,20,0.35)" }}>
+                  {unit}
+                </span>
               </div>
               <span
                 style={{ fontSize: 7.5, color: "rgba(17,18,20,0.4)" }}
@@ -1284,38 +1693,20 @@ function RightPanel() {
           ))}
         </div>
       </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.55 }}
-        className="group relative cursor-pointer overflow-hidden rounded-[2rem] bg-[#111214] p-5 text-white"
-      >
-        <div className="pointer-events-none absolute -bottom-6 -right-6 h-28 w-28 rounded-full bg-[#5B1112] opacity-60 blur-2xl transition-transform duration-700 group-hover:scale-150" />
-        <div className="absolute right-3 top-3 h-2 w-2 rounded-full bg-[#FEF0D5]/30" />
-
-        <div className="relative z-10">
-          <div className="mb-3 flex items-center gap-2">
-            <Zap size={13} className="text-[#FEF0D5]" />
-            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#FEF0D5]/50">Premium</p>
-          </div>
-
-          <h4 className="mb-1 font-serif text-[#FEF0D5]" style={{ fontSize: 18 }}>
-            Melanis+
-          </h4>
-          <p className="text-xs leading-relaxed text-white/35">
-            Suivi IA illimite, consultations prioritaires et analyses avancees.
-          </p>
-          <div className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-[#FEF0D5]">
-            Decouvrir <ArrowUpRight size={11} />
-          </div>
-        </div>
-      </motion.div>
     </div>
   );
 }
 
-export function DashboardHome({ firstName, upcoming }: DashboardHomeProps) {
+export function DashboardHome({
+  firstName,
+  hasActingProfile,
+  upcoming,
+  upcomingLoading,
+  upcomingError,
+  skinScores,
+  skinScoresLoading,
+  skinScoresError,
+}: DashboardHomeProps) {
   const greeting = getGreeting();
 
   return (
@@ -1335,10 +1726,16 @@ export function DashboardHome({ firstName, upcoming }: DashboardHomeProps) {
             })}
           </p>
           <div className="flex flex-wrap items-baseline gap-2">
-            <h1 className="font-serif text-[#111214]" style={{ fontSize: 32, lineHeight: 1.15 }}>
+            <h1
+              className="font-serif text-[#111214]"
+              style={{ fontSize: 32, lineHeight: 1.15 }}
+            >
               {greeting},
             </h1>
-            <h1 className="font-serif text-[#5B1112]" style={{ fontSize: 32, lineHeight: 1.15 }}>
+            <h1
+              className="font-serif text-[#5B1112]"
+              style={{ fontSize: 32, lineHeight: 1.15 }}
+            >
               {firstName}
             </h1>
           </div>
@@ -1349,8 +1746,20 @@ export function DashboardHome({ firstName, upcoming }: DashboardHomeProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <AppointmentCard delay={0.14} appointment={upcoming} />
-          <TodayCard delay={0.2} />
+          <AppointmentCard
+            delay={0.14}
+            appointment={upcoming}
+            hasActingProfile={hasActingProfile}
+            loading={upcomingLoading}
+            error={upcomingError}
+          />
+          <TodayCard
+            delay={0.2}
+            hasActingProfile={hasActingProfile}
+            skinScores={skinScores}
+            loading={skinScoresLoading}
+            error={skinScoresError}
+          />
         </div>
 
         <div id="records" className="scroll-mt-28">
@@ -1358,7 +1767,13 @@ export function DashboardHome({ firstName, upcoming }: DashboardHomeProps) {
         </div>
 
         <div id="scan" className="scroll-mt-28">
-          <WeeklyScanCard delay={0.36} />
+          <WeeklyScanCard
+            delay={0.36}
+            hasActingProfile={hasActingProfile}
+            skinScores={skinScores}
+            loading={skinScoresLoading}
+            error={skinScoresError}
+          />
         </div>
       </div>
 
@@ -1372,6 +1787,15 @@ export function DashboardHome({ firstName, upcoming }: DashboardHomeProps) {
 export default function AU06() {
   const navigate = useNavigate();
   const auth = useAuth();
+  const userId = auth.user?.id ?? null;
+  const actingProfileId = auth.actingProfileId;
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+  const [skinScores, setSkinScores] = useState<SkinScoreRecord[]>([]);
+  const [skinScoresLoading, setSkinScoresLoading] = useState(false);
+  const [skinScoresError, setSkinScoresError] = useState<string | null>(null);
+  const hasActingProfile = Boolean(userId && actingProfileId);
 
   useEffect(() => {
     if (!auth.isAuthenticated) {
@@ -1379,43 +1803,82 @@ export default function AU06() {
     }
   }, [auth.isAuthenticated, navigate]);
 
-  const firstName = useMemo(() => getFirstName(auth.user?.fullName), [auth.user?.fullName]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const upcoming = useMemo<UpcomingAppointment>(() => {
-    const flow = auth.flowContext;
-    const isVideo = flow?.appointmentType === "video";
+    const load = async () => {
+      if (!userId || !actingProfileId) return;
 
-    const practitioner =
-      typeof flow?.practitioner?.name === "string" ? flow.practitioner.name : "Dr. Awa Ndiaye";
-    const location =
-      typeof flow?.practitioner?.location === "string"
-        ? flow.practitioner.location
-        : isVideo
-          ? "Consultation video"
-          : "Dermatologue · Dakar";
+      setAppointmentsLoading(true);
+      setAppointmentsError(null);
+      setSkinScoresLoading(true);
+      setSkinScoresError(null);
 
-    const rawDateLabel =
-      typeof flow?.selectedSlot?.date === "string"
-        ? flow.selectedSlot.date
-        : typeof flow?.date === "string"
-          ? flow.date
-          : "Aujourd'hui";
+      void auth.appointmentAdapter
+        .listAppointmentsForProfile(actingProfileId)
+        .then((items) => {
+          if (cancelled) return;
+          setAppointments(items);
+        })
+        .catch((adapterError) => {
+          if (cancelled) return;
+          setAppointments([]);
+          setAppointmentsError(
+            adapterError instanceof Error
+              ? adapterError.message
+              : "Impossible de charger les rendez-vous du profil.",
+          );
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setAppointmentsLoading(false);
+        });
 
-    const rawTimeLabel =
-      typeof flow?.selectedSlot?.time === "string"
-        ? flow.selectedSlot.time
-        : typeof flow?.time === "string"
-          ? flow.time
-          : "14h30";
-
-    return {
-      practitioner,
-      location,
-      dateLabel: rawDateLabel,
-      timeLabel: formatTimeLabel(rawTimeLabel),
-      isVideo,
+      void auth.accountAdapter
+        .listSkinScores(userId, actingProfileId, 7)
+        .then((records) => {
+          if (cancelled) return;
+          setSkinScores(records);
+        })
+        .catch((adapterError) => {
+          if (cancelled) return;
+          setSkinScores([]);
+          setSkinScoresError(
+            adapterError instanceof Error
+              ? adapterError.message
+              : "Impossible de charger les scores peau du profil.",
+          );
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setSkinScoresLoading(false);
+        });
     };
-  }, [auth.flowContext]);
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    actingProfileId,
+    auth.accountAdapter,
+    auth.appointmentAdapter,
+    userId,
+  ]);
+
+  const firstName = useMemo(
+    () => getFirstName(auth.user?.fullName),
+    [auth.user?.fullName],
+  );
+
+  const upcoming = useMemo(
+    () => {
+      const nextAppointment = selectUpcomingAppointment(appointments);
+      return nextAppointment ? toUpcomingAppointment(nextAppointment) : null;
+    },
+    [appointments],
+  );
 
   const handleLogout = () => {
     void auth.logout().finally(() => {
@@ -1428,8 +1891,20 @@ export default function AU06() {
   }
 
   return (
-    <DashboardLayout fullName={auth.user?.fullName ?? "Fatou Diop"} onLogout={handleLogout}>
-      <DashboardHome firstName={firstName} upcoming={upcoming} />
+    <DashboardLayout
+      fullName={auth.user?.fullName ?? "Fatou Diop"}
+      onLogout={handleLogout}
+    >
+      <DashboardHome
+        firstName={firstName}
+        hasActingProfile={hasActingProfile}
+        upcoming={hasActingProfile ? upcoming : null}
+        upcomingLoading={hasActingProfile ? appointmentsLoading : false}
+        upcomingError={hasActingProfile ? appointmentsError : null}
+        skinScores={hasActingProfile ? skinScores : []}
+        skinScoresLoading={hasActingProfile ? skinScoresLoading : false}
+        skinScoresError={hasActingProfile ? skinScoresError : null}
+      />
     </DashboardLayout>
   );
 }

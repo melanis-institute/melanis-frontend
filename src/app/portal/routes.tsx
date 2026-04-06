@@ -17,7 +17,6 @@ import {
   RequireActingProfile,
   RequireActiveRole,
   RequireAuth,
-  RequireConsent,
   RequireRole,
 } from "@portal/session/guards";
 import { LoadingState } from "@shared/ui";
@@ -63,10 +62,6 @@ function RootLayout() {
 
 function ProfilesIndexRedirect() {
   return <ProfilesListScreen />;
-}
-
-function RequireMedicalRecordConsent() {
-  return <RequireConsent consentType="medical_record" />;
 }
 
 function RequirePatientRoles() {
@@ -310,32 +305,27 @@ export const portalRoutes: RouteObject[] = [
                     ],
                   },
                   {
+                    index: true,
+                    Component: PF01Lazy,
+                  },
+                  {
                     Component: RequireActingProfile,
                     children: [
                       {
-                        Component: RequireMedicalRecordConsent,
-                        children: [
-                          {
-                            index: true,
-                            Component: PF01Lazy,
-                          },
-                          {
-                            path: "creneau",
-                            Component: PF02Lazy,
-                          },
-                          {
-                            path: "confirmation",
-                            Component: PF03Lazy,
-                          },
-                          {
-                            path: "detail-confirmation",
-                            Component: PF04Lazy,
-                          },
-                          {
-                            path: "confirmation-succes",
-                            Component: PF05Lazy,
-                          },
-                        ],
+                        path: "creneau",
+                        Component: PF02Lazy,
+                      },
+                      {
+                        path: "confirmation",
+                        Component: PF03Lazy,
+                      },
+                      {
+                        path: "detail-confirmation",
+                        Component: PF04Lazy,
+                      },
+                      {
+                        path: "confirmation-succes",
+                        Component: PF05Lazy,
                       },
                     ],
                   },
