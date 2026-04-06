@@ -9,7 +9,7 @@ import {
   RequireConsent,
   RequireRole,
 } from "./guards";
-import { AuthContext } from "../auth/AuthProvider";
+import { AuthContext } from "./AuthProvider";
 import { makeAuthContextValue } from "../../../test/renderWithAuthRouter";
 
 const session = {

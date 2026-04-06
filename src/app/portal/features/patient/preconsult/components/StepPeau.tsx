@@ -149,16 +149,16 @@ function getSmartTip(
   phototype: number | null,
 ): string | null {
   if (peauSensible === true && typePeau === "seche") {
-    return "Peau sèche et sensible — le Dr. Diallo privilégiera des produits très doux, sans parfum ni alcool.";
+    return "Peau sèche et sensible — des produits très doux, sans parfum ni alcool, seront privilégiés.";
   }
   if (peauSensible === true && typePeau === "grasse") {
-    return "Peau grasse mais sensible — les traitements trop agressifs sont à éviter. Le Dr. Diallo adaptera la prescription.";
+    return "Peau grasse mais sensible — les traitements trop agressifs sont à éviter. La prescription sera adaptée.";
   }
   if (phototype !== null && phototype >= 4 && typePeau !== null) {
     return "Pour les peaux mates à foncées, le risque d'hyperpigmentation post-inflammatoire est à prendre en compte dans le choix du traitement.";
   }
   if (typePeau === "unknown") {
-    return "Pas de souci si vous ne connaissez pas votre type de peau ! Le Dr. Diallo l'évaluera lors de la consultation.";
+    return "Pas de souci si vous ne connaissez pas votre type de peau ! Il sera évalué lors de la consultation.";
   }
   return null;
 }
@@ -952,7 +952,7 @@ export function StepPeau({
                   className="text-[12px] text-[#5B1112]/70 leading-[1.5]"
                   style={{ fontWeight: 450 }}
                 >
-                  Noté ! Le Dr. Diallo choisira des formulations douces adaptées
+                  Noté ! Des formulations douces adaptées
                   aux peaux sensibles.
                 </p>
               </div>

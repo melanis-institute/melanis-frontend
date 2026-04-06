@@ -185,7 +185,7 @@ function getPhotoFeedback(count: number, isVideo: boolean): {
     };
   }
   return {
-    message: "Parfait ! 4 photos, le Dr. Diallo aura tout ce qu'il faut pour préparer la consultation.",
+    message: "Parfait ! 4 photos, le praticien aura tout ce qu'il faut pour préparer la consultation.",
     type: "great",
   };
 }
@@ -1034,7 +1034,7 @@ export function StepPhotos({
                     className="text-[11.5px] text-[#00415E]/40 leading-[1.5] mt-0.5 tracking-[-0.05px]"
                     style={{ fontWeight: 420 }}
                   >
-                    Visibles uniquement par le Dr. Diallo et l'équipe médicale. Elles ne seront jamais partagées sans votre consentement.
+                    Visibles uniquement par le praticien et l'équipe médicale. Elles ne seront jamais partagées sans votre consentement.
                   </p>
                 </div>
               </motion.div>
@@ -1064,7 +1064,7 @@ export function StepPhotos({
                       >
                         {isVideo
                           ? "Vous pouvez continuer sans photos, mais elles améliorent considérablement le diagnostic à distance."
-                          : "Pas de photos ? Pas de souci — vous pouvez continuer. Le Dr. Diallo verra directement en consultation."
+                          : "Pas de photos ? Pas de souci — vous pouvez continuer. Le praticien verra directement en consultation."
                         }
                       </p>
                     </div>

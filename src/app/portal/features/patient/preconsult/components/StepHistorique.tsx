@@ -47,16 +47,16 @@ const TRAITEMENT_ICONS: Record<string, SvgIcon> = {
 // ——— Smart contextual tips ———
 function getSmartTip(data: PreConsultData): string | null {
   if (data.allergies === true && data.medicaments === true) {
-    return "Les interactions médicamenteuses et allergies seront prises en compte par le Dr. Diallo pour adapter votre traitement en toute sécurité.";
+    return "Les interactions médicamenteuses et allergies seront prises en compte pour adapter votre traitement en toute sécurité.";
   }
   if (data.dejaEuProbleme === true && data.dejaConsulte === false && data.traitements.length > 0) {
     return "Vous avez déjà essayé des traitements par vous-même — c'est une information précieuse pour la consultation.";
   }
   if (data.traitements.length >= 3) {
-    return "Plusieurs traitements déjà essayés ? Le Dr. Diallo pourra vous orienter vers des alternatives adaptées.";
+    return "Plusieurs traitements déjà essayés ? Le praticien pourra vous orienter vers des alternatives adaptées.";
   }
   if (data.grossesse === "oui") {
-    return "Certains traitements dermatologiques sont contre-indiqués pendant la grossesse. Le Dr. Diallo adaptera la prescription en conséquence.";
+    return "Certains traitements dermatologiques sont contre-indiqués pendant la grossesse. La prescription sera adaptée en conséquence.";
   }
   return null;
 }
@@ -888,7 +888,7 @@ export function StepHistorique({ data, onUpdate }: StepHistoriqueProps) {
                   className="text-[12px] text-[#00415E]/70 leading-[1.5]"
                   style={{ fontWeight: 450 }}
                 >
-                  Pas de souci ! Le Dr. Diallo prendra le temps d'examiner
+                  Pas de souci ! Le praticien prendra le temps d'examiner
                   votre situation en détail.
                 </p>
               </div>

@@ -1,3 +1,11 @@
+export interface PreConsultPhoto {
+  id: string;
+  url: string;
+  name: string;
+  contentType?: string;
+  assetId?: string;
+}
+
 export interface PreConsultData {
   motif: string | null;
   motifAutre: string;
@@ -18,7 +26,7 @@ export interface PreConsultData {
   peauSensible: boolean | null;
   typePeau: string | null;
   phototype: number | null;
-  photos: { id: string; url: string; name: string }[];
+  photos: PreConsultPhoto[];
   objectifs: string[];
   preferences: string[];
   notesObjectifs: string;

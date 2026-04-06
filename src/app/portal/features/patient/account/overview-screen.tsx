@@ -32,6 +32,7 @@ import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
 import { useAuth } from "@portal/session/useAuth";
 import { relationshipToLabel } from "@portal/domains/account/labels";
 import type { AuthFlowContext } from "@portal/session/types";
+import type { AppointmentRecord } from "@portal/domains/appointments/types";
 import { TYPES_PEAU } from "@portal/features/patient/preconsult/components/types";
 import type {
   AuditEvent,
@@ -41,9 +42,6 @@ import type {
   PatientProfileRecord,
   SkinScoreRecord,
 } from "@portal/domains/account/types";
-
-const AVATAR =
-  "https://images.unsplash.com/photo-1744040866609-2b8952159e1e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxBZnJpY2FuJTIwd29tYW4lMjBwb3J0cmFpdCUyMG5hdHVyYWwlMjBiZWF1dHklMjBza2lufGVufDF8fHx8MTc3MjA1MDM5MXww&ixlib=rb-4.1.0&q=80&w=1080";
 
 const FITZPATRICK = [
   { type: "I", color: "#FDE8C8", label: "Type I" },
@@ -118,10 +116,11 @@ type MedicalTreatmentRow = {
 };
 
 type MedicalCardModel = {
-  practitionerName: string;
-  practitionerLocation: string;
+  practitionerName: string | null;
+  practitionerLocation: string | null;
   treatments: MedicalTreatmentRow[];
   historyLabel: string;
+  sourceLabel: string;
 };
 
 type ScoreSeriesPoint = {
@@ -289,16 +288,19 @@ function treatmentIcon(name: string) {
 function buildMedicalCardModel(
   snapshot: PreConsultSnapshot | null,
   flowContext: AuthFlowContext | null,
+  latestAppointment: AppointmentRecord | null,
 ): MedicalCardModel {
   const practitionerName =
-    typeof flowContext?.practitioner?.name === "string" && flowContext.practitioner.name.trim().length > 0
+    latestAppointment?.practitionerName?.trim() ||
+    (typeof flowContext?.practitioner?.name === "string" && flowContext.practitioner.name.trim().length > 0
       ? flowContext.practitioner.name
-      : "Dr. Awa Ndiaye";
+      : null);
   const practitionerLocation =
-    typeof flowContext?.practitioner?.location === "string" &&
+    latestAppointment?.practitionerLocation?.trim() ||
+    (typeof flowContext?.practitioner?.location === "string" &&
     flowContext.practitioner.location.trim().length > 0
       ? flowContext.practitioner.location
-      : "Dermatologue · Dakar, Sénégal";
+      : null);
 
   const treatmentNames: string[] = [
     ...(snapshot?.traitements ?? []),
@@ -316,10 +318,6 @@ function buildMedicalCardModel(
 
   if (treatmentNames.length === 0 && snapshot?.objectifs.includes("Suivi de traitement")) {
     treatmentNames.push("Suivi de traitement à définir");
-  }
-
-  if (treatmentNames.length === 0) {
-    treatmentNames.push("Aucun traitement déclaré");
   }
 
   const treatments = treatmentNames.slice(0, 4).map((name) => {
@@ -341,12 +339,50 @@ function buildMedicalCardModel(
     historyLabel = "Premier épisode déclaré";
   }
 
+  const sourceLabel = latestAppointment
+    ? `Dernier rendez-vous enregistré le ${new Date(latestAppointment.scheduledFor).toLocaleDateString("fr-FR")}`
+    : snapshot
+      ? "Basé sur votre dernière pré-consultation"
+      : "Aucun suivi praticien enregistré pour ce profil";
+
   return {
     practitionerName,
     practitionerLocation,
     treatments,
     historyLabel,
+    sourceLabel,
   };
+}
+
+function profileInitials(profile: PatientProfileRecord | null) {
+  if (!profile) return "MP";
+  const initials = [profile.firstName, profile.lastName]
+    .map((value) => value.trim().charAt(0))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("");
+  return initials.toUpperCase() || "MP";
+}
+
+function formatDateOfBirth(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString("fr-FR", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function toWeekdayLabel(value: string) {
@@ -602,11 +638,14 @@ function ProfileHero({
           onMouseLeave={() => setHovered(false)}
         >
           <motion.div animate={{ scale: hovered ? 1.03 : 1 }} transition={{ duration: 0.3 }}>
-            <img
-              src={AVATAR}
-              alt={`${profile.firstName} ${profile.lastName}`}
-              className="h-28 w-28 rounded-[1.75rem] border-4 border-white object-cover shadow-xl md:h-32 md:w-32"
-            />
+            <div className="flex h-28 w-28 items-center justify-center rounded-[1.75rem] border-4 border-white bg-[#5B1112]/8 shadow-xl md:h-32 md:w-32">
+              <span
+                className="font-serif text-[#5B1112]"
+                style={{ fontSize: 34, lineHeight: 1, fontWeight: 600 }}
+              >
+                {profileInitials(profile)}
+              </span>
+            </div>
 
             <AnimatePresence>
               {hovered ? (
@@ -638,14 +677,18 @@ function ProfileHero({
 
               <div className="mt-2 flex flex-wrap items-center justify-center gap-3 md:justify-start">
                 <span className="flex items-center gap-1.5 text-xs text-[#111214]/45">
-                  <MapPin size={11} className="text-[#5B1112]/50" />
-                  Dakar, Sénégal
-                </span>
-                <span className="h-1 w-1 rounded-full bg-[#111214]/20" />
-                <span className="flex items-center gap-1.5 text-xs text-[#111214]/45">
                   <Calendar size={11} className="text-[#5B1112]/50" />
                   {relationshipToLabel(profile.relationship)}
                 </span>
+                {formatDateOfBirth(profile.dateOfBirth) ? (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-[#111214]/20" />
+                    <span className="flex items-center gap-1.5 text-xs text-[#111214]/45">
+                      <Clock size={11} className="text-[#5B1112]/50" />
+                      Né le {formatDateOfBirth(profile.dateOfBirth)}
+                    </span>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -662,14 +705,17 @@ function ProfileHero({
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2 md:justify-start">
             <span className="rounded-full bg-[#111214] px-3 py-1.5 text-[10px] font-medium text-[#FEF0D5]">
               <span className="inline-flex items-center gap-1.5">
-                <Zap size={9} className="text-[#FEF0D5]" /> Mélanis Essentiel
+                <User size={9} className="text-[#FEF0D5]" />{" "}
+                {profile.relationship === "moi" ? "Profil principal" : "Profil dépendant"}
               </span>
             </span>
-            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[10px] font-medium text-emerald-600">
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle size={9} /> Identité vérifiée
+            {formatCreatedAt(profile.createdAt) ? (
+              <span className="rounded-full border border-[#111214]/10 bg-white px-3 py-1.5 text-[10px] font-medium text-[#111214]/60">
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={9} /> Profil créé en {formatCreatedAt(profile.createdAt)}
+                </span>
               </span>
-            </span>
+            ) : null}
             <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5 text-[10px] font-medium text-amber-600">
               <span className="inline-flex items-center gap-1.5">
                 <Shield size={9} /> Consentements: {signedConsents}/{totalConsents}
@@ -900,9 +946,13 @@ function MedicalCard({
           <Award size={18} className="text-[#5B1112]/60" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/35">Médecin référent</p>
-          <p className="truncate text-sm font-medium text-[#111214]">{model.practitionerName}</p>
-          <p className="text-[10px] text-[#111214]/40">{model.practitionerLocation}</p>
+          <p className="mb-0.5 text-[9px] uppercase tracking-wider text-[#111214]/35">Dernier praticien associé</p>
+          <p className="truncate text-sm font-medium text-[#111214]">
+            {model.practitionerName ?? "Aucun praticien enregistré"}
+          </p>
+          <p className="text-[10px] text-[#111214]/40">
+            {model.practitionerLocation ?? model.sourceLabel}
+          </p>
         </div>
         <Link to="/patient-flow/auth/dashboard#appointments" className="flex-shrink-0">
           <motion.div
@@ -920,31 +970,37 @@ function MedicalCard({
           <span className="text-[10px] text-[#111214]/40">{model.historyLabel}</span>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {model.treatments.map((treatment, index) => (
-            <motion.div
-              key={`${treatment.name}-${index}`}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + index * 0.06 }}
-              className="flex items-center gap-3.5 rounded-[1.25rem] bg-white px-4 py-3 shadow-[0_1px_12px_rgba(0,0,0,0.04)]"
-            >
-              <div
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl"
-                style={{ background: treatment.color }}
+        {model.treatments.length === 0 ? (
+          <div className="rounded-[1.25rem] border border-dashed border-[#111214]/12 bg-[#111214]/[0.02] px-4 py-3 text-[11px] text-[#111214]/45">
+            Aucun traitement renseigné pour ce profil.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {model.treatments.map((treatment, index) => (
+              <motion.div
+                key={`${treatment.name}-${index}`}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 + index * 0.06 }}
+                className="flex items-center gap-3.5 rounded-[1.25rem] bg-white px-4 py-3 shadow-[0_1px_12px_rgba(0,0,0,0.04)]"
               >
-                <treatment.icon size={14} className="text-[#5B1112]/60" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-[#111214]">{treatment.name}</p>
-                <p className="mt-0.5 text-[9px] text-[#111214]/35">{treatment.timing}</p>
-              </div>
-              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50">
-                <CheckCircle size={10} className="text-emerald-500" />
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                <div
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: treatment.color }}
+                >
+                  <treatment.icon size={14} className="text-[#5B1112]/60" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-[#111214]">{treatment.name}</p>
+                  <p className="mt-0.5 text-[9px] text-[#111214]/35">{treatment.timing}</p>
+                </div>
+                <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50">
+                  <CheckCircle size={10} className="text-emerald-500" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-[1rem] border border-[#5B1112]/12 bg-[#5B1112]/4 px-3.5 py-2.5">
@@ -1308,6 +1364,7 @@ export default function AU07ProfileOverview() {
   const [consents, setConsents] = useState<ConsentRecord[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [skinScores, setSkinScores] = useState<SkinScoreRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1375,10 +1432,21 @@ export default function AU07ProfileOverview() {
               }
             }),
           );
+
+          promises.push(
+            auth.appointmentAdapter
+              .listAppointmentsForProfile(auth.actingProfileId)
+              .then((records) => {
+                if (!cancelled) {
+                  setAppointments(records);
+                }
+              }),
+          );
         } else {
           setConsents([]);
           setPreferences(null);
           setSkinScores([]);
+          setAppointments([]);
         }
 
         await Promise.all(promises);
@@ -1402,7 +1470,7 @@ export default function AU07ProfileOverview() {
     return () => {
       cancelled = true;
     };
-  }, [auth.accountAdapter, auth.actingProfileId, userId]);
+  }, [auth.accountAdapter, auth.appointmentAdapter, auth.actingProfileId, userId]);
 
   const activeProfile = useMemo(
     () => auth.actingProfile ?? auth.profiles[0] ?? null,
@@ -1461,10 +1529,17 @@ export default function AU07ProfileOverview() {
     [auth.flowContext?.preConsultData, draftPreConsult],
   );
 
+  const latestAppointment = useMemo<AppointmentRecord | null>(() => {
+    if (appointments.length === 0) return null;
+    return [...appointments].sort((first, second) =>
+      second.scheduledFor.localeCompare(first.scheduledFor),
+    )[0] ?? null;
+  }, [appointments]);
+
   const skinModel = useMemo(() => buildSkinCardModel(preConsultSnapshot), [preConsultSnapshot]);
   const medicalModel = useMemo(
-    () => buildMedicalCardModel(preConsultSnapshot, auth.flowContext),
-    [auth.flowContext, preConsultSnapshot],
+    () => buildMedicalCardModel(preConsultSnapshot, auth.flowContext, latestAppointment),
+    [auth.flowContext, latestAppointment, preConsultSnapshot],
   );
 
   const handleLogout = () => {

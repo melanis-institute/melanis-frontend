@@ -11,6 +11,7 @@ export interface AppointmentRecord {
   bookingSourceRef: string;
   profileId: string;
   patientLabel: string;
+  availabilitySlotId?: string;
   practitionerId: string;
   practitionerName: string;
   practitionerSpecialty?: string;

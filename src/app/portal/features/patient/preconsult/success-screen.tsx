@@ -27,7 +27,7 @@ import { PageLayout } from "@portal/shared/layouts/PageLayout";
 import { StepIndicator } from "@portal/shared/components/StepIndicator";
 import { PersistentContextBar } from "@portal/shared/components/PersistentContextBar";
 import { relationshipToLabel } from "@portal/domains/account/labels";
-import { practitionerIdFromName } from "@portal/domains/appointments/practitioner";
+import type { PractitionerDirectoryEntry } from "@portal/domains/scheduling/types";
 import { useAuth } from "@portal/session/useAuth";
 
 type ReminderPrefs = {
@@ -153,8 +153,19 @@ export default function PF05() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const auth = useAuth();
+  const patientDashboardPath = "/patient-flow/auth/dashboard";
 
   const appointmentType = state?.appointmentType ?? "presentiel";
+  const routePractitioner = state?.practitioner as
+    | PractitionerDirectoryEntry
+    | {
+        id?: string;
+        name?: string;
+        specialty?: string;
+        location?: string;
+        fee?: string;
+      }
+    | undefined;
   const profileOptions = auth.profiles.map((profile) => ({
     id: profile.id,
     label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
@@ -163,12 +174,22 @@ export default function PF05() {
     date: "Lundi 24 février 2026",
     time: "10:30",
   };
-  const practitioner = state?.practitioner ?? {
-    name: "Dr. Aissatou Diallo",
-    specialty: "Dermatologie",
-    location: "Cabinet Mermoz, Dakar",
-    fee: "15 000 FCFA",
-  };
+  const practitioner =
+    routePractitioner && "displayName" in routePractitioner
+      ? {
+          id: routePractitioner.practitionerId,
+          name: routePractitioner.displayName,
+          specialty: routePractitioner.specialty,
+          location: routePractitioner.location,
+          fee: routePractitioner.priceFromLabel ?? "À confirmer",
+        }
+      : routePractitioner ?? {
+          id: "pract-001",
+          name: "Dr. Aissatou Ly",
+          specialty: "Dermatologie clinique",
+          location: "Cabinet Mermoz, Dakar",
+          fee: "À partir de 15 000 FCFA",
+        };
 
   const [showContent, setShowContent] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -185,7 +206,7 @@ export default function PF05() {
     questions: false,
   });
   const timelineLoggedRef = useRef(false);
-  const appointmentLoggedRef = useRef(false);
+  const bookingSyncRef = useRef(false);
 
   const hasPreConsult = Boolean(state?.preConsultData);
 
@@ -272,44 +293,89 @@ export default function PF05() {
   ]);
 
   useEffect(() => {
-    if (appointmentLoggedRef.current) return;
+    if (bookingSyncRef.current) return;
     if (!auth.user || !auth.actingProfileId || !timelineSourceRef) return;
+    if (typeof practitioner.id !== "string" || practitioner.id.length === 0) return;
 
-    appointmentLoggedRef.current = true;
+    bookingSyncRef.current = true;
+    const actorUserId = auth.user.id;
+    const actingProfileId = auth.actingProfileId;
+    const practitionerId = practitioner.id;
 
     const patientLabel = auth.actingProfile
       ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`.trim()
       : "Profil patient";
 
-    void auth.appointmentAdapter.createAppointmentFromBooking({
-      bookingSourceRef: timelineSourceRef,
-      profileId: auth.actingProfileId,
-      patientLabel,
-      practitionerId: practitionerIdFromName(String(practitioner.name ?? "")),
-      practitionerName: String(practitioner.name ?? "Praticien"),
-      practitionerSpecialty:
-        typeof practitioner.specialty === "string" ? practitioner.specialty : undefined,
-      practitionerLocation:
-        typeof practitioner.location === "string" ? practitioner.location : undefined,
-      appointmentType,
-      scheduledFor: resolvedAppointmentDate.toISOString(),
-      dateLabel: String(selectedSlot.date ?? "À définir"),
-      timeLabel: String(selectedSlot.time ?? "À définir"),
-      createdByUserId: auth.user.id,
-      preConsultData: state?.preConsultData,
-    });
+    void (async () => {
+      try {
+        const appointment = await auth.appointmentAdapter.createAppointmentFromBooking({
+          bookingSourceRef: timelineSourceRef,
+          profileId: actingProfileId,
+          patientLabel,
+          availabilitySlotId:
+            typeof state?.availabilitySlotId === "string" ? state.availabilitySlotId : undefined,
+          practitionerId,
+          practitionerName: String(practitioner.name ?? "Praticien"),
+          practitionerSpecialty:
+            typeof practitioner.specialty === "string" ? practitioner.specialty : undefined,
+          practitionerLocation:
+            typeof practitioner.location === "string" ? practitioner.location : undefined,
+          appointmentType,
+          scheduledFor: resolvedAppointmentDate.toISOString(),
+          dateLabel: String(selectedSlot.date ?? "À définir"),
+          timeLabel: String(selectedSlot.time ?? "À définir"),
+          createdByUserId: actorUserId,
+          preConsultData: state?.preConsultData,
+        });
+
+        if (state?.preConsultData) {
+          const preConsultPayload = state.preConsultData as { photos?: unknown };
+          const mediaAssetIds = Array.isArray(preConsultPayload.photos)
+            ? preConsultPayload.photos
+                .map((photo: unknown) =>
+                  typeof photo === "object" &&
+                  photo !== null &&
+                  "assetId" in photo &&
+                  typeof photo.assetId === "string"
+                    ? photo.assetId
+                    : null,
+                )
+                .filter((value: string | null): value is string => Boolean(value))
+            : [];
+
+          await auth.accountAdapter.createPreConsultSubmission({
+            actorUserId,
+            profileId: actingProfileId,
+            appointmentId: appointment.id,
+            practitionerId,
+            appointmentType,
+            questionnaireData: state.preConsultData as Record<string, unknown>,
+            mediaAssetIds,
+          });
+        }
+      } catch (error) {
+        setFeedback(
+          error instanceof Error
+            ? error.message
+            : "Impossible d'enregistrer entièrement le rendez-vous.",
+        );
+      }
+    })();
   }, [
     appointmentType,
+    auth.accountAdapter,
     auth.actingProfile,
     auth.actingProfileId,
     auth.appointmentAdapter,
     auth.user,
+    practitioner.id,
     practitioner.location,
     practitioner.name,
     practitioner.specialty,
     resolvedAppointmentDate,
     selectedSlot.date,
     selectedSlot.time,
+    state?.availabilitySlotId,
     state?.preConsultData,
     timelineSourceRef,
   ]);
@@ -408,7 +474,7 @@ export default function PF05() {
     }
 
     const mapUrl = `https://maps.google.com/?q=${encodeURIComponent(
-      practitioner.location
+      practitioner.location ?? "Cabinet Mermoz, Dakar"
     )}`;
     window.open(mapUrl, "_blank", "noopener,noreferrer");
   };
@@ -725,7 +791,7 @@ export default function PF05() {
           style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)" }}
         >
           <button
-            onClick={() => navigate("/patient-flow")}
+            onClick={() => navigate(patientDashboardPath)}
             className="pf-primary-cta w-full rounded-[16px] py-4 text-[#FEF0D5] transition-all duration-200 cursor-pointer active:scale-[0.99] flex items-center justify-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00415E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]"
             style={{
               background: "linear-gradient(135deg, #5B1112 0%, #6A1D1F 100%)",

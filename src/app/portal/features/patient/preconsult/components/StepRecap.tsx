@@ -40,11 +40,16 @@ function computeCompleteness(data: PreConsultData) {
 }
 
 // ——— Smart summary message ———
-function getSummaryMessage(pct: number): { emoji: string; title: string; subtitle: string; accentColor: string } {
+function getSummaryMessage(
+  pct: number,
+  practitionerName?: string,
+): { emoji: string; title: string; subtitle: string; accentColor: string } {
   if (pct >= 90) return {
     emoji: "🌟",
     title: "Dossier excellent !",
-    subtitle: "Le Dr. Diallo aura toutes les infos pour une consultation optimale.",
+    subtitle: practitionerName
+      ? `${practitionerName} aura toutes les infos pour une consultation optimale.`
+      : "Le praticien aura toutes les infos pour une consultation optimale.",
     accentColor: "#00415E",
   };
   if (pct >= 70) return {
@@ -432,14 +437,15 @@ function SectionDivider({ delay }: { delay: number }) {
 interface StepRecapProps {
   data: PreConsultData;
   onEdit: (step: number) => void;
+  practitionerName?: string;
 }
 
 // ——— Main Component ———
-export function StepRecap({ data, onEdit }: StepRecapProps) {
+export function StepRecap({ data, onEdit, practitionerName }: StepRecapProps) {
   const completeness = useMemo(() => computeCompleteness(data), [data]);
   const summary = useMemo(
-    () => getSummaryMessage(completeness.pct),
-    [completeness.pct]
+    () => getSummaryMessage(completeness.pct, practitionerName),
+    [completeness.pct, practitionerName]
   );
 
   // ——— Derived labels ———
@@ -750,7 +756,7 @@ export function StepRecap({ data, onEdit }: StepRecapProps) {
                 className="text-[11.5px] text-[#5B1112]/40 mb-1"
                 style={{ fontWeight: 550 }}
               >
-                Message au Dr. Diallo
+                Message au praticien
               </p>
               <p
                 className="text-[12.5px] text-[#5B1112]/60 leading-[1.5] italic"

@@ -2,7 +2,10 @@ import type {
   AuditEvent,
   CaregiverLink,
   ConsentRecord,
+  MediaAssetRecord,
+  MediaUploadIntent,
   NotificationPreference,
+  PreConsultSubmissionRecord,
   PatientRecordEvent,
   PatientRecordEventType,
   PatientProfileRecord,
@@ -71,6 +74,30 @@ export interface UpdateScreeningReminderInput {
   >;
 }
 
+export interface CreateMediaUploadIntentsInput {
+  actorUserId: string;
+  profileId: string;
+  files: Array<{
+    fileName: string;
+    contentType: string;
+  }>;
+}
+
+export interface CompleteMediaUploadInput {
+  actorUserId: string;
+  assetId: string;
+}
+
+export interface CreatePreConsultSubmissionInput {
+  actorUserId: string;
+  profileId: string;
+  appointmentId: string;
+  practitionerId: string;
+  appointmentType: "presentiel" | "video";
+  questionnaireData: Record<string, unknown>;
+  mediaAssetIds: string[];
+}
+
 export interface AccountAdapter {
   ensureSelfProfile(input: EnsureSelfProfileInput): Promise<PatientProfileRecord>;
   listProfiles(userId: string): Promise<PatientProfileRecord[]>;
@@ -107,6 +134,15 @@ export interface AccountAdapter {
     profileId: string,
   ): Promise<ScreeningReminder[]>;
   updateScreeningReminder(input: UpdateScreeningReminderInput): Promise<ScreeningReminder>;
+  createMediaUploadIntents(input: CreateMediaUploadIntentsInput): Promise<MediaUploadIntent[]>;
+  completeMediaUpload(input: CompleteMediaUploadInput): Promise<MediaAssetRecord>;
+  createPreConsultSubmission(
+    input: CreatePreConsultSubmissionInput,
+  ): Promise<PreConsultSubmissionRecord>;
+  getPreConsultSubmissionForAppointment(
+    actorUserId: string,
+    appointmentId: string,
+  ): Promise<PreConsultSubmissionRecord | null>;
 
   recordProfileSwitch(userId: string, profileId: string): Promise<void>;
   listAuditEvents(userId: string): Promise<AuditEvent[]>;

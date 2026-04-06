@@ -1,11 +1,11 @@
 import { render, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import PF05 from "./PF05";
-import { AuthContext } from "../auth/AuthProvider";
-import { MockAccountAdapter } from "../account/mockAccountAdapter";
-import { MockAppointmentAdapter } from "../appointments/mockAppointmentAdapter";
-import { makeAuthContextValue } from "../../../test/renderWithAuthRouter";
+import PF05 from "./success-screen";
+import { AuthContext } from "../../../session/AuthProvider";
+import { MockAccountAdapter } from "@portal/domains/account/mockAccountAdapter";
+import { MockAppointmentAdapter } from "@portal/domains/appointments/mockAppointmentAdapter";
+import { makeAuthContextValue } from "../../../../../test/renderWithAuthRouter";
 
 const user = {
   id: "u1",
@@ -52,6 +52,7 @@ describe("PF05 timeline logging", () => {
                   time: "10:30",
                 },
                 practitioner: {
+                  id: "pract-awa-001",
                   name: "Dr. Awa Ndiaye",
                   specialty: "Dermatologie",
                   location: "Cabinet Mermoz, Dakar",
@@ -86,7 +87,7 @@ describe("PF05 timeline logging", () => {
       bookingSourceRef: `booking:${profile.id}:2026-02-25:10:30:dr._awa_ndiaye:presentiel`,
       profileId: profile.id,
       createdByUserId: user.id,
-      practitionerId: "prac_dr_awa_ndiaye",
+      practitionerId: "pract-awa-001",
     });
   });
 });

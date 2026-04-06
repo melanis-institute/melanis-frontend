@@ -108,14 +108,14 @@ function getSmartTip(
   if (objectifs.includes("Soulager rapidement") && motif === "eczema") {
     return {
       message:
-        "L'eczéma peut être soulagé rapidement avec des émollients et des dermocorticoïdes. Le Dr. Diallo pourra vous prescrire le traitement le plus adapté.",
+        "L'eczéma peut être soulagé rapidement avec des émollients et des dermocorticoïdes. Le traitement le plus adapté pourra vous être prescrit.",
       type: "tip",
     };
   }
   if (objectifs.includes("Routine skincare") && motif === "acne") {
     return {
       message:
-        "Une bonne routine anti-acné repose souvent sur un nettoyant doux, un sérum adapté et une protection solaire. Le Dr. Diallo vous guidera étape par étape.",
+        "Une bonne routine anti-acné repose souvent sur un nettoyant doux, un sérum adapté et une protection solaire. Vous serez guidé étape par étape.",
       type: "tip",
     };
   }
@@ -129,7 +129,7 @@ function getSmartTip(
   if (objectifs.includes("Obtenir une prescription") && motif === "mycose") {
     return {
       message:
-        "Les mycoses nécessitent souvent un antifongique spécifique. Le Dr. Diallo pourra vous prescrire le traitement le plus efficace après examen.",
+        "Les mycoses nécessitent souvent un antifongique spécifique. Le traitement le plus efficace pourra être prescrit après examen.",
       type: "tip",
     };
   }
@@ -138,7 +138,7 @@ function getSmartTip(
   if (objectifs.includes("Soulager rapidement") && objectifs.includes("Comprendre la cause")) {
     return {
       message:
-        "Excellente combinaison ! Le Dr. Diallo pourra à la fois vous soulager et vous expliquer les causes profondes.",
+        "Excellente combinaison ! La consultation pourra à la fois vous soulager et vous expliquer les causes profondes.",
       type: "reassurance",
     };
   }
@@ -152,14 +152,14 @@ function getSmartTip(
   if (objectifs.length >= 3) {
     return {
       message:
-        "Vous avez plusieurs attentes — c'est très bien ! Le Dr. Diallo prendra le temps d'aborder chacune lors de votre consultation.",
+        "Vous avez plusieurs attentes — c'est très bien ! Chaque point pourra être abordé pendant votre consultation.",
       type: "reassurance",
     };
   }
   if (objectifs.includes("Suivi de traitement")) {
     return {
       message:
-        "Pensez à apporter vos ordonnances précédentes ou le nom des produits utilisés — cela aidera le Dr. Diallo à évaluer votre traitement.",
+        "Pensez à apporter vos ordonnances précédentes ou le nom des produits utilisés — cela aidera à évaluer votre traitement.",
       type: "info",
     };
   }
@@ -818,7 +818,7 @@ export function StepObjectifs({
                     className="text-[13.5px] text-[rgba(17,18,20,0.4)] tracking-[-0.1px]"
                     style={{ fontWeight: 500 }}
                   >
-                    Un message pour le Dr. Diallo ?
+                    Un message pour le praticien ?
                   </span>
                   <ChevronDown
                     className="w-[13px] h-[13px] text-[rgba(17,18,20,0.2)]"
@@ -908,7 +908,7 @@ export function StepObjectifs({
                       className="text-[11.5px] text-[#00415E]/40 leading-[1.5] mt-0.5 tracking-[-0.05px]"
                       style={{ fontWeight: 420 }}
                     >
-                      Le Dr. Diallo lira vos réponses avant la consultation
+                      Le praticien lira vos réponses avant la consultation
                       pour vous offrir un accompagnement personnalisé dès la
                       première minute.
                     </p>

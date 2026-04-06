@@ -75,6 +75,48 @@ export interface AuditEvent {
   createdAt: string;
 }
 
+export type MediaAssetStatus = "pending" | "uploaded" | "failed";
+
+export interface MediaUploadIntent {
+  id: string;
+  profileId: string;
+  fileName: string;
+  contentType: string;
+  status: MediaAssetStatus;
+  uploadMethod: "PUT";
+  uploadUrl: string;
+  createdAt: string;
+}
+
+export interface MediaAssetRecord {
+  id: string;
+  profileId: string;
+  appointmentId?: string;
+  preconsultSubmissionId?: string;
+  fileName: string;
+  contentType: string;
+  status: MediaAssetStatus;
+  uploadedAt?: string;
+  downloadUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PreConsultSubmissionRecord {
+  id: string;
+  profileId: string;
+  appointmentId: string;
+  createdByUserId: string;
+  practitionerId: string;
+  appointmentType: "presentiel" | "video";
+  questionnaireData: Record<string, unknown>;
+  mediaAssetIds: string[];
+  mediaAssets: MediaAssetRecord[];
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SkinScoreRecord {
   id: string;
   profileId: string;

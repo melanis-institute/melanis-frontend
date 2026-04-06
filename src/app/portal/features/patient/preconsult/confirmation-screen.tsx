@@ -28,9 +28,11 @@ import {
   MOTIFS,
   TYPES_PEAU,
 } from "./components/recapHelpers";
-import type { PreConsultData } from "./components/types";
+import type { PreConsultData, PreConsultPhoto } from "./components/types";
 import { StepIndicator } from "@portal/shared/components/StepIndicator";
 import { relationshipToLabel } from "@portal/domains/account/labels";
+import type { AccountAdapter } from "@portal/domains/account/adapter.types";
+import type { PractitionerDirectoryEntry } from "@portal/domains/scheduling/types";
 import { useAuth } from "@portal/session/useAuth";
 
 // ——— Skeleton Pulse Component ———
@@ -393,6 +395,77 @@ function formatDateLabel(date?: string) {
   }).format(parsed);
 }
 
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+async function uploadPreConsultPhotos(
+  accountAdapter: AccountAdapter,
+  actorUserId: string,
+  profileId: string,
+  preConsultData: PreConsultData,
+): Promise<PreConsultData> {
+  if (preConsultData.photos.length === 0) {
+    return {
+      ...preConsultData,
+      consentDonnees: true,
+      consentExactitude: true,
+    };
+  }
+
+  const intents = await accountAdapter.createMediaUploadIntents({
+    actorUserId,
+    profileId,
+    files: preConsultData.photos.map((photo) => ({
+      fileName: photo.name,
+      contentType: photo.contentType || "application/octet-stream",
+    })),
+  });
+
+  const uploadedPhotos: PreConsultPhoto[] = [];
+  for (const [index, photo] of preConsultData.photos.entries()) {
+    const intent = intents[index];
+    if (!intent) {
+      throw new Error("Intent de téléversement manquant");
+    }
+
+    const isMockUpload = intent.uploadUrl.startsWith("mock://");
+    if (!isMockUpload) {
+      const blob = await dataUrlToBlob(photo.url);
+      const uploadResponse = await fetch(intent.uploadUrl, {
+        method: intent.uploadMethod,
+        headers: {
+          "Content-Type": intent.contentType,
+        },
+        body: blob,
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("Impossible de téléverser les photos");
+      }
+    }
+
+    const asset = await accountAdapter.completeMediaUpload({
+      actorUserId,
+      assetId: intent.id,
+    });
+
+    uploadedPhotos.push({
+      ...photo,
+      assetId: asset.id,
+      contentType: asset.contentType,
+      url: isMockUpload ? photo.url : "",
+    });
+  }
+
+  return {
+    ...preConsultData,
+    consentDonnees: true,
+    consentExactitude: true,
+    photos: uploadedPhotos,
+  };
+}
+
 // ——— Main Component ———
 export default function PF04() {
   const navigate = useNavigate();
@@ -400,6 +473,7 @@ export default function PF04() {
   const auth = useAuth();
 
   const appointmentType = state?.appointmentType ?? "presentiel";
+  const routePractitioner = state?.practitioner as PractitionerDirectoryEntry | undefined;
   const profileOptions = auth.profiles.map((profile) => ({
     id: profile.id,
     label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
@@ -411,17 +485,33 @@ export default function PF04() {
   const preConsultData: PreConsultData | undefined = state?.preConsultData;
   const preConsultSkipped = state?.preConsultSkipped ?? false;
 
-  // Mock practitioner data
-  const practitioner = {
-    name: "Dr. Aissatou Diallo",
-    specialty: "Dermatologie",
-    location: "Cabinet Mermoz, Dakar",
-    fee: "15 000 FCFA",
-    avatar: "AD",
-  };
+  const practitioner = routePractitioner
+    ? {
+        id: routePractitioner.practitionerId,
+        name: routePractitioner.displayName,
+        specialty: routePractitioner.specialty,
+        location: routePractitioner.location,
+        fee: routePractitioner.priceFromLabel ?? "À confirmer",
+        avatar: routePractitioner.displayName
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
+      }
+    : {
+        id: "pract-001",
+        name: "Dr. Aissatou Ly",
+        specialty: "Dermatologie clinique",
+        location: "Cabinet Mermoz, Dakar",
+        fee: "À partir de 15 000 FCFA",
+        avatar: "AL",
+      };
 
   // ——— Skeleton loading state ———
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(timer);
@@ -482,19 +572,43 @@ export default function PF04() {
     };
   }, [preConsultData, preConsultSkipped]);
 
-  const handleConfirm = () => {
-    navigate("/patient-flow/confirmation-succes", {
-      state: {
-        appointmentType,
-        actingProfileId: auth.actingProfileId,
-        actingRelationship: auth.actingProfile?.relationship,
-        date: state?.date,
-        time: state?.time,
-        selectedSlot,
-        practitioner,
-        preConsultData,
-      },
-    });
+  const handleConfirm = async () => {
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      let uploadedPreConsultData = preConsultData;
+      if (preConsultData && auth.user && auth.actingProfileId) {
+        uploadedPreConsultData = await uploadPreConsultPhotos(
+          auth.accountAdapter,
+          auth.user.id,
+          auth.actingProfileId,
+          preConsultData,
+        );
+      }
+
+      navigate("/patient-flow/confirmation-succes", {
+        state: {
+          appointmentType,
+          actingProfileId: auth.actingProfileId,
+          actingRelationship: auth.actingProfile?.relationship,
+          date: state?.date,
+          time: state?.time,
+          availabilitySlotId: state?.availabilitySlotId,
+          selectedSlot,
+          practitioner,
+          preConsultData: uploadedPreConsultData,
+        },
+      });
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de préparer la pré-consultation.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -914,7 +1028,7 @@ export default function PF04() {
                               className="text-[11px] text-[#5B1112]/40 mb-1"
                               style={{ fontWeight: 550 }}
                             >
-                              Message au Dr. Diallo
+                              Message au praticien
                             </p>
                             <p
                               className="text-[12.5px] text-[#5B1112]/60 leading-[1.5] italic"
@@ -1088,29 +1202,34 @@ export default function PF04() {
             paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)",
           }}
         >
+          {submitError ? (
+            <p className="mb-3 rounded-2xl border border-[#E9B3B3] bg-[#FFF2F2] px-4 py-3 text-sm text-[#8A2E2E]">
+              {submitError}
+            </p>
+          ) : null}
           <motion.button
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: loading ? 0.4 : 1, y: 0 }}
-            transition={{ duration: 0.4, delay: loading ? 0 : 0.3 }}
+            animate={{ opacity: loading || isSubmitting ? 0.4 : 1, y: 0 }}
+            transition={{ duration: 0.4, delay: loading || isSubmitting ? 0 : 0.3 }}
             whileTap={{ scale: 0.98 }}
-            onClick={handleConfirm}
-            disabled={loading}
+            onClick={() => void handleConfirm()}
+            disabled={loading || isSubmitting}
             className={`pf-primary-cta w-full py-4 rounded-2xl transition-all duration-200 ${
-              loading ? "cursor-not-allowed" : "cursor-pointer"
+              loading || isSubmitting ? "cursor-not-allowed" : "cursor-pointer"
             }`}
             style={{
-              background: loading
+              background: loading || isSubmitting
                 ? "#5B1112"
                 : "linear-gradient(135deg, #5B1112 0%, #6A1D1F 100%)",
               color: "#FEF0D5",
               fontSize: 17,
               fontWeight: 600,
-              boxShadow: loading
+              boxShadow: loading || isSubmitting
                 ? "none"
                 : "0 4px 16px rgba(91,17,18,0.25), 0 2px 4px rgba(91,17,18,0.15)",
             }}
           >
-            Confirmer le rendez-vous
+            {isSubmitting ? "Téléversement en cours..." : "Confirmer le rendez-vous"}
           </motion.button>
         </div>
       </div>

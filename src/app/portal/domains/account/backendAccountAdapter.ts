@@ -1,7 +1,10 @@
 import type { AccountAdapter } from "./adapter.types";
 import type {
   AppendTimelineEventInput,
+  CompleteMediaUploadInput,
+  CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
+  CreatePreConsultSubmissionInput,
   EnsureSelfProfileInput,
   RevokeConsentInput,
   SignConsentInput,
@@ -13,9 +16,12 @@ import type {
   AuditEvent,
   CaregiverLink,
   ConsentRecord,
+  MediaAssetRecord,
+  MediaUploadIntent,
   NotificationPreference,
   PatientProfileRecord,
   PatientRecordEvent,
+  PreConsultSubmissionRecord,
   ScreeningReminder,
   SkinScoreRecord,
 } from "./types";
@@ -156,6 +162,43 @@ export class BackendAccountAdapter implements AccountAdapter {
       `/api/v1/patients/screening-reminders/${input.reminderId}`,
       input.patch,
       { profileId: input.profileId },
+    );
+  }
+
+  async createMediaUploadIntents(
+    input: CreateMediaUploadIntentsInput,
+  ): Promise<MediaUploadIntent[]> {
+    return this.http.post<MediaUploadIntent[]>("/api/v1/preconsult/media-assets/upload-intents", {
+      profileId: input.profileId,
+      files: input.files,
+    });
+  }
+
+  async completeMediaUpload(input: CompleteMediaUploadInput): Promise<MediaAssetRecord> {
+    return this.http.post<MediaAssetRecord>(
+      `/api/v1/preconsult/media-assets/${input.assetId}/complete`,
+    );
+  }
+
+  async createPreConsultSubmission(
+    input: CreatePreConsultSubmissionInput,
+  ): Promise<PreConsultSubmissionRecord> {
+    return this.http.post<PreConsultSubmissionRecord>("/api/v1/preconsult/submissions", {
+      profileId: input.profileId,
+      appointmentId: input.appointmentId,
+      practitionerId: input.practitionerId,
+      appointmentType: input.appointmentType,
+      questionnaireData: input.questionnaireData,
+      mediaAssetIds: input.mediaAssetIds,
+    });
+  }
+
+  async getPreConsultSubmissionForAppointment(
+    _actorUserId: string,
+    appointmentId: string,
+  ): Promise<PreConsultSubmissionRecord | null> {
+    return this.http.get<PreConsultSubmissionRecord | null>(
+      `/api/v1/preconsult/submissions/appointment/${appointmentId}`,
     );
   }
 

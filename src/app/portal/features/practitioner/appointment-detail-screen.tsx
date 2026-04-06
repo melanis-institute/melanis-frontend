@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
+import type { PreConsultSubmissionRecord } from "@portal/domains/account/types";
 import {
   NEXT_STATUS_BY_CURRENT,
   appointmentStatusLabel,
@@ -85,11 +86,52 @@ function toDisplayRows(preConsultData: unknown): Array<{ label: string; value: s
   return rows;
 }
 
+function toPhotoPreviews(
+  submission: PreConsultSubmissionRecord | null,
+  appointment: AppointmentRecord | null,
+): Array<{ url: string; name: string }> {
+  if (submission) {
+    return submission.mediaAssets
+      .filter((asset) => typeof asset.downloadUrl === "string" && asset.downloadUrl.length > 0)
+      .map((asset) => ({
+        url: asset.downloadUrl as string,
+        name: asset.fileName,
+      }));
+  }
+
+  const data = appointment?.preConsultData;
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+  const payload = data as { photos?: unknown };
+  if (!Array.isArray(payload.photos)) {
+    return [];
+  }
+
+  return payload.photos
+    .filter(
+      (photo): photo is { url: string; name?: string } =>
+        typeof photo === "object" &&
+        photo !== null &&
+        "url" in photo &&
+        typeof photo.url === "string" &&
+        photo.url.length > 0,
+    )
+    .map((photo, index) => ({
+      url: photo.url,
+      name:
+        typeof photo.name === "string" && photo.name.length > 0
+          ? photo.name
+          : `Photo ${index + 1}`,
+    }));
+}
+
 export default function PRAC03AppointmentDetail() {
   const auth = useAuth();
   const params = useParams();
 
   const [appointment, setAppointment] = useState<AppointmentRecord | null>(null);
+  const [submission, setSubmission] = useState<PreConsultSubmissionRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -121,8 +163,16 @@ export default function PRAC03AppointmentDetail() {
           return;
         }
 
+        const foundSubmission = auth.user
+          ? await auth.accountAdapter.getPreConsultSubmissionForAppointment(
+              auth.user.id,
+              appointmentId,
+            )
+          : null;
+
         if (!cancelled) {
           setAppointment(found);
+          setSubmission(foundSubmission);
           setError(null);
         }
       } catch (adapterError) {
@@ -133,6 +183,7 @@ export default function PRAC03AppointmentDetail() {
               : "Impossible de charger ce rendez-vous.",
           );
           setAppointment(null);
+          setSubmission(null);
         }
       } finally {
         if (!cancelled) {
@@ -146,13 +197,23 @@ export default function PRAC03AppointmentDetail() {
     return () => {
       cancelled = true;
     };
-  }, [appointmentId, auth.appointmentAdapter, auth.user?.practitionerId]);
+  }, [
+    appointmentId,
+    auth.accountAdapter,
+    auth.appointmentAdapter,
+    auth.user,
+    auth.user?.practitionerId,
+  ]);
 
   const nextStatus = appointment ? NEXT_STATUS_BY_CURRENT[appointment.status] : null;
 
   const preConsultRows = useMemo(
-    () => toDisplayRows(appointment?.preConsultData),
-    [appointment?.preConsultData],
+    () => toDisplayRows(submission?.questionnaireData ?? appointment?.preConsultData),
+    [appointment?.preConsultData, submission?.questionnaireData],
+  );
+  const photoPreviews = useMemo(
+    () => toPhotoPreviews(submission, appointment),
+    [appointment, submission],
   );
 
   const handleTransition = async () => {
@@ -265,6 +326,30 @@ export default function PRAC03AppointmentDetail() {
                   ))}
                 </div>
               )}
+
+              {photoPreviews.length > 0 ? (
+                <div className="mt-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[rgba(17,18,20,0.45)]">
+                    Photos cliniques
+                  </h3>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    {photoPreviews.map((photo) => (
+                      <div
+                        key={`${photo.name}-${photo.url}`}
+                        className="overflow-hidden rounded-2xl border border-[rgba(17,18,20,0.08)] bg-[#FCFCFC]"
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.name}
+                          loading="lazy"
+                          className="h-56 w-full object-cover"
+                        />
+                        <p className="px-3 py-2 text-xs text-[rgba(17,18,20,0.6)]">{photo.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </section>
           </div>
         ) : null}

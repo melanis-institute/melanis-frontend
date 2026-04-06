@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { Wifi, Globe, Sparkles, AlertTriangle } from "lucide-react";
 import { HeaderBack } from "@portal/shared/components/HeaderBack";
@@ -10,25 +10,15 @@ import { PractitionerMiniCard } from "@portal/shared/components/PractitionerMini
 import { DateChipSelector } from "@portal/shared/components/DateChipSelector";
 import { FilterChips } from "@portal/shared/components/FilterChips";
 import { TimeSlotGrid } from "@portal/shared/components/TimeSlotGrid";
-import {
-  PersistentContextBar,
-} from "@portal/shared/components/PersistentContextBar";
+import { PersistentContextBar } from "@portal/shared/components/PersistentContextBar";
 import { motion } from "motion/react";
 import { relationshipToLabel } from "@portal/domains/account/labels";
+import { schedulingAdapter } from "@portal/domains/runtime/adapters";
+import type {
+  AvailabilitySlotRecord,
+  PractitionerDirectoryEntry,
+} from "@portal/domains/scheduling/types";
 import { useAuth } from "@portal/session/useAuth";
-
-// --- Mock data ---
-
-const PRACTITIONER = {
-  name: "Dr. Aïssatou Diallo",
-  specialty: "Dermatologie",
-  rating: 4.9,
-  reviewCount: 214,
-  photoUrl:
-    "https://images.unsplash.com/photo-1655720357761-f18ea9e5e7e6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhZnJpY2FuJTIwZmVtYWxlJTIwZGVybWF0b2xvZ2lzdCUyMHByb2Zlc3Npb25hbCUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MTYxODk3N3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-  availableToday: true,
-  priceFrom: "À partir de 15 000 FCFA",
-};
 
 type DateChip = {
   key: string;
@@ -41,6 +31,20 @@ type DateChip = {
 
 type FilterKey = "all" | "matin" | "aprem" | "soir";
 
+type BookingRouteState = {
+  appointmentType?: "presentiel" | "video";
+  actingProfileId?: string;
+  actingRelationship?: "moi" | "enfant" | "proche";
+};
+
+type SlotButton = {
+  id: string;
+  time: string;
+  available: boolean;
+  period: FilterKey;
+  startsAt: string;
+};
+
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "Tous" },
   { key: "matin", label: "Matin" },
@@ -48,7 +52,13 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "soir", label: "Soir" },
 ];
 
-function generateDates(startOffset: number, count: number): DateChip[] {
+const INITIAL_RANGE_DAYS = 14;
+
+function todayDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function buildDateWindow(dayCount: number, availableDateKeys: Set<string>): DateChip[] {
   const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
   const months = [
     "Janv",
@@ -66,47 +76,19 @@ function generateDates(startOffset: number, count: number): DateChip[] {
   ];
 
   const today = new Date();
-  return Array.from({ length: count }, (_, index) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + startOffset + index);
-    const isSunday = d.getDay() === 0;
+  return Array.from({ length: dayCount }, (_, index) => {
+    const current = new Date(today);
+    current.setDate(today.getDate() + index);
+    const key = current.toISOString().slice(0, 10);
     return {
-      key: d.toISOString().split("T")[0],
-      dayLabel: days[d.getDay()],
-      dateNum: d.getDate(),
-      monthLabel: months[d.getMonth()],
-      isToday: startOffset + index === 0,
-      hasSlots: !isSunday,
+      key,
+      dayLabel: days[current.getDay()],
+      dateNum: current.getDate(),
+      monthLabel: months[current.getMonth()],
+      isToday: index === 0,
+      hasSlots: availableDateKeys.has(key),
     };
   });
-}
-
-function generateSlots(dateKey: string, filter: FilterKey) {
-  const d = new Date(dateKey);
-  if (d.getDay() === 0) return [];
-
-  const allSlots = [
-    { time: "08:00", available: true, period: "matin" as const },
-    { time: "08:30", available: false, period: "matin" as const },
-    { time: "09:00", available: true, period: "matin" as const },
-    { time: "09:30", available: true, period: "matin" as const },
-    { time: "10:00", available: true, period: "matin" as const },
-    { time: "10:30", available: false, period: "matin" as const },
-    { time: "11:00", available: true, period: "matin" as const },
-    { time: "11:30", available: true, period: "matin" as const },
-    { time: "14:00", available: true, period: "aprem" as const },
-    { time: "14:30", available: true, period: "aprem" as const },
-    { time: "15:00", available: false, period: "aprem" as const },
-    { time: "15:30", available: true, period: "aprem" as const },
-    { time: "16:00", available: true, period: "aprem" as const },
-    { time: "16:30", available: true, period: "aprem" as const },
-    { time: "18:00", available: true, period: "soir" as const },
-    { time: "18:30", available: false, period: "soir" as const },
-    { time: "19:00", available: true, period: "soir" as const },
-  ];
-
-  if (filter === "all") return allSlots;
-  return allSlots.filter((slot) => slot.period === filter);
 }
 
 function formatDateLabel(dateKey: string) {
@@ -135,127 +117,205 @@ function periodFromTime(time: string): FilterKey {
   return "soir";
 }
 
-const INITIAL_DATES = generateDates(0, 10);
-
 export default function PF02() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
-  const routeState = (location.state ?? {}) as {
-    appointmentType?: "presentiel" | "video";
-    actingProfileId?: string;
-    actingRelationship?: "moi" | "enfant" | "proche";
-  };
+  const routeState = (location.state ?? {}) as BookingRouteState;
 
   const appointmentType = routeState.appointmentType ?? "presentiel";
-
-  const [dates, setDates] = useState<DateChip[]>(INITIAL_DATES);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    INITIAL_DATES[0]?.key ?? ""
-  );
+  const [practitioners, setPractitioners] = useState<PractitionerDirectoryEntry[]>([]);
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
+  const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlotRecord[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [rangeDays, setRangeDays] = useState(INITIAL_RANGE_DAYS);
+  const [loadingPractitioners, setLoadingPractitioners] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSelectionError, setShowSelectionError] = useState(false);
-  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const triggerLoading = useCallback(() => {
-    setLoading(true);
-    if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
-    loadingTimerRef.current = setTimeout(() => setLoading(false), 420);
-  }, []);
+  const profileOptions = auth.profiles.map((profile) => ({
+    id: profile.id,
+    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
+  }));
 
-  useEffect(
-    () => () => {
-      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
-    },
-    []
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        setLoadingPractitioners(true);
+        setErrorMessage(null);
+        const list = await schedulingAdapter.listPractitioners(appointmentType);
+        if (cancelled) return;
+        setPractitioners(list);
+        setSelectedPractitionerId((current) => {
+          if (current && list.some((item) => item.practitionerId === current)) {
+            return current;
+          }
+          return list[0]?.practitionerId ?? null;
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger les praticiens.",
+          );
+          setPractitioners([]);
+          setSelectedPractitionerId(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPractitioners(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentType]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!selectedPractitionerId) {
+        setAvailabilitySlots([]);
+        setSelectedDate("");
+        setSelectedTime(null);
+        return;
+      }
+
+      try {
+        setLoadingSlots(true);
+        setErrorMessage(null);
+        const slots = await schedulingAdapter.listAvailability({
+          practitionerId: selectedPractitionerId,
+          appointmentType,
+          dateFrom: todayDateKey(),
+          days: rangeDays,
+        });
+        if (cancelled) return;
+        setAvailabilitySlots(slots.filter((slot) => slot.isAvailable));
+
+        const availableDateKeys = new Set(
+          slots.filter((slot) => slot.isAvailable).map((slot) => slot.dateKey),
+        );
+        let resolvedDateKey = "";
+        setSelectedDate((current) => {
+          if (current && availableDateKeys.has(current)) {
+            resolvedDateKey = current;
+            return current;
+          }
+          resolvedDateKey = slots.find((slot) => slot.isAvailable)?.dateKey ?? "";
+          return resolvedDateKey;
+        });
+        setSelectedTime((current) => {
+          if (!current) return null;
+          const stillAvailable = slots.some(
+            (slot) =>
+              slot.isAvailable &&
+              slot.dateKey === resolvedDateKey &&
+              slot.timeLabel === current,
+          );
+          return stillAvailable ? current : null;
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger les disponibilités.",
+          );
+          setAvailabilitySlots([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSlots(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentType, rangeDays, reloadKey, selectedPractitionerId]);
+
+  const selectedPractitioner = useMemo(
+    () =>
+      practitioners.find((item) => item.practitionerId === selectedPractitionerId) ?? null,
+    [practitioners, selectedPractitionerId],
   );
 
-  const slots = useMemo(
-    () => generateSlots(selectedDate, activeFilter),
-    [selectedDate, activeFilter]
+  const availableDateKeys = useMemo(
+    () => new Set(availabilitySlots.map((slot) => slot.dateKey)),
+    [availabilitySlots],
   );
+
+  const dates = useMemo(
+    () => buildDateWindow(rangeDays, availableDateKeys),
+    [availableDateKeys, rangeDays],
+  );
+
+  const slots = useMemo<SlotButton[]>(() => {
+    const selectedDateSlots = availabilitySlots.filter((slot) => slot.dateKey === selectedDate);
+    const mapped = selectedDateSlots.map((slot) => ({
+      id: slot.id,
+      time: slot.timeLabel,
+      available: slot.isAvailable,
+      period: periodFromTime(slot.timeLabel),
+      startsAt: slot.startsAt,
+    }));
+    if (activeFilter === "all") {
+      return mapped;
+    }
+    return mapped.filter((slot) => slot.period === activeFilter);
+  }, [activeFilter, availabilitySlots, selectedDate]);
+
+  const bestNextSlot = useMemo(() => {
+    const first = availabilitySlots[0];
+    if (!first) return null;
+    return {
+      id: first.id,
+      dateKey: first.dateKey,
+      time: first.timeLabel,
+      startsAt: first.startsAt,
+      period: periodFromTime(first.timeLabel),
+      label: `${formatDateLabel(first.dateKey)} · ${first.timeLabel}`,
+    };
+  }, [availabilitySlots]);
 
   const selectedDateLabel = useMemo(
     () => (selectedDate ? formatDateLabel(selectedDate) : "À définir"),
-    [selectedDate]
+    [selectedDate],
   );
 
-  const bestNextSlot = useMemo(() => {
-    for (const date of dates) {
-      const firstAvailable = generateSlots(date.key, "all").find(
-        (slot) => slot.available
-      );
-      if (firstAvailable) {
-        return {
-          dateKey: date.key,
-          time: firstAvailable.time,
-          period: periodFromTime(firstAvailable.time),
-          label: `${formatDateLabel(date.key)} · ${firstAvailable.time}`,
-        };
-      }
-    }
-    return null;
-  }, [dates]);
-
-  const extendBySevenDays = useCallback(() => {
-    setDates((prev) => [...prev, ...generateDates(prev.length, 7)]);
-  }, []);
+  const canContinue = Boolean(selectedPractitioner && selectedDate && selectedTime);
 
   const handleDateSelect = (key: string) => {
-    const nextDateSlots = generateSlots(key, "all");
-    if (
-      selectedTime &&
-      !nextDateSlots.some((slot) => slot.available && slot.time === selectedTime)
-    ) {
-      setSelectedTime(null);
-    }
     setSelectedDate(key);
+    setSelectedTime((current) => {
+      if (!current) return null;
+      const stillAvailable = availabilitySlots.some(
+        (slot) => slot.dateKey === key && slot.timeLabel === current,
+      );
+      return stillAvailable ? current : null;
+    });
     setActiveFilter("all");
-    setError(false);
-    triggerLoading();
     setShowSelectionError(false);
   };
 
   const handleFilterSelect = (key: string) => {
     setActiveFilter(key as FilterKey);
-    setError(false);
-    triggerLoading();
-  };
-
-  const handleRetry = () => {
-    setError(false);
-    triggerLoading();
-  };
-
-  const findNextAvailableDate = (datePool: DateChip[], fromKey: string) => {
-    const currentIndex = datePool.findIndex((date) => date.key === fromKey);
-    return datePool.find(
-      (date, index) => index > currentIndex && date.hasSlots !== false
-    );
-  };
-
-  const handleNextDays = () => {
-    const nextDate = findNextAvailableDate(dates, selectedDate);
-    if (nextDate) {
-      setSelectedDate(nextDate.key);
-      setActiveFilter("all");
-      setError(false);
-      triggerLoading();
-      return;
-    }
-
-    const extended = [...dates, ...generateDates(dates.length, 7)];
-    setDates(extended);
-    const nextAfterExtend = findNextAvailableDate(extended, selectedDate);
-    if (nextAfterExtend) {
-      setSelectedDate(nextAfterExtend.key);
-      setActiveFilter("all");
-      setError(false);
-      triggerLoading();
-    }
   };
 
   const handleBestSlot = () => {
@@ -263,8 +323,6 @@ export default function PF02() {
     setSelectedDate(bestNextSlot.dateKey);
     setActiveFilter(bestNextSlot.period);
     setSelectedTime(bestNextSlot.time);
-    setError(false);
-    triggerLoading();
     setShowSelectionError(false);
   };
 
@@ -273,14 +331,34 @@ export default function PF02() {
     setShowSelectionError(false);
   };
 
-  const canContinue = Boolean(selectedDate && selectedTime);
-  const profileOptions = auth.profiles.map((profile) => ({
-    id: profile.id,
-    label: `${profile.firstName} ${profile.lastName} (${relationshipToLabel(profile.relationship)})`,
-  }));
+  const handleRetry = () => {
+    setReloadKey((current) => current + 1);
+  };
+
+  const handleNextDays = useCallback(() => {
+    const currentIndex = dates.findIndex((date) => date.key === selectedDate);
+    const nextWithSlots = dates.find(
+      (date, index) => index > currentIndex && date.hasSlots,
+    );
+    if (nextWithSlots) {
+      setSelectedDate(nextWithSlots.key);
+      setSelectedTime(null);
+      setActiveFilter("all");
+      return;
+    }
+    setRangeDays((current) => current + 7);
+  }, [dates, selectedDate]);
 
   const handleContinue = () => {
-    if (!canContinue) {
+    if (!canContinue || !selectedPractitioner) {
+      setShowSelectionError(true);
+      return;
+    }
+
+    const selectedSlot = availabilitySlots.find(
+      (slot) => slot.dateKey === selectedDate && slot.timeLabel === selectedTime,
+    );
+    if (!selectedSlot) {
       setShowSelectionError(true);
       return;
     }
@@ -292,9 +370,12 @@ export default function PF02() {
         actingRelationship: auth.actingProfile?.relationship,
         date: selectedDate,
         time: selectedTime,
+        availabilitySlotId: selectedSlot.id,
+        practitioner: selectedPractitioner,
         selectedSlot: {
           date: formatLongDate(selectedDate),
           time: selectedTime,
+          startsAt: selectedSlot.startsAt,
         },
       },
     });
@@ -303,7 +384,6 @@ export default function PF02() {
   return (
     <PageLayout>
       <div className="pf-page flex flex-col h-full">
-        {/* Header row */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
@@ -333,14 +413,13 @@ export default function PF02() {
               void auth.setActingProfile(profileId);
             }}
             appointmentType={appointmentType}
+            practitionerName={selectedPractitioner?.displayName ?? null}
             dateLabel={selectedDateLabel}
             timeLabel={selectedTime ?? "À définir"}
           />
         </motion.div>
 
-        {/* Scrollable content area */}
         <div className="pf-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-6 md:pb-8">
-          {/* Mascot + Question Bubble */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -349,8 +428,8 @@ export default function PF02() {
           >
             <div className="flex-1 mr-2 overflow-visible">
               <QuestionBubble
-                title="Choisir un créneau"
-                subtitle="Sélectionnez une date puis une heure disponible."
+                title="Choisir un praticien et un créneau"
+                subtitle="Sélectionnez un dermatologue, puis une date et une heure disponibles."
                 tailSide="right"
               />
             </div>
@@ -359,7 +438,6 @@ export default function PF02() {
             </div>
           </motion.div>
 
-          {/* Best next slot */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -389,17 +467,56 @@ export default function PF02() {
             </button>
           </motion.div>
 
-          {/* Practitioner mini-card */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.18, ease: "easeOut" }}
-            className="px-5 md:px-8 mt-5 md:mt-4"
+            className="px-5 md:px-8 mt-5 md:mt-4 space-y-3"
           >
-            <PractitionerMiniCard {...PRACTITIONER} />
+            {loadingPractitioners ? (
+              <div className="rounded-[20px] bg-white p-4 text-sm text-[rgba(17,18,20,0.55)]">
+                Chargement des praticiens...
+              </div>
+            ) : practitioners.length === 0 ? (
+              <div className="rounded-[20px] bg-white p-4 text-sm text-[#8A2E2E]">
+                {errorMessage ?? "Aucun praticien disponible."}
+              </div>
+            ) : (
+              practitioners.map((practitioner) => {
+                const isSelected = practitioner.practitionerId === selectedPractitionerId;
+                return (
+                  <button
+                    key={practitioner.practitionerId}
+                    onClick={() => {
+                      setSelectedPractitionerId(practitioner.practitionerId);
+                      setSelectedTime(null);
+                      setSelectedDate("");
+                      setActiveFilter("all");
+                      setShowSelectionError(false);
+                    }}
+                    className="block w-full rounded-[24px] text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00415E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAFA]"
+                    style={{
+                      border: isSelected
+                        ? "2px solid rgba(91,17,18,0.24)"
+                        : "2px solid transparent",
+                      boxShadow: isSelected ? "0 8px 20px rgba(91,17,18,0.08)" : "none",
+                    }}
+                  >
+                    <PractitionerMiniCard
+                      name={practitioner.displayName}
+                      specialty={practitioner.specialty}
+                      rating={practitioner.rating}
+                      reviewCount={practitioner.reviewCount}
+                      photoUrl={practitioner.photoUrl}
+                      availableToday={practitioner.availableToday}
+                      priceFrom={practitioner.priceFromLabel}
+                    />
+                  </button>
+                );
+              })
+            )}
           </motion.div>
 
-          {/* Date selector */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -410,11 +527,10 @@ export default function PF02() {
               dates={dates}
               selectedKey={selectedDate}
               onSelect={handleDateSelect}
-              onShowMore={extendBySevenDays}
+              onShowMore={() => setRangeDays((current) => current + 7)}
             />
           </motion.div>
 
-          {/* Filter chips */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -428,8 +544,7 @@ export default function PF02() {
             />
           </motion.div>
 
-          {/* Error summary */}
-          {showSelectionError && (
+          {showSelectionError ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -446,13 +561,12 @@ export default function PF02() {
               >
                 <AlertTriangle className="h-4 w-4 text-[#5B1112] mt-[1px]" strokeWidth={1.9} />
                 <p className="text-[12.5px] text-[#5B1112]" style={{ fontWeight: 520 }}>
-                  Sélectionnez une heure disponible pour continuer.
+                  Sélectionnez un praticien et une heure disponible pour continuer.
                 </p>
               </div>
             </motion.div>
-          )}
+          ) : null}
 
-          {/* Time slots */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -463,15 +577,15 @@ export default function PF02() {
               slots={slots}
               selectedTime={selectedTime}
               onSelect={handleTimeSelect}
-              loading={loading}
-              error={error}
+              loading={loadingSlots}
+              error={Boolean(errorMessage) && !loadingSlots}
+              errorMessage={errorMessage ?? undefined}
               selectedDateLabel={selectedDateLabel}
               onRetry={handleRetry}
               onNextDays={handleNextDays}
             />
           </motion.div>
 
-          {/* Timezone indicator */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -487,8 +601,7 @@ export default function PF02() {
             </span>
           </motion.div>
 
-          {/* Video consultation microcopy */}
-          {appointmentType === "video" && (
+          {appointmentType === "video" ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -504,18 +617,11 @@ export default function PF02() {
                 vidéo consultation.
               </p>
             </motion.div>
-          )}
+          ) : null}
         </div>
 
-        {/* Fixed CTA at bottom */}
         <div
-          className="
-            pf-cta
-            shrink-0
-            px-5 md:px-8 pb-2 pt-3
-            bg-[#FAFAFA]
-            border-t border-[rgba(17,18,20,0.04)]
-          "
+          className="pf-cta shrink-0 px-5 md:px-8 pb-2 pt-3 bg-[#FAFAFA] border-t border-[rgba(17,18,20,0.04)]"
           style={{
             paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)",
           }}
@@ -548,7 +654,6 @@ export default function PF02() {
             Continuer
           </motion.button>
 
-          {/* Home indicator (mobile only) */}
           <div className="flex justify-center pt-2 md:hidden">
             <div className="w-[134px] h-[5px] bg-[rgba(17,18,20,0.12)] rounded-full" />
           </div>

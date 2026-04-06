@@ -24,6 +24,11 @@ import { StepIndicator } from "@portal/shared/components/StepIndicator";
 import { relationshipToLabel } from "@portal/domains/account/labels";
 import { useAuth } from "@portal/session/useAuth";
 
+type RoutePractitioner = {
+  displayName?: string;
+  name?: string;
+};
+
 const STEP_META: Record<number, { title: string; subtitle?: string }> = {
   1: {
     title: "Quel est le motif de votre consultation ?",
@@ -108,6 +113,21 @@ function getRemainingEstimate(stage: number) {
   return `${Math.max(1, 5 - stage)} min restantes`;
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Impossible de lire le fichier"));
+    };
+    reader.onerror = () => reject(new Error("Impossible de lire le fichier"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function PF03() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -118,6 +138,7 @@ export default function PF03() {
         appointmentType?: "presentiel" | "video";
         date?: string;
         time?: string;
+        practitioner?: RoutePractitioner;
         actingProfileId?: string;
         actingRelationship?: "moi" | "enfant" | "proche";
       },
@@ -187,16 +208,19 @@ export default function PF03() {
 
   const handleAddPhotos = useCallback(
     (files: FileList) => {
-      const newPhotos = Array.from(files).map((file) => ({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        url: URL.createObjectURL(file),
-        name: file.name,
-      }));
-
-      setData((prev) => ({
-        ...prev,
-        photos: [...prev.photos, ...newPhotos].slice(0, 4),
-      }));
+      void Promise.all(
+        Array.from(files).map(async (file) => ({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          url: await readFileAsDataUrl(file),
+          name: file.name,
+          contentType: file.type || "application/octet-stream",
+        })),
+      ).then((newPhotos) => {
+        setData((prev) => ({
+          ...prev,
+          photos: [...prev.photos, ...newPhotos].slice(0, 4),
+        }));
+      });
     },
     [setData],
   );
@@ -442,6 +466,7 @@ export default function PF03() {
           <StepRecap
             data={data}
             onEdit={goToStep}
+            practitionerName={practitionerName}
           />
         );
       default:
@@ -472,6 +497,10 @@ export default function PF03() {
     "Complétez les informations requises pour continuer.";
 
   const dateLabel = formatDateLabel(routeState.date);
+  const practitionerName =
+    routeState.practitioner?.displayName ??
+    routeState.practitioner?.name ??
+    "Praticien";
 
   if (subStep === 0) {
     return (
@@ -491,7 +520,7 @@ export default function PF03() {
                   void auth.setActingProfile(profileId);
                 }}
                 appointmentType={appointmentType}
-                practitionerName="Dr. Aïssatou Diallo"
+                practitionerName={practitionerName}
                 dateLabel={dateLabel}
                 timeLabel={routeState.time ?? "À définir"}
               />
@@ -595,7 +624,7 @@ export default function PF03() {
                 void auth.setActingProfile(profileId);
               }}
               appointmentType={appointmentType}
-              practitionerName="Dr. Aïssatou Diallo"
+              practitionerName={practitionerName}
               dateLabel={dateLabel}
               timeLabel={routeState.time ?? "À définir"}
             />

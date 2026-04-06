@@ -1,7 +1,10 @@
 import type {
   AccountAdapter,
   AppendTimelineEventInput,
+  CompleteMediaUploadInput,
+  CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
+  CreatePreConsultSubmissionInput,
   EnsureSelfProfileInput,
   RevokeConsentInput,
   SignConsentInput,
@@ -14,11 +17,14 @@ import type {
   CaregiverLink,
   ConsentRecord,
   ConsentType,
+  MediaAssetRecord,
+  MediaUploadIntent,
   NotificationChannelPreference,
   NotificationPreference,
   PatientRecordEvent,
   PatientRecordEventType,
   PatientProfileRecord,
+  PreConsultSubmissionRecord,
   ScreeningCadence,
   ScreeningReminder,
   SkinScoreRecord,
@@ -33,6 +39,8 @@ const PREFS_KEY = "melanis_account_notification_prefs_v1";
 const AUDIT_KEY = "melanis_account_audit_v1";
 const TIMELINE_KEY = "melanis_account_timeline_v1";
 const SCREENING_REMINDERS_KEY = "melanis_account_screening_reminders_v1";
+const MEDIA_ASSETS_KEY = "melanis_account_media_assets_v1";
+const PRECONSULT_SUBMISSIONS_KEY = "melanis_account_preconsult_submissions_v1";
 
 const CONSENT_TEMPLATES: Array<{ type: ConsentType; title: string }> = [
   { type: "medical_record", title: "Accès au dossier médical" },
@@ -126,6 +134,22 @@ function readScreeningReminders() {
 
 function writeScreeningReminders(reminders: ScreeningReminder[]) {
   safeWrite(SCREENING_REMINDERS_KEY, reminders.slice(-2000));
+}
+
+function readMediaAssets() {
+  return safeRead<MediaAssetRecord[]>(MEDIA_ASSETS_KEY, []);
+}
+
+function writeMediaAssets(assets: MediaAssetRecord[]) {
+  safeWrite(MEDIA_ASSETS_KEY, assets.slice(-2000));
+}
+
+function readPreConsultSubmissions() {
+  return safeRead<PreConsultSubmissionRecord[]>(PRECONSULT_SUBMISSIONS_KEY, []);
+}
+
+function writePreConsultSubmissions(submissions: PreConsultSubmissionRecord[]) {
+  safeWrite(PRECONSULT_SUBMISSIONS_KEY, submissions.slice(-2000));
 }
 
 function createAuditEvent(
@@ -327,6 +351,22 @@ function assertConsentAccessible(
 
   assertProfileAccessible(actorUserId, consent.profileId);
   return consent;
+}
+
+function ensureConsentSigned(profileId: string, actorUserId: string, type: ConsentType) {
+  ensureConsentsForProfile(profileId);
+  const consents = readConsents();
+  const consent = consents.find((item) => item.profileId === profileId && item.type === type);
+  if (!consent || consent.status === "signed") {
+    return;
+  }
+
+  consent.status = "signed";
+  consent.signedByUserId = actorUserId;
+  consent.signedAt = nowIso();
+  consent.revokedAt = undefined;
+  consent.updatedAt = nowIso();
+  writeConsents(consents);
 }
 
 function startOfDay(value: Date) {
@@ -929,6 +969,145 @@ export class MockAccountAdapter implements AccountAdapter {
     );
 
     return target;
+  }
+
+  async createMediaUploadIntents(
+    input: CreateMediaUploadIntentsInput,
+  ): Promise<MediaUploadIntent[]> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    ensureConsentSigned(input.profileId, input.actorUserId, "medical_record");
+    ensureConsentSigned(input.profileId, input.actorUserId, "media_share");
+
+    const assets = readMediaAssets();
+    const intents = input.files.map((file) => {
+      const id = randomId("media");
+      const createdAt = nowIso();
+      assets.push({
+        id,
+        profileId: input.profileId,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        status: "pending",
+        createdAt,
+        updatedAt: createdAt,
+      });
+      return {
+        id,
+        profileId: input.profileId,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        status: "pending" as const,
+        uploadMethod: "PUT" as const,
+        uploadUrl: `mock://media/${id}`,
+        createdAt,
+      };
+    });
+    writeMediaAssets(assets);
+    return intents;
+  }
+
+  async completeMediaUpload(input: CompleteMediaUploadInput): Promise<MediaAssetRecord> {
+    const assets = readMediaAssets();
+    const asset = assets.find((item) => item.id === input.assetId);
+    if (!asset) {
+      throw new Error("Média introuvable");
+    }
+    assertProfileAccessible(input.actorUserId, asset.profileId);
+
+    asset.status = "uploaded";
+    asset.uploadedAt = nowIso();
+    asset.updatedAt = nowIso();
+    writeMediaAssets(assets);
+    return asset;
+  }
+
+  async createPreConsultSubmission(
+    input: CreatePreConsultSubmissionInput,
+  ): Promise<PreConsultSubmissionRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    ensureConsentSigned(input.profileId, input.actorUserId, "medical_record");
+    if (input.mediaAssetIds.length > 0) {
+      ensureConsentSigned(input.profileId, input.actorUserId, "media_share");
+    }
+
+    const existing = readPreConsultSubmissions().find(
+      (item) => item.appointmentId === input.appointmentId,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    const assets = readMediaAssets();
+    const questionnairePayload = input.questionnaireData as { photos?: unknown };
+    const questionnairePhotos = Array.isArray(questionnairePayload.photos)
+      ? questionnairePayload.photos
+      : [];
+
+    const selectedAssets = input.mediaAssetIds.map((assetId) => {
+      const asset = assets.find((item) => item.id === assetId);
+      if (!asset) {
+        throw new Error("Média introuvable");
+      }
+      if (asset.status !== "uploaded") {
+        throw new Error("Téléversement incomplet");
+      }
+
+      const matchingPhoto = questionnairePhotos.find(
+        (photo) =>
+          typeof photo === "object" &&
+          photo !== null &&
+          "assetId" in photo &&
+          photo.assetId === assetId &&
+          "url" in photo &&
+          typeof photo.url === "string",
+      ) as { url?: string } | undefined;
+
+      asset.appointmentId = input.appointmentId;
+      asset.downloadUrl = matchingPhoto?.url;
+      asset.updatedAt = nowIso();
+      return asset;
+    });
+
+    const createdAt = nowIso();
+    const submissionId = randomId("preconsult");
+    const submission: PreConsultSubmissionRecord = {
+      id: submissionId,
+      profileId: input.profileId,
+      appointmentId: input.appointmentId,
+      createdByUserId: input.actorUserId,
+      practitionerId: input.practitionerId,
+      appointmentType: input.appointmentType,
+      questionnaireData: input.questionnaireData,
+      mediaAssetIds: input.mediaAssetIds,
+      mediaAssets: selectedAssets.map((asset) => ({
+        ...asset,
+        preconsultSubmissionId: submissionId,
+      })),
+      submittedAt: createdAt,
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    for (const asset of assets) {
+      if (input.mediaAssetIds.includes(asset.id)) {
+        asset.preconsultSubmissionId = submissionId;
+      }
+    }
+    writeMediaAssets(assets);
+
+    const submissions = readPreConsultSubmissions();
+    submissions.push(submission);
+    writePreConsultSubmissions(submissions);
+    return submission;
+  }
+
+  async getPreConsultSubmissionForAppointment(
+    _actorUserId: string,
+    appointmentId: string,
+  ): Promise<PreConsultSubmissionRecord | null> {
+    return (
+      readPreConsultSubmissions().find((item) => item.appointmentId === appointmentId) ?? null
+    );
   }
 
   async recordProfileSwitch(userId: string, profileId: string): Promise<void> {

@@ -7,6 +7,9 @@ import { mockAppointmentAdapter } from "@portal/domains/appointments/mockAppoint
 import type { AuthAdapter } from "@portal/domains/auth/adapter.types";
 import { BackendAuthAdapter } from "@portal/domains/auth/backendAuthAdapter";
 import { mockAuthAdapter } from "@portal/domains/auth/mockAuthAdapter";
+import type { SchedulingAdapter } from "@portal/domains/scheduling/adapter.types";
+import { BackendSchedulingAdapter } from "@portal/domains/scheduling/backendSchedulingAdapter";
+import { mockSchedulingAdapter } from "@portal/domains/scheduling/mockSchedulingAdapter";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
@@ -21,3 +24,7 @@ export const accountAdapter: AccountAdapter = apiUrl
 export const appointmentAdapter: AppointmentAdapter = apiUrl
   ? new BackendAppointmentAdapter(apiUrl)
   : mockAppointmentAdapter;
+
+export const schedulingAdapter: SchedulingAdapter = apiUrl
+  ? new BackendSchedulingAdapter(apiUrl)
+  : mockSchedulingAdapter;

@@ -103,6 +103,7 @@ export class MockAppointmentAdapter implements AppointmentAdapter {
       bookingSourceRef: input.bookingSourceRef,
       profileId: input.profileId,
       patientLabel: input.patientLabel,
+      availabilitySlotId: input.availabilitySlotId,
       practitionerId: input.practitionerId,
       practitionerName: input.practitionerName,
       practitionerSpecialty: input.practitionerSpecialty,

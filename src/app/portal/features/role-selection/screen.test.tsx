@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import type * as ReactRouterModule from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthContext } from "../../auth/AuthProvider";
+import { AuthContext } from "../../session/AuthProvider";
 import { makeAuthContextValue } from "../../../../test/renderWithAuthRouter";
-import AU12SelectRole from "./AU12SelectRole";
+import AU12SelectRole from "./screen";
 
 const mockNavigate = vi.fn();
 

@@ -71,7 +71,7 @@ function getSmartTip(symptomes: string[], duree: string | null, intensite: numbe
     return "La sécheresse et la desquamation sont souvent liées. Hydratez bien votre peau en attendant la consultation.";
   }
   if (intensite >= 4 && symptomes.length >= 3) {
-    return "Vous ressentez plusieurs symptômes intenses. Le Dr. Diallo pourra vous proposer un plan de traitement adapté.";
+    return "Vous ressentez plusieurs symptômes intenses. Un plan de traitement adapté pourra vous être proposé.";
   }
   return null;
 }
