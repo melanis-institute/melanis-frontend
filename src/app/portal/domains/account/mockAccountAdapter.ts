@@ -15,6 +15,7 @@ import type {
 import type {
   AuditEvent,
   CaregiverLink,
+  ClinicalDocumentRecord,
   ConsentRecord,
   ConsentType,
   MediaAssetRecord,
@@ -39,6 +40,7 @@ const PREFS_KEY = "melanis_account_notification_prefs_v1";
 const AUDIT_KEY = "melanis_account_audit_v1";
 const TIMELINE_KEY = "melanis_account_timeline_v1";
 const SCREENING_REMINDERS_KEY = "melanis_account_screening_reminders_v1";
+const CLINICAL_DOCUMENTS_KEY = "melanis_account_clinical_documents_v1";
 const MEDIA_ASSETS_KEY = "melanis_account_media_assets_v1";
 const PRECONSULT_SUBMISSIONS_KEY = "melanis_account_preconsult_submissions_v1";
 
@@ -134,6 +136,10 @@ function readScreeningReminders() {
 
 function writeScreeningReminders(reminders: ScreeningReminder[]) {
   safeWrite(SCREENING_REMINDERS_KEY, reminders.slice(-2000));
+}
+
+function readClinicalDocuments() {
+  return safeRead<ClinicalDocumentRecord[]>(CLINICAL_DOCUMENTS_KEY, []);
 }
 
 function readMediaAssets() {
@@ -259,10 +265,17 @@ function appendTimelineEventInternal(input: AppendTimelineEventInput): PatientRe
 
 function timelineTitleFromType(type: PatientRecordEventType) {
   if (type === "appointment_booked") return "Rendez-vous confirmé";
+  if (type === "appointment_checked_in") return "Patient arrivé au rendez-vous";
+  if (type === "consultation_started") return "Consultation démarrée";
+  if (type === "consultation_completed") return "Consultation terminée";
   if (type === "consent_signed") return "Consentement signé";
   if (type === "consent_revoked") return "Consentement révoqué";
   if (type === "profile_updated") return "Profil patient mis à jour";
   if (type === "dependent_created") return "Profil dépendant ajouté";
+  if (type === "prescription_issued") return "Ordonnance disponible";
+  if (type === "document_shared") return "Document clinique disponible";
+  if (type === "follow_up_scheduled") return "Suivi planifié";
+  if (type === "measurement_recorded") return "Mesures cliniques ajoutées";
   return "Profil dépendant dissocié";
 }
 
@@ -879,6 +892,23 @@ export class MockAccountAdapter implements AccountAdapter {
     assertProfileAccessible(actorUserId, profileId);
     ensureConsentsForProfile(profileId);
     return deriveSkinScores(profileId, days);
+  }
+
+  async listClinicalDocuments(
+    actorUserId: string,
+    profileId: string,
+    appointmentId?: string,
+    kind?: string,
+  ): Promise<ClinicalDocumentRecord[]> {
+    assertProfileAccessible(actorUserId, profileId);
+    return readClinicalDocuments()
+      .filter((document) => {
+        if (document.profileId !== profileId) return false;
+        if (appointmentId && document.appointmentId !== appointmentId) return false;
+        if (kind && document.kind !== kind) return false;
+        return true;
+      })
+      .sort((a, b) => (b.publishedAt ?? b.createdAt).localeCompare(a.publishedAt ?? a.createdAt));
   }
 
   async listTimelineEvents(

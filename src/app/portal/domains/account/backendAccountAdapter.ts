@@ -15,6 +15,7 @@ import type {
 import type {
   AuditEvent,
   CaregiverLink,
+  ClinicalDocumentRecord,
   ConsentRecord,
   MediaAssetRecord,
   MediaUploadIntent,
@@ -120,6 +121,19 @@ export class BackendAccountAdapter implements AccountAdapter {
     days?: number,
   ): Promise<SkinScoreRecord[]> {
     return this.http.get<SkinScoreRecord[]>("/api/v1/patients/skin-scores", { profileId, days });
+  }
+
+  async listClinicalDocuments(
+    _actorUserId: string,
+    profileId: string,
+    appointmentId?: string,
+    kind?: string,
+  ): Promise<ClinicalDocumentRecord[]> {
+    return this.http.get<ClinicalDocumentRecord[]>("/api/v1/patients/clinical-documents", {
+      profileId,
+      appointmentId,
+      kind,
+    });
   }
 
   async listTimelineEvents(

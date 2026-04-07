@@ -1,6 +1,7 @@
 import type {
   AuditEvent,
   CaregiverLink,
+  ClinicalDocumentRecord,
   ConsentRecord,
   MediaAssetRecord,
   MediaUploadIntent,
@@ -123,6 +124,12 @@ export interface AccountAdapter {
   ): Promise<NotificationPreference>;
 
   listSkinScores(actorUserId: string, profileId: string, days?: number): Promise<SkinScoreRecord[]>;
+  listClinicalDocuments(
+    actorUserId: string,
+    profileId: string,
+    appointmentId?: string,
+    kind?: string,
+  ): Promise<ClinicalDocumentRecord[]>;
   listTimelineEvents(
     actorUserId: string,
     profileId: string,

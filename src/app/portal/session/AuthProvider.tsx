@@ -72,6 +72,23 @@ function buildConsentSnapshot(consents: ConsentRecord[]): ConsentSnapshot {
   }, {});
 }
 
+export function resolvePreferredActingProfileId(
+  profiles: PatientProfileRecord[],
+  currentActingProfileId: string | null,
+): string | null {
+  const activeProfile = profiles.find((profile) => profile.id === currentActingProfileId);
+  if (activeProfile) {
+    return activeProfile.id;
+  }
+
+  const selfProfile = profiles.find((profile) => profile.relationship === "moi");
+  if (selfProfile) {
+    return selfProfile.id;
+  }
+
+  return profiles[0]?.id ?? null;
+}
+
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -134,11 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const nextProfiles = await accountAdapter.listProfiles(nextUser.id);
         setProfiles(nextProfiles);
-
-        const activeProfile = nextProfiles.find((profile) => profile.id === actingProfileId);
-        const resolvedProfileId =
-          activeProfile?.id ??
-          (nextProfiles.length === 1 ? nextProfiles[0].id : null);
+        const resolvedProfileId = resolvePreferredActingProfileId(
+          nextProfiles,
+          actingProfileId,
+        );
 
         setActingProfileIdState(resolvedProfileId);
         writeActingProfileId(resolvedProfileId);

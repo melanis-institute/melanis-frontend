@@ -1,5 +1,6 @@
 import type {
   AppointmentAdapter,
+  CreateClinicalOutcomeInput,
   CreateAppointmentFromBookingInput,
   TransitionAppointmentStatusInput,
 } from "./adapter.types";
@@ -8,11 +9,16 @@ import {
   NEXT_STATUS_BY_CURRENT,
   type AppointmentAuditEvent,
   type AppointmentRecord,
+  type ClinicalOutcomeRecord,
 } from "./types";
+import type { ClinicalDocumentRecord, ScreeningReminder } from "@portal/domains/account/types";
 import { readStorageJson, writeStorageJson } from "@shared/lib/storage";
 
 const APPOINTMENTS_KEY = "melanis_appointments_v1";
 const APPOINTMENT_AUDIT_KEY = "melanis_appointments_audit_v1";
+const CLINICAL_DOCUMENTS_KEY = "melanis_account_clinical_documents_v1";
+const SCREENING_REMINDERS_KEY = "melanis_account_screening_reminders_v1";
+const TIMELINE_KEY = "melanis_account_timeline_v1";
 
 function safeRead<T>(key: string, fallback: T): T {
   return readStorageJson(key, fallback);
@@ -54,6 +60,30 @@ function readAuditEvents() {
 
 function writeAuditEvents(events: AppointmentAuditEvent[]) {
   safeWrite(APPOINTMENT_AUDIT_KEY, events.slice(-8000));
+}
+
+function readClinicalDocuments() {
+  return safeRead<ClinicalDocumentRecord[]>(CLINICAL_DOCUMENTS_KEY, []);
+}
+
+function writeClinicalDocuments(documents: ClinicalDocumentRecord[]) {
+  safeWrite(CLINICAL_DOCUMENTS_KEY, documents);
+}
+
+function readScreeningReminders() {
+  return safeRead<ScreeningReminder[]>(SCREENING_REMINDERS_KEY, []);
+}
+
+function writeScreeningReminders(reminders: ScreeningReminder[]) {
+  safeWrite(SCREENING_REMINDERS_KEY, reminders);
+}
+
+function readTimelineEvents() {
+  return safeRead(TIMELINE_KEY, []);
+}
+
+function writeTimelineEvents(events: unknown[]) {
+  safeWrite(TIMELINE_KEY, events);
 }
 
 function appendAuditEvent(event: Omit<AppointmentAuditEvent, "id" | "createdAt">) {
@@ -117,6 +147,7 @@ export class MockAppointmentAdapter implements AppointmentAdapter {
       createdAt,
       updatedAt: createdAt,
       preConsultData: input.preConsultData,
+      measurements: [],
     };
 
     appointments.push(appointment);
@@ -190,6 +221,125 @@ export class MockAppointmentAdapter implements AppointmentAdapter {
     });
 
     return target;
+  }
+
+  async createClinicalOutcome(
+    input: CreateClinicalOutcomeInput,
+  ): Promise<ClinicalOutcomeRecord> {
+    const appointments = readAppointments();
+    const target = appointments.find((item) => item.id === input.appointmentId);
+
+    if (!target) {
+      throw new Error("Rendez-vous introuvable");
+    }
+    if (target.status !== "in_consultation" && target.status !== "completed") {
+      throw new Error("Le compte-rendu n'est disponible qu'après le début de consultation");
+    }
+
+    const now = nowIso();
+    target.diagnosis = input.diagnosis?.trim() || undefined;
+    target.clinicalSummary = input.clinicalSummary?.trim() || undefined;
+    target.measurements = input.measurements;
+    target.followUpCadence = input.followUpCadence;
+    target.followUpDueAt = input.followUpDueAt;
+    target.carePlanUpdatedAt = now;
+    target.updatedAt = now;
+    writeAppointments(appointments);
+
+    const documents = readClinicalDocuments();
+    const nextDocuments: ClinicalDocumentRecord[] = [];
+
+    if (input.prescriptionItems.length > 0) {
+      nextDocuments.push({
+        id: randomId("doc"),
+        profileId: target.profileId,
+        appointmentId: target.id,
+        practitionerId: target.practitionerId,
+        createdByUserId: input.actorUserId,
+        kind: "prescription",
+        status: "published",
+        title: "Ordonnance dermatologique",
+        summary: target.diagnosis ?? target.clinicalSummary,
+        body: input.prescriptionItems.map((item) => `${item.name}: ${item.instructions}`).join("\n"),
+        prescriptionItems: input.prescriptionItems,
+        version: 1,
+        publishedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    if (target.diagnosis || target.clinicalSummary || input.measurements.length > 0) {
+      nextDocuments.push({
+        id: randomId("doc"),
+        profileId: target.profileId,
+        appointmentId: target.id,
+        practitionerId: target.practitionerId,
+        createdByUserId: input.actorUserId,
+        kind: "report",
+        status: "published",
+        title: "Compte-rendu de consultation",
+        summary: target.clinicalSummary ?? target.diagnosis,
+        body: [target.diagnosis, target.clinicalSummary].filter(Boolean).join("\n\n"),
+        prescriptionItems: [],
+        version: 1,
+        publishedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const mergedDocuments = [...documents, ...nextDocuments];
+    writeClinicalDocuments(mergedDocuments);
+
+    const reminders = readScreeningReminders();
+    let followUpReminder: ScreeningReminder | undefined;
+    if (input.followUpCadence && input.followUpDueAt) {
+      followUpReminder = {
+        id: randomId("screening"),
+        profileId: target.profileId,
+        screeningType: "Suivi dermatologique",
+        cadence: input.followUpCadence,
+        status: "active",
+        nextDueAt: input.followUpDueAt,
+        channels: { sms: true, whatsapp: true, email: false },
+        updatedAt: now,
+      };
+      writeScreeningReminders([...reminders, followUpReminder]);
+    }
+
+    const timeline = readTimelineEvents() as Array<Record<string, unknown>>;
+    const timelineEvents = [...timeline];
+    for (const document of nextDocuments) {
+      timelineEvents.push({
+        id: randomId("timeline"),
+        profileId: target.profileId,
+        type: document.kind === "prescription" ? "prescription_issued" : "document_shared",
+        title: document.title,
+        occurredAt: now,
+        source: "clinical_document",
+        sourceRef: document.id,
+      });
+    }
+    if (followUpReminder) {
+      timelineEvents.push({
+        id: randomId("timeline"),
+        profileId: target.profileId,
+        type: "follow_up_scheduled",
+        title: "Suivi dermatologique",
+        description: `Prochaine échéance le ${input.followUpDueAt}`,
+        occurredAt: now,
+        source: "screening_reminder",
+        sourceRef: followUpReminder.id,
+      });
+    }
+    writeTimelineEvents(timelineEvents);
+
+    return {
+      appointment: target,
+      documents: nextDocuments as ClinicalOutcomeRecord["documents"],
+      followUpReminder: followUpReminder as ClinicalOutcomeRecord["followUpReminder"],
+    };
   }
 }
 

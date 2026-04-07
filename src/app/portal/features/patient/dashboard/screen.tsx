@@ -1,10 +1,10 @@
 import type {
-  NotificationChannelPreference,
-  SkinScoreRecord,
+  ClinicalDocumentRecord,
   PatientRecordEvent,
   ScreeningCadence,
   ScreeningReminder,
   ScreeningReminderStatus,
+  SkinScoreRecord,
 } from "@portal/domains/account/types";
 import type { AppointmentRecord } from "@portal/domains/appointments/types";
 import { useAuth } from "@portal/session/useAuth";
@@ -22,7 +22,6 @@ import {
   CloudSun,
   Droplets,
   FileText,
-  ImagePlus,
   Pill,
   Plus,
   ScanFace,
@@ -41,6 +40,10 @@ import { Link, useNavigate } from "react-router";
 const DASHBOARD_PATH = "/patient-flow/auth/dashboard";
 const PROFILE_PATH = "/patient-flow/account";
 const BOOKING_PATH = "/patient-flow";
+const DOCUMENTS_PATH = "/patient-flow/auth/dashboard/documents";
+const EMPTY_CLINICAL_DOCUMENTS: ClinicalDocumentRecord[] = [];
+const EMPTY_TIMELINE_EVENTS: PatientRecordEvent[] = [];
+const EMPTY_SCREENING_REMINDERS: ScreeningReminder[] = [];
 
 const PATHS = {
   home: DASHBOARD_PATH,
@@ -52,6 +55,10 @@ const PATHS = {
   cases: BOOKING_PATH,
   booking: BOOKING_PATH,
 } as const;
+
+function getDocumentDetailPath(documentId: string) {
+  return `${DOCUMENTS_PATH}/${documentId}`;
+}
 
 const CADENCE_LABELS: Record<ScreeningCadence, string> = {
   monthly: "Mensuel",
@@ -81,6 +88,9 @@ interface DashboardHomeProps {
   upcoming: UpcomingAppointment | null;
   upcomingLoading: boolean;
   upcomingError: string | null;
+  recentDocuments: ClinicalDocumentRecord[];
+  recentDocumentsLoading: boolean;
+  recentDocumentsError: string | null;
   skinScores: SkinScoreRecord[];
   skinScoresLoading: boolean;
   skinScoresError: string | null;
@@ -89,7 +99,7 @@ interface DashboardHomeProps {
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Bonjour";
-  if (hour < 18) return "Bon apres-midi";
+  if (hour < 18) return "Bon après-midi";
   return "Bonsoir";
 }
 
@@ -180,11 +190,40 @@ function formatRelativeFromNow(value: string) {
 
 function timelineIcon(type: PatientRecordEvent["type"]): LucideIcon {
   if (type === "appointment_booked") return Calendar;
+  if (type === "appointment_checked_in") return Clock;
+  if (type === "consultation_started" || type === "consultation_completed")
+    return Check;
   if (type === "consent_signed" || type === "consent_revoked") return Bell;
+  if (type === "prescription_issued") return Pill;
+  if (type === "document_shared") return FileText;
+  if (type === "follow_up_scheduled") return Calendar;
+  if (type === "measurement_recorded") return Activity;
   if (type === "profile_updated") return User;
   if (type === "dependent_created" || type === "dependent_unlinked")
     return Plus;
   return Activity;
+}
+
+function documentKindLabel(kind: ClinicalDocumentRecord["kind"]) {
+  if (kind === "prescription") return "Ordonnance";
+  if (kind === "report") return "Compte-rendu";
+  return "Document";
+}
+
+function documentPreviewText(document: ClinicalDocumentRecord): string {
+  if (document.summary && document.summary.trim().length > 0) {
+    return document.summary.trim();
+  }
+  if (document.body && document.body.trim().length > 0) {
+    return document.body.trim().slice(0, 140);
+  }
+  if (document.prescriptionItems.length > 0) {
+    return document.prescriptionItems
+      .slice(0, 2)
+      .map((item) => `${item.name}: ${item.instructions}`)
+      .join(" · ");
+  }
+  return documentKindLabel(document.kind);
 }
 
 function reminderStatusTone(status: ScreeningReminderStatus) {
@@ -195,7 +234,7 @@ function reminderStatusTone(status: ScreeningReminderStatus) {
   return "border-[#111214]/10 bg-[#111214]/5 text-[#111214]/60";
 }
 
-function channelSummary(channels: NotificationChannelPreference) {
+function channelSummary(channels: ScreeningReminder["channels"]) {
   const labels: string[] = [];
   if (channels.sms) labels.push("SMS");
   if (channels.whatsapp) labels.push("WhatsApp");
@@ -210,17 +249,17 @@ function scoreSourceLabel(source: SkinScoreRecord["source"]): string {
 }
 
 function scoreStatusLabel(score: number): string {
-  if (score >= 80) return "Excellent etat";
-  if (score >= 65) return "Equilibre stable";
-  if (score >= 50) return "Peau a surveiller";
-  return "Suivi recommande";
+  if (score >= 80) return "Excellent état";
+  if (score >= 65) return "Équilibre stable";
+  if (score >= 50) return "Peau à surveiller";
+  return "Suivi recommandé";
 }
 
 function scoreTrendLabel(delta: number | null): string {
   if (delta === null) return "Premier score enregistré";
-  if (delta > 0) return `+${delta} vs precedent`;
-  if (delta < 0) return `${delta} vs precedent`;
-  return "Stable vs precedent";
+  if (delta > 0) return `+${delta} vs précédent`;
+  if (delta < 0) return `${delta} vs précédent`;
+  return "Stable vs précédent";
 }
 
 function selectUpcomingAppointment(
@@ -229,9 +268,12 @@ function selectUpcomingAppointment(
   const sorted = [...appointments].sort((first, second) => {
     const firstTime = new Date(first.scheduledFor).getTime();
     const secondTime = new Date(second.scheduledFor).getTime();
-    const safeFirst = Number.isNaN(firstTime) ? Number.MAX_SAFE_INTEGER : firstTime;
-    const safeSecond =
-      Number.isNaN(secondTime) ? Number.MAX_SAFE_INTEGER : secondTime;
+    const safeFirst = Number.isNaN(firstTime)
+      ? Number.MAX_SAFE_INTEGER
+      : firstTime;
+    const safeSecond = Number.isNaN(secondTime)
+      ? Number.MAX_SAFE_INTEGER
+      : secondTime;
     return safeFirst - safeSecond;
   });
 
@@ -251,9 +293,8 @@ function selectUpcomingAppointment(
 function toUpcomingAppointment(
   appointment: AppointmentRecord,
 ): UpcomingAppointment {
-  const fallbackLocation = appointment.appointmentType === "video"
-    ? "Consultation video"
-    : "Cabinet";
+  const fallbackLocation =
+    appointment.appointmentType === "video" ? "Consultation video" : "Cabinet";
   return {
     practitioner: appointment.practitionerName,
     location: appointment.practitionerLocation ?? fallbackLocation,
@@ -337,122 +378,270 @@ function SkinScoreRing({
 function QuickActions() {
   const auth = useAuth();
   const hasActingProfile = Boolean(auth.user && auth.actingProfileId);
-  const modules = [
-    {
-      Icon: Calendar,
-      title: "Réserver un RDV",
-      subtitle: "Parcours de réservation",
-      to: PATHS.booking,
-      available: true,
-    },
-    {
-      Icon: FileText,
-      title: "Dossier patient",
-      subtitle: "Timeline clinique",
-      to: PATHS.records,
-      available: true,
-    },
-    {
-      Icon: Bell,
-      title: "Rappels dépistage",
-      subtitle: "Liste et paramètres",
-      to: PATHS.records,
-      available: true,
-    },
-    {
-      Icon: User,
-      title: "Profil & consentements",
-      subtitle: "Compte, consentements, notifications",
-      to: PROFILE_PATH,
-      available: true,
-    },
-    {
-      Icon: ScanFace,
-      title: "Télé-derm async",
-      subtitle: "Module TD prochainement",
-      to: PATHS.home,
-      available: false,
-    },
-    {
-      Icon: ImagePlus,
-      title: "Upload guidé",
-      subtitle: "Capture assistée en préparation",
-      to: PATHS.home,
-      available: false,
-    },
-  ] as const;
 
   if (!hasActingProfile) {
-    return (
-      <div className="rounded-[1.5rem] border border-[#5B1112]/15 bg-white/85 p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5B1112]/70">
-          Hub actions
-        </p>
-        <p className="mt-2 text-sm text-[#111214]/65">
-          Commencez par réserver un rendez-vous. Le reste des actions se
-          débloquera ensuite automatiquement.
-        </p>
-        <Link
-          to={PATHS.booking}
-          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#5B1112] px-4 py-2 text-xs font-medium text-white"
-        >
-          Prendre un rendez-vous
-          <ArrowUpRight size={12} />
-        </Link>
-      </div>
-    );
+    return null;
   }
 
+  const actions = [
+    { Icon: Calendar, label: "Réserver un RDV", to: PATHS.booking },
+    { Icon: FileText, label: "Mon dossier", to: PATHS.records },
+    { Icon: Bell, label: "Rappels", to: PATHS.records },
+    { Icon: User, label: "Mon profil", to: PROFILE_PATH },
+  ] as const;
+
   return (
-    <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-      {modules.map(({ Icon, title, subtitle, to, available }, index) =>
-        available ? (
-          <Link key={title} to={to}>
+    <section className="space-y-2">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
+          Accès rapide
+        </p>
+        <p className="mt-1 text-sm text-[#111214]/56">
+          Les raccourcis essentiels pour gérer votre suivi sans chercher.
+        </p>
+      </div>
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {actions.map(({ Icon, label, to }, index) => (
+          <Link key={label} to={to}>
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 + index * 0.05 }}
-              whileHover={{ y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              className="rounded-[1.4rem] border border-[#111214]/7 bg-white/85 px-4 py-3.5 shadow-sm transition-all hover:border-[#5B1112]/20 hover:bg-white"
+              transition={{ delay: 0.04 + index * 0.04 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex flex-shrink-0 items-center gap-2 rounded-full border border-[#111214]/8 bg-white/80 px-4 py-2.5 shadow-sm transition-all hover:border-[#5B1112]/20 hover:bg-white hover:shadow-md"
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 rounded-xl bg-[#5B1112]/8 p-2">
-                  <Icon size={14} className="text-[#5B1112]/70" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#111214]/75">
-                    {title}
-                  </p>
-                  <p className="mt-1 text-[11px] text-[#111214]/42">
-                    {subtitle}
-                  </p>
-                </div>
-                <ArrowUpRight size={12} className="text-[#111214]/30" />
-              </div>
+              <Icon size={13} className="text-[#5B1112]/65" />
+              <span className="whitespace-nowrap text-xs font-medium text-[#111214]/70">
+                {label}
+              </span>
             </motion.div>
           </Link>
-        ) : (
-          <div
-            key={title}
-            className="rounded-[1.4rem] border border-dashed border-[#111214]/12 bg-white/60 px-4 py-3.5 opacity-80"
-          >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-xl bg-[#111214]/6 p-2">
-                <Icon size={14} className="text-[#111214]/45" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[#111214]/65">{title}</p>
-                <p className="mt-1 text-[11px] text-[#111214]/38">{subtitle}</p>
-              </div>
-              <span className="rounded-full bg-[#111214]/8 px-2 py-0.5 text-[10px] font-medium text-[#111214]/50">
-                Bientôt
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PatientPriorityStrip({
+  hasActingProfile,
+  upcoming,
+  upcomingLoading,
+  upcomingError,
+  recentDocuments,
+  recentDocumentsLoading,
+  recentDocumentsError,
+  skinScores,
+  skinScoresLoading,
+  skinScoresError,
+}: {
+  hasActingProfile: boolean;
+  upcoming: UpcomingAppointment | null;
+  upcomingLoading: boolean;
+  upcomingError: string | null;
+  recentDocuments: ClinicalDocumentRecord[];
+  recentDocumentsLoading: boolean;
+  recentDocumentsError: string | null;
+  skinScores: SkinScoreRecord[];
+  skinScoresLoading: boolean;
+  skinScoresError: string | null;
+}) {
+  const latestDocument = recentDocuments[0] ?? null;
+  const latestScore = useMemo(
+    () =>
+      [...skinScores].sort((first, second) =>
+        second.measuredAt.localeCompare(first.measuredAt),
+      )[0] ?? null,
+    [skinScores],
+  );
+
+  return (
+    <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="relative overflow-hidden rounded-[2rem] bg-[#111214] p-5 text-white shadow-[0_10px_36px_rgba(17,18,20,0.2)]">
+        <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[#5B1112]/50 blur-3xl" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+            <Calendar size={12} />
+            Priorité du jour
+          </div>
+          {!hasActingProfile ? (
+            <>
+              <p className="mt-4 font-serif text-[1.6rem] leading-tight">
+                Activez un profil pour voir votre suivi.
+              </p>
+              <p className="mt-2 max-w-xs text-sm text-white/65">
+                Le rendez-vous, les documents et les rappels s&apos;affichent
+                ici dès qu&apos;un profil patient est actif.
+              </p>
+              <Link
+                to="/patient-flow/account/select-profile"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#111214]"
+              >
+                Choisir un profil
+                <ArrowUpRight size={12} />
+              </Link>
+            </>
+          ) : upcomingLoading ? (
+            <p className="mt-4 text-sm text-white/68">
+              Chargement du prochain rendez-vous...
+            </p>
+          ) : upcomingError ? (
+            <p className="mt-4 text-sm text-white/72">{upcomingError}</p>
+          ) : upcoming ? (
+            <>
+              <p className="mt-4 font-serif text-[1.85rem] leading-tight">
+                {upcoming.practitioner}
+              </p>
+              <p className="mt-2 text-sm text-white/65">
+                {upcoming.dateLabel} · {upcoming.timeLabel} ·{" "}
+                {upcoming.location}
+              </p>
+              <Link
+                to={PATHS.appointments}
+                className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-4 py-2 text-xs font-semibold text-white"
+              >
+                Ouvrir le rendez-vous
+                <ArrowUpRight size={12} />
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 font-serif text-[1.6rem] leading-tight">
+                Aucun rendez-vous à venir.
+              </p>
+              <p className="mt-2 max-w-xs text-sm text-white/65">
+                Réservez votre prochain rendez-vous pour retrouver vos consignes
+                ici.
+              </p>
+              <Link
+                to={PATHS.booking}
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#5B1112] px-4 py-2 text-xs font-semibold text-white"
+              >
+                Réserver maintenant
+                <ArrowUpRight size={12} />
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-[#5B1112]/12 bg-white/88 p-5 shadow-[0_6px_28px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#5B1112]/55">
+          <FileText size={12} />
+          Dernier document
+        </div>
+        {!hasActingProfile ? (
+          <p className="mt-4 text-sm text-[#111214]/58">
+            Les documents du praticien s&apos;afficheront ici pour le profil
+            actif.
+          </p>
+        ) : recentDocumentsLoading ? (
+          <p className="mt-4 text-sm text-[#111214]/58">
+            Chargement des documents...
+          </p>
+        ) : recentDocumentsError ? (
+          <p className="mt-4 text-sm text-[#5B1112]">{recentDocumentsError}</p>
+        ) : latestDocument ? (
+          <>
+            <p className="mt-4 line-clamp-2 font-serif text-[1.55rem] leading-tight text-[#111214]">
+              {latestDocument.title}
+            </p>
+            <p className="mt-2 text-sm text-[#111214]/58">
+              {documentKindLabel(latestDocument.kind)} · publié le{" "}
+              {formatDate(
+                latestDocument.publishedAt ?? latestDocument.createdAt,
+              )}
+            </p>
+            <p className="mt-3 line-clamp-3 text-sm text-[#111214]/62">
+              {documentPreviewText(latestDocument)}
+            </p>
+            <div className="mt-5 flex items-center gap-2">
+              <Link
+                to={getDocumentDetailPath(latestDocument.id)}
+                className="inline-flex items-center gap-2 rounded-full bg-[#111214] px-4 py-2 text-xs font-semibold text-white"
+              >
+                Lire le document
+                <ArrowUpRight size={12} />
+              </Link>
+              <span className="rounded-full bg-[#5B1112]/8 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5B1112]/70">
+                {recentDocuments.length} disponible
+                {recentDocuments.length > 1 ? "s" : ""}
               </span>
             </div>
-          </div>
-        ),
-      )}
-    </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-4 font-serif text-[1.45rem] leading-tight text-[#111214]">
+              Aucun document partagé pour le moment.
+            </p>
+            <p className="mt-2 text-sm text-[#111214]/58">
+              Les ordonnances et comptes-rendus arriveront ici après la
+              consultation.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="rounded-[2rem] border border-[#111214]/8 bg-[linear-gradient(145deg,#fff9ef_0%,#fff1d9_100%)] p-5 shadow-[0_6px_28px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/42">
+          <ScanFace size={12} />
+          Suivi peau
+        </div>
+        {!hasActingProfile ? (
+          <p className="mt-4 text-sm text-[#111214]/58">
+            Lancez un premier scan pour faire apparaître votre score et vos
+            tendances.
+          </p>
+        ) : skinScoresLoading ? (
+          <p className="mt-4 text-sm text-[#111214]/58">
+            Chargement du suivi peau...
+          </p>
+        ) : skinScoresError ? (
+          <p className="mt-4 text-sm text-[#5B1112]">{skinScoresError}</p>
+        ) : latestScore ? (
+          <>
+            <div className="mt-4 flex items-end gap-3">
+              <span className="font-serif text-[3rem] leading-none text-[#5B1112]">
+                {latestScore.score}
+              </span>
+              <div className="pb-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#111214]/38">
+                  Score actuel
+                </p>
+                <p className="mt-1 text-sm text-[#111214]/58">
+                  {scoreStatusLabel(latestScore.score)}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-[#111214]/58">
+              Dernière mesure le {formatDateTime(latestScore.measuredAt)}.
+            </p>
+            <Link
+              to={PATHS.scan}
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#5B1112] px-4 py-2 text-xs font-semibold text-white"
+            >
+              Ouvrir le suivi
+              <ArrowUpRight size={12} />
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="mt-4 font-serif text-[1.45rem] leading-tight text-[#111214]">
+              Aucun score enregistré.
+            </p>
+            <p className="mt-2 text-sm text-[#111214]/58">
+              Un premier scan suffit pour commencer le suivi de votre peau.
+            </p>
+            <Link
+              to={PATHS.scan}
+              className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#111214]/10 bg-white px-4 py-2 text-xs font-semibold text-[#111214]"
+            >
+              Faire mon premier scan
+              <ArrowUpRight size={12} />
+            </Link>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -497,7 +686,8 @@ function AppointmentCard({
                 Aucun rendez-vous pour le moment
               </h3>
               <p className="mt-2 text-sm text-[#FEF0D5]/55">
-                Lancez la réservation et choisissez le profil pendant le parcours.
+                Lancez la réservation et choisissez le profil pendant le
+                parcours.
               </p>
             </div>
 
@@ -558,7 +748,7 @@ function AppointmentCard({
               </div>
 
               <Link
-                to={PATHS.booking}
+                to={PATHS.appointments}
                 className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-medium transition-colors hover:bg-white/15"
               >
                 Voir <ArrowUpRight size={10} />
@@ -641,7 +831,10 @@ function TodayCard({
   const [selectedScoreId, setSelectedScoreId] = useState<string | null>(null);
 
   const visibleScores = sortedScores.slice(-7);
-  const visibleStartIndex = Math.max(sortedScores.length - visibleScores.length, 0);
+  const visibleStartIndex = Math.max(
+    sortedScores.length - visibleScores.length,
+    0,
+  );
   const selectedScore =
     sortedScores.find((score) => score.id === selectedScoreId) ??
     sortedScores[sortedScores.length - 1] ??
@@ -650,7 +843,7 @@ function TodayCard({
     ? sortedScores.findIndex((score) => score.id === selectedScore.id)
     : -1;
   const previousScore =
-    activeIndex > 0 ? sortedScores[activeIndex - 1] ?? null : null;
+    activeIndex > 0 ? (sortedScores[activeIndex - 1] ?? null) : null;
   const scoreDelta =
     selectedScore && previousScore
       ? selectedScore.score - previousScore.score
@@ -744,10 +937,7 @@ function TodayCard({
                     .toLocaleDateString("fr-FR", { weekday: "short" })
                     .replace(".", "")
                     .slice(0, 3);
-                  const num = scoreDate
-                    .getDate()
-                    .toString()
-                    .padStart(2, "0");
+                  const num = scoreDate.getDate().toString().padStart(2, "0");
 
                   return (
                     <motion.button
@@ -798,9 +988,12 @@ function TodayCard({
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 text-xs text-[#111214]/40">{scoreStatus}</p>
+                <p className="mt-0.5 text-xs text-[#111214]/40">
+                  {scoreStatus}
+                </p>
                 <p className="mt-1 text-[10px] text-[#111214]/30">
-                  Mesure enregistrée le {formatDateTime(selectedScore.measuredAt)}
+                  Mesure enregistrée le{" "}
+                  {formatDateTime(selectedScore.measuredAt)}
                 </p>
               </div>
 
@@ -985,6 +1178,7 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
   const actingProfileId = auth.actingProfileId;
+  const hasPatientContext = Boolean(userId && actingProfileId);
   const [tab, setTab] = useState<RoutineTab>("matin");
   const [checked, setChecked] = useState<Record<RoutineTab, boolean[]>>({
     matin: ROUTINE_DATA.matin.map((item) => item.initDone),
@@ -993,16 +1187,14 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>(
     [],
   );
+  const [clinicalDocuments, setClinicalDocuments] = useState<
+    ClinicalDocumentRecord[]
+  >([]);
   const [screeningReminders, setScreeningReminders] = useState<
     ScreeningReminder[]
   >([]);
-  const [screeningChannels, setScreeningChannels] =
-    useState<NotificationChannelPreference | null>(null);
   const [isHubLoading, setIsHubLoading] = useState(false);
   const [hubError, setHubError] = useState<string | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [savingReminderId, setSavingReminderId] = useState<string | null>(null);
-  const [isSavingChannels, setIsSavingChannels] = useState(false);
 
   const toggle = (currentTab: RoutineTab, index: number) => {
     setChecked((prev) => ({
@@ -1020,123 +1212,65 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
 
   useEffect(() => {
     if (!userId || !actingProfileId) {
-      setTimelineEvents([]);
-      setScreeningReminders([]);
-      setScreeningChannels(null);
-      setHubError(null);
       return;
     }
 
     let cancelled = false;
-    setIsHubLoading(true);
-    setHubError(null);
+    void Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setIsHubLoading(true);
+      setHubError(null);
 
-    void Promise.all([
-      auth.accountAdapter.listTimelineEvents(userId, actingProfileId, 20),
-      auth.accountAdapter.listScreeningReminders(userId, actingProfileId),
-      auth.accountAdapter.getNotificationPreferences(userId, actingProfileId),
-    ])
-      .then(([events, reminders, preferences]) => {
+      try {
+        const [documents, events, reminders] = await Promise.all([
+          auth.accountAdapter.listClinicalDocuments(userId, actingProfileId),
+          auth.accountAdapter.listTimelineEvents(userId, actingProfileId, 20),
+          auth.accountAdapter.listScreeningReminders(userId, actingProfileId),
+        ]);
         if (cancelled) return;
+        setClinicalDocuments(documents);
         setTimelineEvents(events);
         setScreeningReminders(reminders);
-        setScreeningChannels(preferences.screening);
-      })
-      .catch(() => {
+      } catch {
         if (cancelled) return;
         setHubError("Impossible de charger le dossier patient pour le moment.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsHubLoading(false);
-      });
+      } finally {
+        if (!cancelled) {
+          setIsHubLoading(false);
+        }
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [actingProfileId, auth.accountAdapter, userId]);
+  }, [auth.accountAdapter, actingProfileId, userId]);
 
-  const updateReminder = async (
-    reminderId: string,
-    patch: Partial<
-      Pick<ScreeningReminder, "cadence" | "status" | "nextDueAt" | "channels">
-    >,
-  ) => {
-    if (!userId || !actingProfileId) return;
-    setSavingReminderId(reminderId);
-    setHubError(null);
-    try {
-      const updated = await auth.accountAdapter.updateScreeningReminder({
-        actorUserId: userId,
-        profileId: actingProfileId,
-        reminderId,
-        patch,
-      });
-      setScreeningReminders((prev) =>
-        prev.map((reminder) =>
-          reminder.id === reminderId ? updated : reminder,
-        ),
-      );
-    } catch {
-      setHubError("La mise à jour du rappel a échoué. Réessayez.");
-    } finally {
-      setSavingReminderId(null);
-    }
-  };
+  const visibleTimelineEvents = hasPatientContext
+    ? timelineEvents
+    : EMPTY_TIMELINE_EVENTS;
+  const visibleClinicalDocuments = hasPatientContext
+    ? clinicalDocuments
+    : EMPTY_CLINICAL_DOCUMENTS;
+  const visibleScreeningReminders = hasPatientContext
+    ? screeningReminders
+    : EMPTY_SCREENING_REMINDERS;
+  const visibleHubError = hasPatientContext ? hubError : null;
+  const visibleIsHubLoading = hasPatientContext ? isHubLoading : false;
 
-  const toggleScreeningChannel = async (
-    channel: keyof NotificationChannelPreference,
-  ) => {
-    if (!userId || !actingProfileId || !screeningChannels) return;
-    const nextChannels = {
-      ...screeningChannels,
-      [channel]: !screeningChannels[channel],
-    };
-    setScreeningChannels(nextChannels);
-    setIsSavingChannels(true);
-    setHubError(null);
+  const latestDocuments = useMemo(
+    () =>
+      [...visibleClinicalDocuments]
+        .sort((first, second) =>
+          (second.publishedAt ?? second.createdAt).localeCompare(
+            first.publishedAt ?? first.createdAt,
+          ),
+        )
+        .slice(0, 4),
+    [visibleClinicalDocuments],
+  );
 
-    try {
-      const reminderUpdates = screeningReminders.map((reminder) =>
-        auth.accountAdapter.updateScreeningReminder({
-          actorUserId: userId,
-          profileId: actingProfileId,
-          reminderId: reminder.id,
-          patch: { channels: nextChannels },
-        }),
-      );
-
-      const prefsUpdate = auth.accountAdapter.updateNotificationPreferences({
-        actorUserId: userId,
-        profileId: actingProfileId,
-        patch: { screening: nextChannels },
-      });
-
-      const updatedReminders = await Promise.all([
-        ...reminderUpdates,
-        prefsUpdate,
-      ]).then(
-        (results) =>
-          results.slice(0, screeningReminders.length) as ScreeningReminder[],
-      );
-
-      setScreeningReminders((prev) =>
-        prev.map((reminder, index) => updatedReminders[index] ?? reminder),
-      );
-    } catch {
-      setScreeningChannels((prev) =>
-        prev
-          ? {
-              ...prev,
-              [channel]: !nextChannels[channel],
-            }
-          : prev,
-      );
-      setHubError("Impossible de mettre à jour les canaux de rappel.");
-    } finally {
-      setIsSavingChannels(false);
-    }
-  };
+  const featuredDocument = latestDocuments[0] ?? null;
 
   if (!actingProfileId) {
     return (
@@ -1168,105 +1302,239 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl"
-    >
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
-            Routine du jour
-          </p>
-          <span className="text-[10px] font-semibold text-[#5B1112]">
-            {totalDone}/{totalItems} complete
-          </span>
-        </div>
-
-        <div className="h-1.5 overflow-hidden rounded-full bg-[#111214]/6">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-[#5B1112] to-[#8B1A1B]"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{
-              delay: delay + 0.3,
-              duration: 1.2,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          />
-        </div>
-      </div>
-
-      <div className="flex gap-1 rounded-[1.25rem] bg-[#111214]/5 p-1">
-        {(["matin", "soir"] as const).map((itemTab) => (
-          <button
-            key={itemTab}
-            onClick={() => setTab(itemTab)}
-            className={`flex-1 rounded-[1rem] py-2 text-xs font-medium capitalize transition-all duration-200 ${
-              tab === itemTab
-                ? "bg-white text-[#111214] shadow-sm"
-                : "text-[#111214]/40 hover:text-[#111214]/60"
-            }`}
-          >
-            {itemTab === "matin" ? "Matin" : "Soir"}
-          </button>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          transition={{ duration: 0.18 }}
-          className="flex flex-col gap-2"
-        >
-          {ROUTINE_DATA[tab].map((item, index) => (
-            <RoutineItem
-              key={`${item.title}-${index}`}
-              title={item.title}
-              subtitle={item.subtitle}
-              checked={checked[tab][index]}
-              onToggle={() => toggle(tab, index)}
-              trailing={item.trailing}
-              isMed={item.isMed}
+    <>
+      {/* ── Card 1 : Routine du jour ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl mb-2"
+      >
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+              Routine du jour
+            </p>
+            <span className="text-[10px] font-semibold text-[#5B1112]">
+              {totalDone}/{totalItems} complété
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[#111214]/6">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-[#5B1112] to-[#8B1A1B]"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{
+                delay: delay + 0.3,
+                duration: 1.2,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             />
+          </div>
+        </div>
+
+        <div className="flex gap-1 rounded-[1.25rem] bg-[#111214]/5 p-1">
+          {(["matin", "soir"] as const).map((itemTab) => (
+            <button
+              key={itemTab}
+              onClick={() => setTab(itemTab)}
+              className={`flex-1 rounded-[1rem] py-2 text-xs font-medium capitalize transition-all duration-200 ${
+                tab === itemTab
+                  ? "bg-white text-[#111214] shadow-sm"
+                  : "text-[#111214]/40 hover:text-[#111214]/60"
+              }`}
+            >
+              {itemTab === "matin" ? "Matin" : "Soir"}
+            </button>
           ))}
-        </motion.div>
-      </AnimatePresence>
+        </div>
 
-      <div className="h-px bg-[#111214]/6" />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-col gap-2"
+          >
+            {ROUTINE_DATA[tab].map((item, index) => (
+              <RoutineItem
+                key={`${item.title}-${index}`}
+                title={item.title}
+                subtitle={item.subtitle}
+                checked={checked[tab][index]}
+                onToggle={() => toggle(tab, index)}
+                trailing={item.trailing}
+                isMed={item.isMed}
+              />
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
 
-      <section className="space-y-3">
+      {/* ── Card 2 : Ordonnances & documents ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: delay + 0.08,
+          duration: 0.5,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl mb-2"
+      >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#111214]/30">
-              Dossier patient
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+              Ordonnances & documents
             </p>
             <p className="mt-1 text-xs text-[#111214]/50">
-              Timeline clinique (événements récents)
+              Dernières pièces publiées par votre praticien
             </p>
           </div>
-          {isHubLoading ? (
+          {visibleIsHubLoading ? (
             <span className="text-[10px] text-[#111214]/45">Chargement...</span>
           ) : null}
         </div>
 
-        {hubError ? (
+        {visibleHubError ? (
           <div className="rounded-xl border border-[#5B1112]/20 bg-[#5B1112]/5 px-3 py-2 text-xs text-[#5B1112]">
-            {hubError}
+            {visibleHubError}
           </div>
         ) : null}
 
-        {timelineEvents.length === 0 && !isHubLoading ? (
+        {featuredDocument ? (
+          <Link
+            to={getDocumentDetailPath(featuredDocument.id)}
+            className="flex w-full items-start justify-between gap-3 rounded-[1.35rem] border border-[#5B1112]/12 bg-[#5B1112]/[0.05] px-4 py-3 text-left transition hover:bg-[#5B1112]/[0.08]"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#5B1112]/70">
+                Nouveau document praticien
+              </p>
+              <p className="mt-1 text-sm font-medium text-[#111214]">
+                {featuredDocument.title}
+              </p>
+              <p className="mt-1 line-clamp-2 text-xs text-[#111214]/55">
+                {documentPreviewText(featuredDocument)}
+              </p>
+              <p className="mt-2 text-[9px] uppercase tracking-wider text-[#111214]/35">
+                {documentKindLabel(featuredDocument.kind)} ·{" "}
+                {formatDate(
+                  featuredDocument.publishedAt ?? featuredDocument.createdAt,
+                )}
+              </p>
+            </div>
+            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-[#5B1112] shadow-sm">
+              Ouvrir <ArrowUpRight size={11} />
+            </span>
+          </Link>
+        ) : null}
+
+        {latestDocuments.length === 0 && !visibleIsHubLoading ? (
+          <div className="rounded-xl border border-dashed border-[#111214]/14 px-3 py-3 text-xs text-[#111214]/52">
+            Aucune ordonnance ni document clinique disponible pour ce profil.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {latestDocuments.map((document) => (
+              <div
+                key={document.id}
+                className="rounded-xl border border-[#111214]/8 bg-white px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-[#111214]/76">
+                      {document.title}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[#111214]/42">
+                      {document.summary || documentKindLabel(document.kind)}
+                    </p>
+                    <p className="mt-1 text-[9px] uppercase tracking-wider text-[#111214]/35">
+                      {documentKindLabel(document.kind)} · v{document.version} ·{" "}
+                      {formatDate(document.publishedAt ?? document.createdAt)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[#5B1112]/7 p-2 text-[#5B1112]">
+                    {document.kind === "prescription" ? (
+                      <Pill size={12} />
+                    ) : (
+                      <FileText size={12} />
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex justify-end">
+                  <Link
+                    to={getDocumentDetailPath(document.id)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#5B1112]"
+                  >
+                    Ouvrir le détail <ArrowUpRight size={11} />
+                  </Link>
+                </div>
+
+                {document.prescriptionItems.length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {document.prescriptionItems.slice(0, 2).map((item) => (
+                      <div
+                        key={`${document.id}-${item.name}`}
+                        className="rounded-lg border border-[#111214]/8 bg-[#FCFCFC] px-2.5 py-2"
+                      >
+                        <p className="text-[11px] font-medium text-[#111214]/76">
+                          {item.name}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[#111214]/48">
+                          {item.instructions}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── Card 3 : Dossier patient / Timeline ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: delay + 0.14,
+          duration: 0.5,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl mb-2"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+              Dossier patient
+            </p>
+            <p className="mt-1 text-xs text-[#111214]/50">
+              Événements récents de votre parcours
+            </p>
+          </div>
+          {visibleIsHubLoading ? (
+            <span className="text-[10px] text-[#111214]/45">Chargement...</span>
+          ) : null}
+        </div>
+
+        {visibleHubError ? (
+          <div className="rounded-xl border border-[#5B1112]/20 bg-[#5B1112]/5 px-3 py-2 text-xs text-[#5B1112]">
+            {visibleHubError}
+          </div>
+        ) : null}
+
+        {visibleTimelineEvents.length === 0 && !visibleIsHubLoading ? (
           <div className="rounded-xl border border-dashed border-[#111214]/14 px-3 py-3 text-xs text-[#111214]/52">
             Aucun événement de dossier pour ce profil.
           </div>
         ) : (
           <div className="space-y-2">
-            {timelineEvents.slice(0, 6).map((event) => {
+            {visibleTimelineEvents.slice(0, 6).map((event) => {
               const Icon = timelineIcon(event.type);
               return (
                 <div
@@ -1295,38 +1563,40 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
             })}
           </div>
         )}
-      </section>
+      </motion.div>
 
-      <section className="space-y-3">
+      {/* ── Card 4 : Rappels dépistage ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: delay + 0.2,
+          duration: 0.5,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white/80 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.04)] backdrop-blur-xl"
+      >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#111214]/30">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
               Rappels dépistage
             </p>
             <p className="mt-1 text-xs text-[#111214]/50">
-              Liste des rappels et statut actuel
+              Rappels de suivi définis par votre praticien
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen((prev) => !prev)}
-            className="rounded-full border border-[#111214]/12 bg-white px-3 py-1.5 text-[10px] font-medium text-[#111214]/60"
-            aria-expanded={isSettingsOpen}
-            aria-controls="pat23-settings"
-          >
-            {isSettingsOpen
-              ? "Masquer les paramètres"
-              : "Ouvrir les paramètres"}
-          </button>
+          <span className="rounded-full border border-[#111214]/12 bg-white px-3 py-1.5 text-[10px] font-medium text-[#111214]/60">
+            Lecture seule
+          </span>
         </div>
 
-        {screeningReminders.length === 0 && !isHubLoading ? (
+        {visibleScreeningReminders.length === 0 && !visibleIsHubLoading ? (
           <div className="rounded-xl border border-dashed border-[#111214]/14 px-3 py-3 text-xs text-[#111214]/52">
             Aucun rappel configuré pour ce profil.
           </div>
         ) : (
           <div className="space-y-2">
-            {screeningReminders.map((reminder) => (
+            {visibleScreeningReminders.map((reminder) => (
               <div
                 key={reminder.id}
                 className="rounded-xl border border-[#111214]/8 bg-white px-3 py-2.5"
@@ -1337,119 +1607,33 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
                       {reminder.screeningType}
                     </p>
                     <p className="mt-0.5 text-[10px] text-[#111214]/42">
-                      Prochaine échéance: {formatDate(reminder.nextDueAt)}
+                      Cadence : {CADENCE_LABELS[reminder.cadence]}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[#111214]/42">
+                      Prochaine échéance : {formatDate(reminder.nextDueAt)}
                     </p>
                     <p className="mt-1 text-[9px] uppercase tracking-wider text-[#111214]/35">
-                      Canaux: {channelSummary(reminder.channels)}
+                      Canaux : {channelSummary(reminder.channels)}
                     </p>
                   </div>
                   <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${reminderStatusTone(
-                      reminder.status,
-                    )}`}
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${reminderStatusTone(reminder.status)}`}
                   >
                     {STATUS_LABELS[reminder.status]}
                   </span>
                 </div>
-
-                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <label className="text-[10px] text-[#111214]/45">
-                    Cadence
-                    <select
-                      value={reminder.cadence}
-                      onChange={(event) =>
-                        void updateReminder(reminder.id, {
-                          cadence: event.currentTarget
-                            .value as ScreeningCadence,
-                        })
-                      }
-                      disabled={savingReminderId === reminder.id}
-                      className="mt-1 w-full rounded-lg border border-[#111214]/12 bg-white px-2 py-1.5 text-[11px] text-[#111214]/75"
-                    >
-                      {(Object.keys(CADENCE_LABELS) as ScreeningCadence[]).map(
-                        (cadence) => (
-                          <option key={cadence} value={cadence}>
-                            {CADENCE_LABELS[cadence]}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-
-                  <label className="text-[10px] text-[#111214]/45">
-                    Statut
-                    <select
-                      value={reminder.status}
-                      onChange={(event) =>
-                        void updateReminder(reminder.id, {
-                          status: event.currentTarget
-                            .value as ScreeningReminderStatus,
-                        })
-                      }
-                      disabled={savingReminderId === reminder.id}
-                      className="mt-1 w-full rounded-lg border border-[#111214]/12 bg-white px-2 py-1.5 text-[11px] text-[#111214]/75"
-                    >
-                      {(
-                        Object.keys(STATUS_LABELS) as ScreeningReminderStatus[]
-                      ).map((status) => (
-                        <option key={status} value={status}>
-                          {STATUS_LABELS[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <div className="mt-3 rounded-xl border border-dashed border-[#111214]/14 bg-[#FCFCFC] px-3 py-2.5">
+                  <p className="text-[10px] text-[#111214]/52">
+                    Ce rappel est configuré par votre praticien. Vous recevrez
+                    simplement la prochaine alerte selon ce suivi.
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </section>
-
-      <AnimatePresence initial={false}>
-        {isSettingsOpen ? (
-          <motion.section
-            id="pat23-settings"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="space-y-2 rounded-xl border border-[#5B1112]/16 bg-[#5B1112]/4 p-3"
-          >
-            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#5B1112]/65">
-              Paramètres des rappels
-            </p>
-            <p className="text-[11px] text-[#111214]/55">
-              Choisissez les canaux utilisés pour les rappels de dépistage.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["sms", "SMS"],
-                  ["whatsapp", "WhatsApp"],
-                  ["email", "Email"],
-                ] as Array<[keyof NotificationChannelPreference, string]>
-              ).map(([channel, label]) => {
-                const enabled = Boolean(screeningChannels?.[channel]);
-                return (
-                  <button
-                    key={channel}
-                    type="button"
-                    onClick={() => void toggleScreeningChannel(channel)}
-                    disabled={isSavingChannels || !screeningChannels}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                      enabled
-                        ? "border-[#5B1112]/30 bg-[#5B1112]/14 text-[#5B1112]"
-                        : "border-[#111214]/14 bg-white text-[#111214]/55"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </motion.section>
-        ) : null}
-      </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }
 
@@ -1490,7 +1674,7 @@ function WeeklyScanCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="flex items-center gap-4 rounded-[2rem] border border-[#5B1112]/8 p-5"
+      className="flex h-full items-center gap-4 rounded-[2rem] border border-[#5B1112]/8 p-5"
       style={{
         background:
           "linear-gradient(135deg, #fff9f0 0%, #FEF0D5 70%, #fde8bf 100%)",
@@ -1524,7 +1708,8 @@ function WeeklyScanCard({
         ) : latestScore ? (
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-[10px] text-[#111214]/35">
-              Dernier scan : il y a {formatRelativeFromNow(latestScore.measuredAt)}
+              Dernier scan : il y a{" "}
+              {formatRelativeFromNow(latestScore.measuredAt)}
             </span>
             <span className="h-1 w-1 flex-shrink-0 rounded-full bg-[#111214]/20" />
             <span className="text-[10px] font-medium text-[#5B1112]/55">
@@ -1703,6 +1888,9 @@ export function DashboardHome({
   upcoming,
   upcomingLoading,
   upcomingError,
+  recentDocuments,
+  recentDocumentsLoading,
+  recentDocumentsError,
   skinScores,
   skinScoresLoading,
   skinScoresError,
@@ -1741,18 +1929,31 @@ export function DashboardHome({
           </div>
         </motion.div>
 
-        <div id="appointments" className="scroll-mt-28">
-          <QuickActions />
-        </div>
+        <PatientPriorityStrip
+          hasActingProfile={hasActingProfile}
+          upcoming={upcoming}
+          upcomingLoading={upcomingLoading}
+          upcomingError={upcomingError}
+          recentDocuments={recentDocuments}
+          recentDocumentsLoading={recentDocumentsLoading}
+          recentDocumentsError={recentDocumentsError}
+          skinScores={skinScores}
+          skinScoresLoading={skinScoresLoading}
+          skinScoresError={skinScoresError}
+        />
+
+        <QuickActions />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <AppointmentCard
-            delay={0.14}
-            appointment={upcoming}
-            hasActingProfile={hasActingProfile}
-            loading={upcomingLoading}
-            error={upcomingError}
-          />
+          <div id="appointments" className="scroll-mt-28">
+            <AppointmentCard
+              delay={0.14}
+              appointment={upcoming}
+              hasActingProfile={hasActingProfile}
+              loading={upcomingLoading}
+              error={upcomingError}
+            />
+          </div>
           <TodayCard
             delay={0.2}
             hasActingProfile={hasActingProfile}
@@ -1791,10 +1992,19 @@ export default function AU06() {
   const actingProfileId = auth.actingProfileId;
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
-  const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(
+    null,
+  );
   const [skinScores, setSkinScores] = useState<SkinScoreRecord[]>([]);
   const [skinScoresLoading, setSkinScoresLoading] = useState(false);
   const [skinScoresError, setSkinScoresError] = useState<string | null>(null);
+  const [recentDocuments, setRecentDocuments] = useState<
+    ClinicalDocumentRecord[]
+  >([]);
+  const [recentDocumentsLoading, setRecentDocumentsLoading] = useState(false);
+  const [recentDocumentsError, setRecentDocumentsError] = useState<
+    string | null
+  >(null);
   const hasActingProfile = Boolean(userId && actingProfileId);
 
   useEffect(() => {
@@ -1807,12 +2017,25 @@ export default function AU06() {
     let cancelled = false;
 
     const load = async () => {
-      if (!userId || !actingProfileId) return;
+      if (!userId || !actingProfileId) {
+        setAppointments([]);
+        setAppointmentsLoading(false);
+        setAppointmentsError(null);
+        setSkinScores([]);
+        setSkinScoresLoading(false);
+        setSkinScoresError(null);
+        setRecentDocuments([]);
+        setRecentDocumentsLoading(false);
+        setRecentDocumentsError(null);
+        return;
+      }
 
       setAppointmentsLoading(true);
       setAppointmentsError(null);
       setSkinScoresLoading(true);
       setSkinScoresError(null);
+      setRecentDocumentsLoading(true);
+      setRecentDocumentsError(null);
 
       void auth.appointmentAdapter
         .listAppointmentsForProfile(actingProfileId)
@@ -1853,6 +2076,33 @@ export default function AU06() {
           if (cancelled) return;
           setSkinScoresLoading(false);
         });
+
+      void auth.accountAdapter
+        .listClinicalDocuments(userId, actingProfileId)
+        .then((records) => {
+          if (cancelled) return;
+          const sorted = [...records]
+            .sort((first, second) =>
+              (second.publishedAt ?? second.createdAt).localeCompare(
+                first.publishedAt ?? first.createdAt,
+              ),
+            )
+            .slice(0, 4);
+          setRecentDocuments(sorted);
+        })
+        .catch((adapterError) => {
+          if (cancelled) return;
+          setRecentDocuments([]);
+          setRecentDocumentsError(
+            adapterError instanceof Error
+              ? adapterError.message
+              : "Impossible de charger les documents du profil.",
+          );
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setRecentDocumentsLoading(false);
+        });
     };
 
     void load();
@@ -1860,25 +2110,17 @@ export default function AU06() {
     return () => {
       cancelled = true;
     };
-  }, [
-    actingProfileId,
-    auth.accountAdapter,
-    auth.appointmentAdapter,
-    userId,
-  ]);
+  }, [actingProfileId, auth.accountAdapter, auth.appointmentAdapter, userId]);
 
   const firstName = useMemo(
     () => getFirstName(auth.user?.fullName),
     [auth.user?.fullName],
   );
 
-  const upcoming = useMemo(
-    () => {
-      const nextAppointment = selectUpcomingAppointment(appointments);
-      return nextAppointment ? toUpcomingAppointment(nextAppointment) : null;
-    },
-    [appointments],
-  );
+  const upcoming = useMemo(() => {
+    const nextAppointment = selectUpcomingAppointment(appointments);
+    return nextAppointment ? toUpcomingAppointment(nextAppointment) : null;
+  }, [appointments]);
 
   const handleLogout = () => {
     void auth.logout().finally(() => {
@@ -1901,6 +2143,11 @@ export default function AU06() {
         upcoming={hasActingProfile ? upcoming : null}
         upcomingLoading={hasActingProfile ? appointmentsLoading : false}
         upcomingError={hasActingProfile ? appointmentsError : null}
+        recentDocuments={hasActingProfile ? recentDocuments : []}
+        recentDocumentsLoading={
+          hasActingProfile ? recentDocumentsLoading : false
+        }
+        recentDocumentsError={hasActingProfile ? recentDocumentsError : null}
         skinScores={hasActingProfile ? skinScores : []}
         skinScoresLoading={hasActingProfile ? skinScoresLoading : false}
         skinScoresError={hasActingProfile ? skinScoresError : null}

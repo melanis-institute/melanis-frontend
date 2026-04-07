@@ -1,3 +1,9 @@
+import type {
+  ClinicalDocumentRecord,
+  ClinicalMeasurement,
+  ScreeningCadence,
+  ScreeningReminder,
+} from "@portal/domains/account/types";
 import type { AppointmentType } from "@portal/shared/types/flow";
 
 export type AppointmentStatus =
@@ -28,6 +34,12 @@ export interface AppointmentRecord {
   inConsultationAt?: string;
   completedAt?: string;
   preConsultData?: unknown;
+  diagnosis?: string;
+  clinicalSummary?: string;
+  measurements: ClinicalMeasurement[];
+  followUpCadence?: ScreeningCadence;
+  followUpDueAt?: string;
+  carePlanUpdatedAt?: string;
 }
 
 export interface AppointmentAuditEvent {
@@ -38,6 +50,12 @@ export interface AppointmentAuditEvent {
   fromStatus?: AppointmentStatus;
   toStatus?: AppointmentStatus;
   createdAt: string;
+}
+
+export interface ClinicalOutcomeRecord {
+  appointment: AppointmentRecord;
+  documents: ClinicalDocumentRecord[];
+  followUpReminder?: ScreeningReminder;
 }
 
 export const NEXT_STATUS_BY_CURRENT: Record<AppointmentStatus, AppointmentStatus | null> = {

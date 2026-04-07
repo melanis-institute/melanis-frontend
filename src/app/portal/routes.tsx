@@ -6,6 +6,7 @@ import SelectProfileScreen from "@portal/features/patient/account/select-profile
 import ConsentsScreen from "@portal/features/patient/account/consents-screen";
 import ConsentDetailScreen from "@portal/features/patient/account/consent-detail-screen";
 import DependentsScreen from "@portal/features/patient/account/dependents-screen";
+import PatientDocumentDetailScreen from "@portal/features/patient/account/document-detail-screen";
 import NotificationPreferencesScreen from "@portal/features/patient/account/notification-preferences-screen";
 import ProfilesListScreen from "@portal/features/patient/profiles/list-screen";
 import ProfileDetailScreen from "@portal/features/patient/profiles/detail-screen";
@@ -322,6 +323,10 @@ export const portalRoutes: RouteObject[] = [
                   {
                     Component: RequireActingProfile,
                     children: [
+                      {
+                        path: "auth/dashboard/documents/:documentId",
+                        Component: PatientDocumentDetailScreen,
+                      },
                       {
                         path: "creneau",
                         Component: PF02Lazy,

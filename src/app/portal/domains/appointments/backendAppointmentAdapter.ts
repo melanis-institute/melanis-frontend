@@ -1,9 +1,10 @@
 import type { AppointmentAdapter } from "./adapter.types";
 import type {
+  CreateClinicalOutcomeInput,
   CreateAppointmentFromBookingInput,
   TransitionAppointmentStatusInput,
 } from "./adapter.types";
-import type { AppointmentRecord } from "./types";
+import type { AppointmentRecord, ClinicalOutcomeRecord } from "./types";
 import { createApiClient } from "../api/client";
 
 export class BackendAppointmentAdapter implements AppointmentAdapter {
@@ -57,6 +58,23 @@ export class BackendAppointmentAdapter implements AppointmentAdapter {
         appointmentId: input.appointmentId,
         actorUserId: input.actorUserId,
         toStatus: input.toStatus,
+      },
+    );
+  }
+
+  async createClinicalOutcome(
+    input: CreateClinicalOutcomeInput,
+  ): Promise<ClinicalOutcomeRecord> {
+    return this.http.post<ClinicalOutcomeRecord>(
+      `/api/v1/appointments/${input.appointmentId}/clinical-outcome`,
+      {
+        diagnosis: input.diagnosis,
+        clinicalSummary: input.clinicalSummary,
+        prescriptionItems: input.prescriptionItems,
+        measurements: input.measurements,
+        followUpCadence: input.followUpCadence,
+        followUpDueAt: input.followUpDueAt,
+        notifyPatient: input.notifyPatient ?? true,
       },
     );
   }

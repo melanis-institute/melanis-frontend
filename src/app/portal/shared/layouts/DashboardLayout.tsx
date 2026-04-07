@@ -18,6 +18,7 @@ const PATHS = {
   home: "/patient-flow/auth/dashboard",
   appointments: "/patient-flow/auth/dashboard#appointments",
   records: "/patient-flow/auth/dashboard#records",
+  documents: "/patient-flow/auth/dashboard/documents",
   profile: "/patient-flow/account",
   scan: "/patient-flow/auth/dashboard#scan",
 } as const;
@@ -183,7 +184,12 @@ export function DashboardLayout({
   const isPath = (target: string, exact = true) =>
     isPathActive(location.pathname, location.hash, target, exact);
 
+  const isRecords =
+    isPath(PATHS.records, true) || location.pathname.startsWith(PATHS.documents);
   const isScan = isPath(PATHS.scan, true);
+  const pageTitle = location.pathname.startsWith(PATHS.documents)
+    ? "Dossier patient"
+    : "Tableau de bord";
 
   return (
     <div className="relative flex min-h-screen w-full overflow-hidden bg-[#FEF0D5] font-sans">
@@ -206,12 +212,6 @@ export function DashboardLayout({
               >
                 melanis
               </span>
-              <div className="-mt-0.5 flex items-center gap-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
-                  En ligne
-                </span>
-              </div>
             </div>
           </div>
 
@@ -231,7 +231,11 @@ export function DashboardLayout({
                 icon={item.icon}
                 label={item.label}
                 path={item.path}
-                isActive={isPath(item.path, item.exact)}
+                isActive={
+                  item.path === PATHS.records
+                    ? isRecords
+                    : isPath(item.path, item.exact)
+                }
               />
             ))}
           </nav>
@@ -304,7 +308,7 @@ export function DashboardLayout({
         <header className="hidden items-center justify-between px-10 py-6 lg:flex">
           <div>
             <h2 className="font-serif text-[#111214]" style={{ fontSize: 22 }}>
-              Tableau de bord
+              {pageTitle}
             </h2>
           </div>
 
@@ -364,7 +368,7 @@ export function DashboardLayout({
                 icon={FileText}
                 label="Dossier"
                 path={PATHS.records}
-                isActive={isPath(PATHS.records, true)}
+                isActive={isRecords}
               />
               <BottomNavItem
                 icon={User}

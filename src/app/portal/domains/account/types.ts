@@ -125,13 +125,55 @@ export interface SkinScoreRecord {
   source: "derived" | "scan" | "manual";
 }
 
+export interface PrescriptionItem {
+  name: string;
+  instructions: string;
+  isMedication: boolean;
+}
+
+export interface ClinicalMeasurement {
+  label: string;
+  value: string;
+  unit?: string;
+  recordedAt?: string;
+}
+
+export type ClinicalDocumentKind = "prescription" | "document" | "report";
+export type ClinicalDocumentStatus = "draft" | "published";
+
+export interface ClinicalDocumentRecord {
+  id: string;
+  profileId: string;
+  appointmentId?: string;
+  practitionerId?: string;
+  createdByUserId: string;
+  kind: ClinicalDocumentKind;
+  status: ClinicalDocumentStatus;
+  title: string;
+  summary?: string;
+  body?: string;
+  prescriptionItems: PrescriptionItem[];
+  version: number;
+  replacesDocumentId?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PatientRecordEventType =
   | "appointment_booked"
+  | "appointment_checked_in"
+  | "consultation_started"
+  | "consultation_completed"
   | "consent_signed"
   | "consent_revoked"
   | "profile_updated"
   | "dependent_created"
-  | "dependent_unlinked";
+  | "dependent_unlinked"
+  | "prescription_issued"
+  | "document_shared"
+  | "follow_up_scheduled"
+  | "measurement_recorded";
 
 export interface PatientRecordEvent {
   id: string;

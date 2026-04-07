@@ -361,7 +361,7 @@ function TodayQueueSection({
           ) : null}
         </h2>
         <Link
-          to="/patient-flow/practitioner#appointments"
+          to="/patient-flow/practitioner/appointments"
           className="text-xs font-medium text-[#5B1112] hover:underline"
         >
           Voir tout

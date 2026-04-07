@@ -5,20 +5,23 @@ import {
   CalendarDays,
   Home,
   LogOut,
+  PanelLeftOpen,
+  PanelRightOpen,
   Search,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 
 const PRAC_PATHS = {
   home: "/patient-flow/practitioner",
-  appointments: "/patient-flow/practitioner#appointments",
+  appointments: "/patient-flow/practitioner/appointments",
   calendar: "/patient-flow/practitioner/calendar",
 } as const;
 
 const DEFAULT_PROFILE_AVATAR = "/default-avatar-profile.svg";
+const SIDEBAR_PREF_KEY = "melanis_practitioner_sidebar_collapsed";
 
 interface PractitionerDashboardLayoutProps {
   fullName: string;
@@ -26,7 +29,12 @@ interface PractitionerDashboardLayoutProps {
   children: ReactNode;
 }
 
-function isPathActive(pathname: string, hash: string, target: string, exact: boolean): boolean {
+function isPathActive(
+  pathname: string,
+  hash: string,
+  target: string,
+  exact: boolean,
+): boolean {
   const hashIndex = target.indexOf("#");
   const targetPath = hashIndex >= 0 ? target.slice(0, hashIndex) : target;
   const targetHash = hashIndex >= 0 ? target.slice(hashIndex) : "";
@@ -46,24 +54,33 @@ function SidebarItem({
   label,
   path,
   isActive,
+  collapsed,
 }: {
   icon: LucideIcon;
   label: string;
   path: string;
   isActive: boolean;
+  collapsed: boolean;
 }) {
   return (
     <Link to={path} className="mb-1 block">
       <div
-        className={`group relative flex items-center gap-3.5 rounded-2xl px-4 py-3 transition-all duration-300 ${
+        className={`group relative flex rounded-2xl transition-all duration-300 ${
+          collapsed
+            ? "justify-center px-3 py-3"
+            : "items-center gap-3.5 px-4 py-3"
+        } ${
           isActive
             ? "bg-[#5B1112] text-white shadow-xl shadow-[#5B1112]/25"
             : "text-[#111214]/50 hover:bg-white/60 hover:text-[#5B1112]"
         }`}
+        title={collapsed ? label : undefined}
       >
         <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} />
-        <span className="text-sm font-medium tracking-wide">{label}</span>
-        {isActive ? (
+        {!collapsed ? (
+          <span className="text-sm font-medium tracking-wide">{label}</span>
+        ) : null}
+        {isActive && !collapsed ? (
           <motion.div
             layoutId="prac-sidebar-pip"
             className="absolute right-3.5 h-1.5 w-1.5 rounded-full bg-white/70"
@@ -125,6 +142,18 @@ export function PractitionerDashboardLayout({
   children,
 }: PractitionerDashboardLayoutProps) {
   const location = useLocation();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SIDEBAR_PREF_KEY) === "true";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      SIDEBAR_PREF_KEY,
+      isSidebarCollapsed ? "true" : "false",
+    );
+  }, [isSidebarCollapsed]);
 
   const isPath = (target: string, exact: boolean) =>
     isPathActive(location.pathname, location.hash, target, exact);
@@ -155,35 +184,67 @@ export function PractitionerDashboardLayout({
       </div>
 
       {/* ── Sidebar (desktop) ── */}
-      <aside className="sticky top-0 z-40 hidden h-screen w-[17rem] flex-shrink-0 p-5 lg:flex lg:flex-col">
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/55 px-6 pb-6 pt-8 shadow-[0_8px_48px_rgba(0,0,0,0.04)] backdrop-blur-2xl">
+      <aside
+        className={`sticky top-0 z-40 hidden h-screen flex-shrink-0 p-5 transition-[width] duration-300 lg:flex lg:flex-col ${
+          isSidebarCollapsed ? "w-[6.75rem]" : "w-[17rem]"
+        }`}
+      >
+        <div
+          className={`relative flex h-full flex-col overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/55 pb-6 pt-8 shadow-[0_8px_48px_rgba(0,0,0,0.04)] backdrop-blur-2xl transition-all duration-300 ${
+            isSidebarCollapsed ? "px-3" : "px-6"
+          }`}
+        >
           <div className="pointer-events-none absolute inset-0 rounded-[2.5rem] bg-gradient-to-b from-white/30 to-transparent" />
 
           {/* Logo */}
-          <div className="relative z-10 mb-8 flex items-center gap-3 px-1">
-            <MelaniaMascot size={38} animated delay={0.1} />
-            <div>
-              <span
-                className="font-serif text-[#111214]"
-                style={{ fontSize: 20, letterSpacing: "-0.02em" }}
-              >
-                melanis
-              </span>
-              <div className="-mt-0.5 flex items-center gap-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
-                  En ligne
-                </span>
+          <div className="relative z-10 mb-8">
+            {isSidebarCollapsed ? (
+              <div className="flex flex-col items-center gap-3 py-1">
+                <MelaniaMascot size={30} animated delay={0.1} />
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#111214]/10 bg-white text-[#111214]/55 transition hover:bg-[#FEF0D5] hover:text-[#111214]"
+                  title="Agrandir la barre latérale"
+                  aria-label="Agrandir la barre latérale"
+                >
+                  <PanelLeftOpen size={15} />
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <MelaniaMascot size={34} animated delay={0.1} />
+                  <span
+                    className="font-serif text-[#111214]"
+                    style={{ fontSize: 20, letterSpacing: "-0.02em" }}
+                  >
+                    melanis
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#111214]/10 bg-white text-[#111214]/55 transition hover:bg-[#FEF0D5] hover:text-[#111214]"
+                  title="Réduire la barre latérale"
+                  aria-label="Réduire la barre latérale"
+                >
+                  <PanelRightOpen size={15} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Role badge */}
-          <div className="relative z-10 mb-5 rounded-xl bg-[#5B1112]/[0.07] px-3 py-2">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5B1112]/70">
-              Espace praticien
-            </span>
-          </div>
+          {isSidebarCollapsed ? (
+            <div className="relative z-10 mx-2 mb-5 border-t border-[#111214]/[0.06]" />
+          ) : (
+            <div className="relative z-10 mb-5 rounded-xl bg-[#5B1112]/[0.07] px-3 py-2">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5B1112]/70">
+                Espace praticien
+              </span>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="relative z-10 flex-1 space-y-0.5">
@@ -194,37 +255,65 @@ export function PractitionerDashboardLayout({
                 label={item.label}
                 path={item.path}
                 isActive={isPath(item.path, item.exact)}
+                collapsed={isSidebarCollapsed}
               />
             ))}
           </nav>
 
           {/* User card */}
           <div className="relative z-10 border-t border-[#111214]/5 pt-4">
-            <div className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/50">
-              <div className="relative flex-shrink-0">
-                <img
-                  src={DEFAULT_PROFILE_AVATAR}
-                  alt="Profil"
-                  className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
-                />
-                <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+            {isSidebarCollapsed ? (
+              <div className="flex flex-col items-center gap-2.5">
+                <div className="relative">
+                  <img
+                    src={DEFAULT_PROFILE_AVATAR}
+                    alt="Profil"
+                    className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
+                  />
+                  <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void onLogout()}
+                  aria-label="Se déconnecter"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#111214]/[0.07] text-[#111214]/30 transition-colors hover:border-[#5B1112]/20 hover:bg-white/70 hover:text-[#5B1112]"
+                  title="Se déconnecter"
+                >
+                  <LogOut size={14} />
+                </button>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[#111214]">{fullName}</p>
-                <p className="truncate text-[10px] text-[#111214]/40">Dermatologue · Melanis</p>
+            ) : (
+              <div className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/50">
+                <div className="relative flex-shrink-0">
+                  <img
+                    src={DEFAULT_PROFILE_AVATAR}
+                    alt="Profil"
+                    className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
+                  />
+                  <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-[#111214]">
+                    {fullName}
+                  </p>
+                  <p className="truncate text-[10px] text-[#111214]/40">
+                    Dermatologue · Melanis
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void onLogout()}
+                  aria-label="Se déconnecter"
+                  className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/70"
+                  title="Se déconnecter"
+                >
+                  <LogOut
+                    size={15}
+                    className="text-[#111214]/25 group-hover:text-[#5B1112]"
+                  />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => void onLogout()}
-                aria-label="Se déconnecter"
-                className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/70"
-              >
-                <LogOut
-                  size={15}
-                  className="text-[#111214]/25 group-hover:text-[#5B1112]"
-                />
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </aside>
@@ -259,7 +348,10 @@ export function PractitionerDashboardLayout({
           </div>
           <div className="flex items-center gap-3">
             <div className="flex w-72 items-center rounded-full border border-white/70 bg-white/60 px-4 py-2.5 shadow-sm transition-all backdrop-blur-md focus-within:bg-white focus-within:shadow-md">
-              <Search size={16} className="mr-2.5 flex-shrink-0 text-[#111214]/35" />
+              <Search
+                size={16}
+                className="mr-2.5 flex-shrink-0 text-[#111214]/35"
+              />
               <input
                 type="text"
                 placeholder="Rechercher un patient..."
