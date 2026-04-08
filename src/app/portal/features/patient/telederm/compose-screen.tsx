@@ -1,110 +1,2362 @@
-import { useEffect, useMemo, useState } from "react";
-import type { AccountAdapter } from "@portal/domains/account/adapter.types";
-import type { MediaUploadIntent } from "@portal/domains/account/types";
-import { useAuth } from "@portal/session/useAuth";
-import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
-import { StepPhotos } from "@portal/features/patient/preconsult/components/StepPhotos";
-import { ArrowRight, CheckCircle2, SaveAll } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Camera,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  Eye,
+  FileText,
+  Lock,
+  MinusCircle,
+  Plus,
+  RefreshCw,
+  Send,
+  Shield,
+} from "lucide-react";
+import {
+  IconDemangeaisons,
+  IconDouleur,
+  IconBrulure,
+  IconSaignement,
+  IconSuintement,
+  IconSecheresse,
+  IconGonflement,
+  IconRougeur,
+  IconDesquamation,
+} from "@portal/features/patient/preconsult/components/symptom-icons";
 import { useNavigate } from "react-router";
+import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
+import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
+import { useAuth } from "@portal/session/useAuth";
+import type { AccountAdapter } from "@portal/domains/account/adapter.types";
 
-type LocalPhoto = {
-  id: string;
-  url: string;
-  name: string;
-  file: File;
+type Step =
+  | "concern"
+  | "body-area"
+  | "symptoms"
+  | "photo-guide"
+  | "photo-upload"
+  | "photo-review"
+  | "medical-history"
+  | "consent"
+  | "review"
+  | "success";
+
+const STEP_ORDER: Step[] = [
+  "body-area",
+  "symptoms",
+  "photo-guide",
+  "photo-upload",
+  "photo-review",
+  "medical-history",
+  "consent",
+  "review",
+  "success",
+];
+
+const PROGRESS_STEPS = STEP_ORDER.slice(0, 9);
+
+const STEP_LABELS: Record<Step, string> = {
+  "concern": "Motif de consultation",
+  "body-area": "Zone corporelle",
+  "symptoms": "Symptômes",
+  "photo-guide": "Guide photo",
+  "photo-upload": "Capture photos",
+  "photo-review": "Révision photos",
+  "medical-history": "Contexte médical",
+  "consent": "Consentement",
+  "review": "Récapitulatif",
+  "success": "Dossier envoyé",
 };
 
-const MOTIF_OPTIONS = [
-  ["acne", "Acné"],
-  ["taches", "Taches pigmentaires"],
-  ["eczema", "Eczéma / irritation"],
-  ["rougeurs", "Rougeurs"],
-  ["grain", "Grain de beauté"],
-  ["mycose", "Mycose"],
-  ["cheveux", "Chute de cheveux / cuir chevelu"],
+interface FlowData {
+  concern: string;
+  concernOther: string;
+  bodyAreas: string[];
+  symptoms: {
+    duration: string;
+    evolution: string;
+    sensations: string[];
+    severity: number;
+    spreading: string;
+    previousTreatment: string;
+  };
+  photos: {
+    overview: string | null;
+    medium: string | null;
+    closeup: string | null;
+  };
+  medical: {
+    skinType: string;
+    allergies: string;
+    previousDiagnosis: string;
+    medications: string;
+    pregnancy: string;
+    chronicCondition: string;
+  };
+  consent: {
+    caseReview: boolean;
+    photoUse: boolean;
+  };
+}
+
+interface PhotoFiles {
+  overview: File | null;
+  medium: File | null;
+  closeup: File | null;
+}
+
+const INITIAL_DATA: FlowData = {
+  concern: "",
+  concernOther: "",
+  bodyAreas: [],
+  symptoms: {
+    duration: "",
+    evolution: "",
+    sensations: [],
+    severity: 5,
+    spreading: "",
+    previousTreatment: "",
+  },
+  photos: { overview: null, medium: null, closeup: null },
+  medical: {
+    skinType: "",
+    allergies: "",
+    previousDiagnosis: "",
+    medications: "",
+    pregnancy: "",
+    chronicCondition: "",
+  },
+  consent: { caseReview: false, photoUse: false },
+};
+
+const stepVariants = {
+  enter: (direction: number) => ({ x: direction * 28, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (direction: number) => ({ x: direction * -28, opacity: 0 }),
+};
+
+// ── Concern colour palettes ────────────────────────────────────────────────
+const CONCERN_PALETTES: Record<
+  string,
+  {
+    idle: string;
+    active: string;
+    iconIdle: string;
+    iconActive: string;
+    dot: string;
+  }
+> = {
+  acne: {
+    idle: "border-amber-100 bg-amber-50/70",
+    active: "border-amber-400 bg-amber-500 shadow-lg shadow-amber-400/25",
+    iconIdle: "bg-amber-100 text-amber-600",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-amber-400",
+  },
+  taches: {
+    idle: "border-stone-100 bg-stone-50/70",
+    active: "border-stone-500 bg-stone-600 shadow-lg shadow-stone-500/20",
+    iconIdle: "bg-stone-100 text-stone-600",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-stone-400",
+  },
+  irritation: {
+    idle: "border-red-100 bg-red-50/70",
+    active: "border-red-500 bg-red-500 shadow-lg shadow-red-400/25",
+    iconIdle: "bg-red-100 text-red-500",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-red-400",
+  },
+  demangeaisons: {
+    idle: "border-violet-100 bg-violet-50/70",
+    active: "border-violet-500 bg-violet-600 shadow-lg shadow-violet-400/20",
+    iconIdle: "bg-violet-100 text-violet-600",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-violet-400",
+  },
+  chevelure: {
+    idle: "border-teal-100 bg-teal-50/70",
+    active: "border-teal-600 bg-teal-600 shadow-lg shadow-teal-500/20",
+    iconIdle: "bg-teal-100 text-teal-600",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-teal-400",
+  },
+  eruption: {
+    idle: "border-rose-100 bg-rose-50/70",
+    active: "border-rose-500 bg-rose-500 shadow-lg shadow-rose-400/20",
+    iconIdle: "bg-rose-100 text-rose-500",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-rose-400",
+  },
+  ongles: {
+    idle: "border-slate-100 bg-slate-50/70",
+    active: "border-slate-500 bg-slate-600 shadow-lg shadow-slate-400/15",
+    iconIdle: "bg-slate-100 text-slate-500",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-slate-400",
+  },
+  autre: {
+    idle: "border-[#111214]/8 bg-white/70",
+    active: "border-[#5B1112] bg-[#5B1112] shadow-lg shadow-[#5B1112]/25",
+    iconIdle: "bg-[#5B1112]/8 text-[#5B1112]/60",
+    iconActive: "bg-white/20 text-white",
+    dot: "bg-[#5B1112]/50",
+  },
+};
+
+const CONCERNS = [
+  {
+    id: "acne",
+    label: "Acné & Boutons",
+    desc: "Points noirs, kystes, comédons",
+    icon: IconRougeur,
+  },
+  {
+    id: "taches",
+    label: "Taches & Hyperpig.",
+    desc: "Taches brunes, mélasma, cicatrices",
+    icon: IconDesquamation,
+  },
+  {
+    id: "irritation",
+    label: "Irritation & Rougeurs",
+    desc: "Peau réactive, eczéma léger",
+    icon: IconBrulure,
+  },
+  {
+    id: "demangeaisons",
+    label: "Démangeaisons",
+    desc: "Prurit, urticaire, cuir chevelu",
+    icon: IconDemangeaisons,
+  },
+  {
+    id: "chevelure",
+    label: "Chute de cheveux",
+    desc: "Perte capillaire, zones clairsemées",
+    icon: IconSecheresse,
+  },
+  {
+    id: "eruption",
+    label: "Éruption cutanée",
+    desc: "Lésions, plaques, boutons diffus",
+    icon: IconSuintement,
+  },
+  {
+    id: "ongles",
+    label: "Problème d'ongles",
+    desc: "Mycose, fragilité, décoloration",
+    icon: IconSaignement,
+  },
+  {
+    id: "autre",
+    label: "Autre",
+    desc: "Décrivez votre situation",
+    icon: IconDouleur,
+  },
 ] as const;
 
 const BODY_AREAS = [
-  "Visage",
-  "Cuir chevelu",
-  "Corps",
-  "Mains",
-  "Pieds",
-  "Ongles",
-  "Zones intimes",
+  { id: "visage", label: "Visage", desc: "Joues, front, nez, menton" },
+  { id: "cuir-chevelu", label: "Cuir chevelu", desc: "Zones capillaires, nuque" },
+  { id: "bras", label: "Bras & Épaules", desc: "Avant-bras, coudes, épaules" },
+  { id: "jambes", label: "Jambes & Pieds", desc: "Cuisses, genoux, chevilles" },
+  { id: "torse", label: "Torse & Dos", desc: "Poitrine, ventre, dos" },
+  { id: "intime", label: "Zone intime", desc: "Traitée avec discrétion totale" },
+  { id: "ongles", label: "Ongles", desc: "Mains ou pieds" },
+  { id: "autre", label: "Autre zone", desc: "Précisez au besoin" },
 ] as const;
 
-function randomPhotoId() {
-  return `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const BODY_AREA_LABELS: Record<string, string> = Object.fromEntries(
+  BODY_AREAS.map((item) => [item.id, item.label]),
+);
+
+const CONCERN_LABELS: Record<string, string> = Object.fromEntries(
+  CONCERNS.map((item) => [item.id, item.label]),
+);
+
+const PHOTO_TIPS = [
+  {
+    icon: "☀️",
+    title: "Lumière naturelle",
+    desc: "Approchez-vous d'une fenêtre. Évitez le flash et les éclairages artificiels colorés.",
+  },
+  {
+    icon: "📐",
+    title: "Distance adaptée",
+    desc: "Variez les distances : lointaine, rapprochée, et en gros plan pour les détails.",
+  },
+  {
+    icon: "🔍",
+    title: "Mise au point nette",
+    desc: "Assurez-vous que la zone concernée est parfaitement nette. Attendez la stabilisation.",
+  },
+] as const;
+
+const PHOTO_SLOTS = [
+  {
+    key: "overview",
+    label: "Vue d'ensemble",
+    hint: "La zone concernée visible en contexte",
+    sublabel: "Distance : 50–80 cm",
+    captureKind: "context",
+    emoji: "🌐",
+  },
+  {
+    key: "medium",
+    label: "Vue rapprochée",
+    hint: "La lésion bien cadrée, bien nette",
+    sublabel: "Distance : 20–30 cm",
+    captureKind: "detail",
+    emoji: "🔎",
+  },
+  {
+    key: "closeup",
+    label: "Gros plan",
+    hint: "Les détails de texture et couleur",
+    sublabel: "Distance : 5–10 cm",
+    captureKind: "close",
+    emoji: "🔬",
+  },
+] as const;
+
+const SKIN_TYPES = [
+  { id: "I-II", label: "Type I–II", desc: "Très claire, rosée" },
+  { id: "III", label: "Type III", desc: "Claire à beige" },
+  { id: "IV", label: "Type IV", desc: "Beige à mate" },
+  { id: "V", label: "Type V", desc: "Brune" },
+  { id: "VI", label: "Type VI", desc: "Très foncée" },
+] as const;
+
+const SYMPTOM_QUESTIONS = [
+  {
+    key: "duration",
+    label: "Depuis quand observez-vous ces symptômes ?",
+    type: "chips",
+    options: [
+      "Moins d'une semaine",
+      "1 à 4 semaines",
+      "1 à 6 mois",
+      "Plus de 6 mois",
+    ],
+  },
+  {
+    key: "evolution",
+    label: "Comment ont-ils évolué récemment ?",
+    type: "chips",
+    options: ["Stable", "En amélioration", "En aggravation", "Variable"],
+  },
+  {
+    key: "sensations",
+    label: "Quelles sensations ressentez-vous ?",
+    type: "multi",
+    options: [
+      "Démangeaisons",
+      "Douleur",
+      "Brûlure",
+      "Rougeur",
+      "Sécheresse",
+      "Saignement",
+      "Gonflement",
+      "Suintement",
+      "Desquamation",
+      "Aucune",
+    ],
+  },
+  {
+    key: "severity",
+    label: "Quelle est l'intensité ? (1 = légère, 10 = très sévère)",
+    type: "slider",
+  },
+  {
+    key: "spreading",
+    label: "La lésion évolue-t-elle géographiquement ?",
+    type: "chips",
+    options: ["Elle reste stable", "Elle s'étend", "Elle disparaît par endroits"],
+  },
+  {
+    key: "previousTreatment",
+    label: "Avez-vous essayé un traitement ?",
+    type: "text",
+    placeholder: "Crème, médicament, remède traditionnel... (facultatif)",
+  },
+] as const;
+
+type SensationOption = (typeof SYMPTOM_QUESTIONS)[2]["options"][number];
+
+const SENSATION_ICON_MAP: Record<
+  SensationOption,
+  React.ElementType | null
+> = {
+  Démangeaisons: IconDemangeaisons,
+  Douleur: IconDouleur,
+  Brûlure: IconBrulure,
+  Rougeur: IconRougeur,
+  Sécheresse: IconSecheresse,
+  Saignement: IconSaignement,
+  Gonflement: IconGonflement,
+  Suintement: IconSuintement,
+  Desquamation: IconDesquamation,
+  Aucune: null,
+};
+
+// ── Utility functions ──────────────────────────────────────────────────────
+
+function createCaseReference(caseId: string | null) {
+  if (!caseId) return "ML-EN-ATTENTE";
+  return `ML-${new Date().getFullYear()}-${caseId.slice(-6).toUpperCase()}`;
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [header, data] = dataUrl.split(",");
-  const mimeMatch = header.match(/data:(.*?);base64/);
-  const mimeType = mimeMatch?.[1] ?? "application/octet-stream";
-  const binary = atob(data);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new Blob([bytes], { type: mimeType });
+function concernToBackendKey(concern: string) {
+  if (concern === "irritation") return "eczema";
+  if (concern === "demangeaisons") return "rougeurs";
+  if (concern === "chevelure") return "cheveux";
+  if (concern === "eruption") return "eczema";
+  return concern;
 }
 
-async function uploadFiles(
+function bodyAreaToBackendLabel(areaId: string) {
+  if (areaId === "cuir-chevelu") return "Cuir chevelu";
+  if (areaId === "torse") return "Corps";
+  if (areaId === "bras") return "Corps";
+  if (areaId === "jambes") return "Pieds";
+  if (areaId === "intime") return "Zones intimes";
+  return BODY_AREA_LABELS[areaId] ?? "Corps";
+}
+
+function buildPatientSummary(data: FlowData) {
+  const bodyAreaLabel = data.bodyAreas.length
+    ? data.bodyAreas.map((area) => BODY_AREA_LABELS[area] ?? area).join(", ")
+    : "zone non précisée";
+  const sensations = data.symptoms.sensations.length
+    ? `Sensations: ${data.symptoms.sensations.join(", ")}.`
+    : "";
+
+  return [
+    sensations,
+    `Zone: ${bodyAreaLabel}.`,
+    data.symptoms.duration ? `Depuis: ${data.symptoms.duration}.` : "",
+    data.symptoms.evolution ? `Évolution: ${data.symptoms.evolution}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function uploadPhotoSlot(
   accountAdapter: AccountAdapter,
   actorUserId: string,
   caseId: string,
   bodyArea: string,
   conditionKey: string,
-  captureKind: "close" | "context" | "detail",
-  photos: LocalPhoto[],
+  slot: (typeof PHOTO_SLOTS)[number],
+  file: File | null,
 ) {
-  if (photos.length === 0) return [] as string[];
-  const captureSessionId = `${captureKind}_${Date.now()}`;
-  const intents = await accountAdapter.createAsyncCaseUploadIntents({
+  if (!file) return null;
+
+  const result = await accountAdapter.createAsyncCaseUploadIntents({
     actorUserId,
     caseId,
-    captureSessionId,
-    captureKind,
+    captureSessionId: `${slot.key}_${Date.now()}`,
+    captureKind: slot.captureKind,
     bodyArea,
     conditionKey,
-    files: photos.map((photo) => ({
-      fileName: photo.name,
-      contentType: photo.file.type || "image/jpeg",
-    })),
+    files: [{ fileName: file.name, contentType: file.type || "image/jpeg" }],
   });
-
-  const uploadedAssetIds: string[] = [];
-  for (const [index, photo] of photos.entries()) {
-    const intent = intents[index] as MediaUploadIntent | undefined;
-    if (!intent) continue;
-    const isMockUpload = intent.uploadUrl.startsWith("mock");
-    if (!isMockUpload) {
-      const uploadResponse = await fetch(intent.uploadUrl, {
-        method: intent.uploadMethod,
-        headers: { "Content-Type": intent.contentType },
-        body: dataUrlToBlob(photo.url),
-      });
-      if (!uploadResponse.ok) {
-        throw new Error("Impossible de téléverser une photo télé-derm.");
-      }
-    }
-    const asset = await accountAdapter.completeAsyncCaseMediaUpload(actorUserId, intent.id);
-    uploadedAssetIds.push(asset.id);
+  const intent = result[0];
+  if (!intent) {
+    throw new Error("Intent de téléversement télé-derm manquant.");
   }
-  return uploadedAssetIds;
+
+  const isMockUpload = intent.uploadUrl.startsWith("mock");
+  if (!isMockUpload) {
+    const response = await fetch(intent.uploadUrl, {
+      method: intent.uploadMethod,
+      headers: { "Content-Type": intent.contentType },
+      body: file,
+    });
+    if (!response.ok) {
+      throw new Error("Impossible de téléverser la photo.");
+    }
+  }
+
+  return accountAdapter.completeAsyncCaseMediaUpload(actorUserId, intent.id);
 }
+
+// ── Illustration components ────────────────────────────────────────────────
+
+function BodySilhouette({ selectedAreas }: { selectedAreas: string[] }) {
+  const has = (area: string) => selectedAreas.includes(area);
+  const outline = "#BEA27D";
+  const skin = "#F8EAD7";
+  const detail = "#EADBC6";
+  const selectedFill = "rgba(91,17,18,0.12)";
+  const selectedStroke = "#7A2324";
+  const fillFor = (area: string) => (has(area) ? selectedFill : skin);
+  const strokeFor = (area: string) => (has(area) ? selectedStroke : outline);
+  const nailsStroke = has("ongles") ? selectedStroke : outline;
+
+  return (
+    <svg
+      viewBox="0 0 260 420"
+      fill="none"
+      className="mx-auto w-40"
+      aria-hidden
+    >
+      {/* Hair / scalp */}
+      <path
+        d="M95 48C98 29 112 18 130 18C148 18 162 29 165 48C161 40 151 31 130 31C109 31 99 40 95 48Z"
+        fill={has("cuir-chevelu") ? selectedFill : "#C4A681"}
+        stroke={strokeFor("cuir-chevelu")}
+        strokeWidth="1.5"
+        className="transition-colors duration-300"
+      />
+
+      {/* Head / face */}
+      <ellipse
+        cx="130"
+        cy="61"
+        rx="24"
+        ry="33"
+        fill={fillFor("visage")}
+        stroke={strokeFor("visage")}
+        strokeWidth="1.8"
+        className="transition-colors duration-300"
+      />
+
+      {/* Neck */}
+      <path
+        d="M113 89C114 98 108 102 99 106M147 89C146 98 152 102 161 106"
+        stroke={outline}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      {/* Torso */}
+      <path
+        d="M99 106C86 109 74 115 66 126C59 137 57 149 57 166V196C57 202 54 208 52 214M161 106C174 109 186 115 194 126C201 137 203 149 203 166V196C203 202 206 208 208 214"
+        stroke={strokeFor("torse")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      <path
+        d="M99 106C104 115 115 120 130 120C145 120 156 115 161 106C174 109 186 115 194 126C201 137 203 149 203 166V196C203 202 206 208 208 214C208 231 205 249 201 270C197 285 193 301 190 319C189 336 188 351 187 365M52 214C52 231 55 249 59 270C63 285 67 301 70 319C71 336 72 351 73 365M84 231C94 219 109 214 130 214C151 214 166 219 176 231L176 249C169 257 154 261 130 261C106 261 91 257 84 249Z"
+        fill={fillFor("torse")}
+        stroke={strokeFor("torse")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* Chest / torso details */}
+      <path
+        d="M130 124V204"
+        stroke={has("torse") ? "rgba(122,35,36,0.3)" : detail}
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M95 131C103 128 113 128 121 131M139 131C147 128 157 128 165 131"
+        stroke={has("torse") ? "rgba(122,35,36,0.25)" : detail}
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M90 171C100 176 114 176 122 172M138 172C146 176 160 176 170 171"
+        stroke={has("torse") ? "rgba(122,35,36,0.18)" : "rgba(234,219,198,0.95)"}
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M81 232C92 221 107 216 130 216C153 216 168 221 179 232"
+        stroke={has("torse") ? "rgba(122,35,36,0.3)" : detail}
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* Arms */}
+      <path
+        d="M66 126C60 144 58 164 58 183V219C60 227 61 234 61 240C61 254 68 265 77 269C84 272 91 267 91 259C91 252 87 247 82 244C82 236 82 223 84 210C86 189 90 169 97 149"
+        fill={fillFor("bras")}
+        stroke={strokeFor("bras")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      <path
+        d="M194 126C200 144 202 164 202 183V219C200 227 199 234 199 240C199 254 192 265 183 269C176 272 169 267 169 259C169 252 173 247 178 244C178 236 178 223 176 210C174 189 170 169 163 149"
+        fill={fillFor("bras")}
+        stroke={strokeFor("bras")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* Intimate / pelvis area */}
+      <path
+        d="M123 236H137L141 312H119L123 236Z"
+        fill={has("intime") ? "rgba(91,17,18,0.18)" : "rgba(232,215,190,0.55)"}
+        stroke={strokeFor("intime")}
+        strokeWidth="1.4"
+        className="transition-colors duration-300"
+      />
+
+      {/* Legs */}
+      <path
+        d="M119 261C118 279 116 298 112 322C108 346 107 367 112 386C108 392 104 398 101 404C98 410 101 414 109 414H126C134 414 137 410 136 404C135 398 130 392 126 386C126 367 127 346 129 322C130 298 129 279 127 261Z"
+        fill={fillFor("jambes")}
+        stroke={strokeFor("jambes")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      <path
+        d="M141 261C142 279 144 298 148 322C152 346 153 367 148 386C152 392 156 398 159 404C162 410 159 414 151 414H134C126 414 123 410 124 404C125 398 130 392 134 386C134 367 133 346 131 322C130 298 131 279 133 261Z"
+        fill={fillFor("jambes")}
+        stroke={strokeFor("jambes")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* Knees */}
+      <ellipse
+        cx="115"
+        cy="306"
+        rx="11"
+        ry="8"
+        fill={has("jambes") ? "rgba(91,17,18,0.08)" : "rgba(232,215,190,0.45)"}
+        stroke={strokeFor("jambes")}
+        strokeWidth="1.2"
+        className="transition-colors duration-300"
+      />
+      <ellipse
+        cx="145"
+        cy="306"
+        rx="11"
+        ry="8"
+        fill={has("jambes") ? "rgba(91,17,18,0.08)" : "rgba(232,215,190,0.45)"}
+        stroke={strokeFor("jambes")}
+        strokeWidth="1.2"
+        className="transition-colors duration-300"
+      />
+
+      {/* Feet */}
+      <path
+        d="M112 386C107 392 102 397 98 404C95 410 99 414 109 414H126C132 414 136 411 136 406C136 398 130 391 123 386"
+        fill={fillFor("jambes")}
+        stroke={strokeFor("jambes")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      <path
+        d="M148 386C153 392 158 397 162 404C165 410 161 414 151 414H134C128 414 124 411 124 406C124 398 130 391 137 386"
+        fill={fillFor("jambes")}
+        stroke={strokeFor("jambes")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* Ongles accents */}
+      <path
+        d="M82 244C79 248 77 253 76 258M178 244C181 248 183 253 184 258M111 409L103 404M149 409L157 404"
+        stroke={nailsStroke}
+        strokeWidth={has("ongles") ? 1.9 : 1.3}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PhoneCameraIllustration({ filled = 0 }: { filled?: number }) {
+  return (
+    <div className="relative mx-auto flex h-56 w-36 items-center justify-center">
+      {/* Phone body */}
+      <div className="absolute inset-0 rounded-[2.2rem] border-[3px] border-[#111214]/12 bg-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.06)] backdrop-blur-sm" />
+      {/* Speaker */}
+      <div className="absolute top-3 left-1/2 h-1.5 w-8 -translate-x-1/2 rounded-full bg-[#111214]/10" />
+      {/* Screen / viewfinder */}
+      <div className="absolute inset-x-3 bottom-8 top-7 rounded-[1.75rem] bg-[#111214]/5 overflow-hidden">
+        {/* Corner focus brackets */}
+        <div className="absolute top-4 left-4 h-5 w-5 border-t-2 border-l-2 border-[#5B1112]/50 rounded-tl-sm" />
+        <div className="absolute top-4 right-4 h-5 w-5 border-t-2 border-r-2 border-[#5B1112]/50 rounded-tr-sm" />
+        <div className="absolute bottom-4 left-4 h-5 w-5 border-b-2 border-l-2 border-[#5B1112]/50 rounded-bl-sm" />
+        <div className="absolute bottom-4 right-4 h-5 w-5 border-b-2 border-r-2 border-[#5B1112]/50 rounded-br-sm" />
+        {/* Center focus dot */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.7, 0.4] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            className="h-5 w-5 rounded-full border border-[#5B1112]/40"
+          />
+        </div>
+        {/* Photo count indicator */}
+        {filled > 0 ? (
+          <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
+                  i < filled ? "bg-[#5B1112]" : "bg-[#111214]/20"
+                }`}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {/* Home button */}
+      <div className="absolute bottom-2.5 left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-[#111214]/15 bg-white/60" />
+    </div>
+  );
+}
+
+function SkinTextureIllustration() {
+  return (
+    <div className="relative mx-auto h-32 w-full overflow-hidden rounded-[2rem]"
+      style={{ background: "linear-gradient(135deg, #FEF0D5 0%, #fde4b8 50%, #f5d5a0 100%)" }}
+    >
+      {/* Abstract skin molecules */}
+      {[
+        { cx: 22, cy: 40, r: 18, op: 0.12 },
+        { cx: 60, cy: 25, r: 24, op: 0.1 },
+        { cx: 85, cy: 55, r: 20, op: 0.14 },
+        { cx: 15, cy: 80, r: 14, op: 0.09 },
+        { cx: 45, cy: 72, r: 16, op: 0.11 },
+        { cx: 75, cy: 85, r: 12, op: 0.08 },
+      ].map((dot, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full bg-[#5B1112]"
+          style={{
+            left: `${dot.cx}%`,
+            top: `${dot.cy}%`,
+            width: dot.r * 2,
+            height: dot.r * 2,
+            opacity: dot.op,
+            translateX: "-50%",
+            translateY: "-50%",
+          }}
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 3 + i * 0.4, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="rounded-[1.5rem] border border-white/60 bg-white/50 px-5 py-3 backdrop-blur-sm">
+          <p className="text-center text-[9px] font-semibold uppercase tracking-[0.22em] text-[#5B1112]/65">
+            Télé-Dermatologie Async
+          </p>
+          <p className="mt-0.5 text-center font-serif text-sm text-[#111214]/70">
+            Votre dermatologue vous répond sous 48h
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShieldIllustration() {
+  return (
+    <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+      <motion.div
+        animate={{ scale: [1, 1.04, 1] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute inset-0 rounded-full bg-[#00415E]/5"
+      />
+      <motion.div
+        animate={{ scale: [1, 1.08, 1] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+        className="absolute inset-4 rounded-full bg-[#00415E]/8"
+      />
+      <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#00415E]/10">
+        <Shield size={32} className="text-[#00415E]" strokeWidth={1.5} />
+      </div>
+    </div>
+  );
+}
+
+function ReviewIllustration() {
+  return (
+    <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+      <div className="absolute inset-0 rounded-full bg-[#5B1112]/5" />
+      <div className="absolute inset-4 rounded-full bg-[#5B1112]/8" />
+      <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#5B1112]/10">
+        <FileText size={28} className="text-[#5B1112]" strokeWidth={1.5} />
+      </div>
+    </div>
+  );
+}
+
+// ── Shared UI components ────────────────────────────────────────────────────
+
+function ProgressBar({ step }: { step: Step }) {
+  const currentIndex = PROGRESS_STEPS.indexOf(step);
+  if (currentIndex === -1) return null;
+  const label = STEP_LABELS[step] ?? "";
+
+  return (
+    <div className="mb-5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/40">
+          {label}
+        </span>
+        <span className="text-[9px] font-semibold text-[#5B1112]/55">
+          {currentIndex + 1} / {PROGRESS_STEPS.length}
+        </span>
+      </div>
+      <div className="flex gap-1">
+        {PROGRESS_STEPS.map((item, index) => (
+          <motion.div
+            key={item}
+            className={`h-[3px] flex-1 rounded-full transition-all duration-500 ${
+              index < currentIndex
+                ? "bg-[#5B1112]"
+                : index === currentIndex
+                  ? "bg-[#5B1112]/45"
+                  : "bg-[#111214]/8"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className="mb-5 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/60 px-3 py-2 text-xs font-medium text-[#111214]/50 shadow-sm transition-all hover:bg-white hover:text-[#5B1112]"
+    >
+      <ChevronLeft size={15} />
+      <span>Retour</span>
+    </motion.button>
+  );
+}
+
+function StepTitle({
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="mb-6">
+      <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+        {eyebrow}
+      </p>
+      <h2
+        className="mb-2 font-serif text-[#111214]"
+        style={{ fontSize: 24, lineHeight: 1.2 }}
+      >
+        {title}
+      </h2>
+      {subtitle ? (
+        <p className="text-xs leading-relaxed text-[#111214]/50">{subtitle}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ContinueButton({
+  label = "Continuer",
+  onClick,
+  disabled = false,
+  icon: Icon = ArrowRight,
+}: {
+  label?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: ElementType;
+}) {
+  return (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.01, y: -1 } : {}}
+      whileTap={!disabled ? { scale: 0.98 } : {}}
+      onClick={onClick}
+      disabled={disabled}
+      className={`mt-6 flex w-full items-center justify-center gap-2.5 rounded-[1.5rem] py-4 text-sm font-medium transition-all ${
+        disabled
+          ? "cursor-not-allowed bg-[#111214]/8 text-[#111214]/25"
+          : "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/25 hover:shadow-xl hover:shadow-[#5B1112]/30"
+      }`}
+    >
+      <span>{label}</span>
+      <Icon size={15} />
+    </motion.button>
+  );
+}
+
+function Chip({
+  label,
+  selected,
+  onClick,
+  multi = false,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  multi?: boolean;
+}) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className={`rounded-[1rem] border px-4 py-2.5 text-xs font-medium transition-all duration-200 ${
+        selected
+          ? "border-[#5B1112] bg-[#5B1112] text-white shadow-md shadow-[#5B1112]/20"
+          : "border-white bg-white/70 text-[#111214]/65 hover:border-[#5B1112]/20 hover:bg-white"
+      }`}
+    >
+      <span className="flex items-center gap-1.5">
+        {multi && selected ? <Check size={10} /> : null}
+        {label}
+      </span>
+    </motion.button>
+  );
+}
+
+function SensationCard({
+  label,
+  selected,
+  onClick,
+}: {
+  label: SensationOption;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const Icon = SENSATION_ICON_MAP[label];
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      className={`relative flex flex-col items-center gap-2 rounded-2xl border p-3 transition-all duration-200 ${
+        selected
+          ? "border-[#5B1112]/30 bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/20"
+          : "border-white bg-white/80 text-[#111214]/50 hover:border-[#5B1112]/15 hover:bg-white hover:text-[#5B1112]/70"
+      }`}
+    >
+      <div className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${selected ? "bg-white/15" : "bg-[#5B1112]/5"}`}>
+        {Icon ? (
+          <Icon className="h-[22px] w-[22px]" />
+        ) : (
+          <MinusCircle size={22} />
+        )}
+      </div>
+      <span className="text-center text-[10px] font-medium leading-tight">{label}</span>
+      {selected ? (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-white/30"
+        >
+          <Check size={8} strokeWidth={3} />
+        </motion.div>
+      ) : null}
+    </motion.button>
+  );
+}
+
+// ── Step: Concern ──────────────────────────────────────────────────────────
+
+function StepConcern({
+  data,
+  onUpdate,
+  onNext,
+}: {
+  data: FlowData;
+  onUpdate: (updates: Partial<FlowData>) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div>
+      {/* Hero illustration */}
+      <div className="mb-6 overflow-hidden rounded-[2rem]">
+        <SkinTextureIllustration />
+      </div>
+
+      <StepTitle
+        eyebrow="Motif de consultation"
+        title="Qu'est-ce qui vous préoccupe ?"
+        subtitle="Sélectionnez le motif principal. Votre dermatologue pourra aborder d'autres points lors de la revue."
+      />
+
+      <div className="mb-4 grid grid-cols-2 gap-2.5">
+        {CONCERNS.map((concern) => {
+          const palette = CONCERN_PALETTES[concern.id] ?? CONCERN_PALETTES["autre"];
+          const isSelected = data.concern === concern.id;
+          const Icon = concern.icon;
+
+          return (
+            <motion.button
+              key={concern.id}
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => onUpdate({ concern: concern.id, concernOther: "" })}
+              className={`relative w-full rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
+                isSelected ? palette.active : palette.idle
+              }`}
+            >
+              {/* Color dot */}
+              <div className={`absolute right-3 top-3 h-2 w-2 rounded-full ${
+                isSelected ? "bg-white/60" : palette.dot
+              }`} />
+
+              <div
+                className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-[0.9rem] transition-all ${
+                  isSelected ? palette.iconActive : palette.iconIdle
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+
+              <p className={`text-sm font-medium leading-snug ${isSelected ? "text-white" : "text-[#111214]"}`}>
+                {concern.label}
+              </p>
+              <p className={`mt-0.5 text-[10px] leading-relaxed ${
+                isSelected ? "text-white/55" : "text-[#111214]/38"
+              }`}>
+                {concern.desc}
+              </p>
+
+              {isSelected ? (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white/25"
+                >
+                  <Check size={11} className="text-white" />
+                </motion.div>
+              ) : null}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <AnimatePresence>
+        {data.concern === "autre" ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-2 overflow-hidden"
+          >
+            <textarea
+              rows={2}
+              placeholder="Décrivez brièvement votre préoccupation..."
+              value={data.concernOther}
+              onChange={(event) => onUpdate({ concernOther: event.target.value })}
+              className="w-full resize-none rounded-[1.25rem] border border-white bg-white/80 px-4 py-3 text-sm text-[#111214] outline-none transition-colors placeholder:text-[#111214]/30 focus:border-[#5B1112]/20"
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <ContinueButton
+        onClick={onNext}
+        disabled={!data.concern || (data.concern === "autre" && !data.concernOther.trim())}
+      />
+    </div>
+  );
+}
+
+// ── Step: Body Area ────────────────────────────────────────────────────────
+
+function StepBodyArea({
+  data,
+  onUpdate,
+  onNext,
+}: {
+  data: FlowData;
+  onUpdate: (updates: Partial<FlowData>) => void;
+  onNext: () => void;
+}) {
+  const toggleArea = (areaId: string) => {
+    const next = data.bodyAreas.includes(areaId)
+      ? data.bodyAreas.filter((item) => item !== areaId)
+      : [...data.bodyAreas, areaId];
+    onUpdate({ bodyAreas: next });
+  };
+
+  return (
+    <div>
+      <StepTitle
+        eyebrow="Zone corporelle"
+        title="Où se situe la zone concernée ?"
+        subtitle="Vous pouvez sélectionner plusieurs zones. Cela aide votre dermatologue à orienter son analyse."
+      />
+
+      {/* Body silhouette illustration */}
+      <div className="mb-6 flex items-center justify-center gap-8 overflow-hidden rounded-[2rem] border border-white bg-white/50 py-6 shadow-sm backdrop-blur-sm">
+        <BodySilhouette selectedAreas={data.bodyAreas} />
+        {data.bodyAreas.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col gap-1.5"
+          >
+            {data.bodyAreas.slice(0, 4).map((area) => (
+              <div key={area} className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-[#5B1112]" />
+                <span className="text-xs text-[#111214]/60">
+                  {BODY_AREA_LABELS[area] ?? area}
+                </span>
+              </div>
+            ))}
+            {data.bodyAreas.length > 4 ? (
+              <span className="text-[10px] text-[#111214]/35">
+                +{data.bodyAreas.length - 4} autre{data.bodyAreas.length - 4 > 1 ? "s" : ""}
+              </span>
+            ) : null}
+          </motion.div>
+        ) : (
+          <p className="text-xs text-[#111214]/30 italic">
+            Sélectionnez une zone<br />à gauche
+          </p>
+        )}
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2.5">
+        {BODY_AREAS.map((area) => (
+          <div key={area.id} className="relative">
+            {area.id === "intime" ? (
+              <div className="absolute right-3 top-3 z-10">
+                <Lock
+                  size={11}
+                  className={
+                    data.bodyAreas.includes(area.id) ? "text-white/60" : "text-[#00415E]/40"
+                  }
+                />
+              </div>
+            ) : null}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => toggleArea(area.id)}
+              className={`relative w-full rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
+                data.bodyAreas.includes(area.id)
+                  ? area.id === "intime"
+                    ? "border-[#00415E] bg-[#00415E] shadow-lg shadow-[#00415E]/20"
+                    : "border-[#5B1112] bg-[#5B1112] shadow-lg shadow-[#5B1112]/20"
+                  : area.id === "intime"
+                    ? "border-[#00415E]/15 bg-white/70 hover:border-[#00415E]/30 hover:bg-white"
+                    : "border-white bg-white/70 hover:border-[#5B1112]/15 hover:bg-white"
+              }`}
+            >
+              <p className={`text-sm font-medium leading-snug ${
+                data.bodyAreas.includes(area.id) ? "text-white" : "text-[#111214]"
+              }`}>
+                {area.label}
+              </p>
+              <p className={`mt-0.5 text-[10px] leading-relaxed ${
+                data.bodyAreas.includes(area.id) ? "text-white/55" : "text-[#111214]/38"
+              }`}>
+                {area.desc}
+              </p>
+              {data.bodyAreas.includes(area.id) ? (
+                <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white/20">
+                  <Check size={11} className="text-white" />
+                </div>
+              ) : null}
+            </motion.button>
+          </div>
+        ))}
+      </div>
+
+      {data.bodyAreas.includes("intime") ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 flex items-start gap-3 rounded-[1.25rem] border border-[#00415E]/10 bg-[#00415E]/4 p-4"
+        >
+          <Shield size={14} className="mt-0.5 flex-shrink-0 text-[#00415E]/60" />
+          <p className="text-[10px] leading-relaxed text-[#111214]/50">
+            Vos photos et informations relatives aux zones intimes sont traitées avec une
+            confidentialité renforcée. Seul votre dermatologue assigné y aura accès.
+          </p>
+        </motion.div>
+      ) : null}
+
+      <ContinueButton onClick={onNext} disabled={data.bodyAreas.length === 0} />
+    </div>
+  );
+}
+
+// ── Step: Symptoms ─────────────────────────────────────────────────────────
+
+function StepSymptoms({
+  data,
+  onUpdate,
+  onNext,
+}: {
+  data: FlowData;
+  onUpdate: (updates: Partial<FlowData>) => void;
+  onNext: () => void;
+}) {
+  const [subStep, setSubStep] = useState(0);
+  const currentQuestion = SYMPTOM_QUESTIONS[subStep];
+
+  const getValue = () => {
+    return data.symptoms[currentQuestion.key];
+  };
+
+  const setValue = (value: string | number | string[]) => {
+    onUpdate({
+      symptoms: {
+        ...data.symptoms,
+        [currentQuestion.key]: value,
+      },
+    });
+  };
+
+  const toggleMultiValue = (value: string) => {
+    const next = data.symptoms.sensations.includes(value)
+      ? data.symptoms.sensations.filter((item) => item !== value)
+      : [...data.symptoms.sensations, value];
+    onUpdate({ symptoms: { ...data.symptoms, sensations: next } });
+  };
+
+  const canAdvance = () => {
+    if (currentQuestion.type === "chips") return Boolean(getValue());
+    if (currentQuestion.type === "multi") return data.symptoms.sensations.length > 0;
+    if (currentQuestion.type === "slider") return true;
+    return true;
+  };
+
+  const handleNext = () => {
+    if (subStep < SYMPTOM_QUESTIONS.length - 1) {
+      setSubStep((value) => value + 1);
+      return;
+    }
+    onNext();
+  };
+
+  return (
+    <div>
+      <StepTitle
+        eyebrow="Questions ciblées"
+        title="Quelques précisions utiles"
+        subtitle="Répondez à quelques questions pour aider votre dermatologue à qualifier votre cas."
+      />
+
+      {/* Sub-step progress dots */}
+      <div className="mb-5 flex items-center gap-2">
+        {SYMPTOM_QUESTIONS.map((_, index) => (
+          <motion.div
+            key={index}
+            animate={{
+              width: index === subStep ? 20 : 6,
+              opacity: index <= subStep ? 1 : 0.3,
+            }}
+            transition={{ duration: 0.3 }}
+            className={`h-1.5 rounded-full transition-colors duration-300 ${
+              index < subStep
+                ? "bg-[#5B1112]"
+                : index === subStep
+                  ? "bg-[#5B1112]"
+                  : "bg-[#111214]/12"
+            }`}
+          />
+        ))}
+        <span className="ml-1 text-[9px] uppercase tracking-wider text-[#111214]/30">
+          {subStep + 1}/{SYMPTOM_QUESTIONS.length}
+        </span>
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={subStep}
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="rounded-[2rem] border border-white bg-white/80 p-5 shadow-sm backdrop-blur-sm"
+        >
+          {/* Question number badge */}
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#5B1112]/8 px-3 py-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-[#5B1112]/60">
+              Question {subStep + 1}
+            </span>
+          </div>
+
+          <p className="mb-4 text-sm font-medium leading-snug text-[#111214]">
+            {currentQuestion.label}
+          </p>
+
+          {currentQuestion.type === "chips" ? (
+            <div className="flex flex-wrap gap-2">
+              {currentQuestion.options.map((option) => (
+                <Chip
+                  key={option}
+                  label={option}
+                  selected={getValue() === option}
+                  onClick={() => setValue(option)}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {currentQuestion.type === "multi" ? (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {currentQuestion.options.map((option) => (
+                <SensationCard
+                  key={option}
+                  label={option as SensationOption}
+                  selected={data.symptoms.sensations.includes(option)}
+                  onClick={() => toggleMultiValue(option)}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {currentQuestion.type === "slider" ? (
+            <div className="px-1">
+              <div className="mb-3 flex justify-between">
+                <span className="text-[10px] text-[#111214]/40">Légère</span>
+                <div className="text-center">
+                  <motion.span
+                    key={data.symptoms.severity}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="font-serif text-[#5B1112]"
+                    style={{ fontSize: 32 }}
+                  >
+                    {data.symptoms.severity}
+                  </motion.span>
+                  <span className="text-xs text-[#111214]/35">/10</span>
+                </div>
+                <span className="text-[10px] text-[#111214]/40">Sévère</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={data.symptoms.severity}
+                onChange={(event) => setValue(Number(event.target.value))}
+                className="w-full cursor-pointer accent-[#5B1112]"
+              />
+              <div className="mt-2 flex justify-between px-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1 w-1 rounded-full transition-colors ${
+                      i < data.symptoms.severity ? "bg-[#5B1112]/50" : "bg-[#111214]/10"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {currentQuestion.type === "text" ? (
+            <textarea
+              rows={3}
+              placeholder={currentQuestion.placeholder}
+              value={data.symptoms.previousTreatment}
+              onChange={(event) => setValue(event.target.value)}
+              className="w-full resize-none rounded-[1.25rem] border border-[#111214]/6 bg-[#FEF0D5]/40 px-4 py-3 text-sm text-[#111214] outline-none transition-colors placeholder:text-[#111214]/25 focus:border-[#5B1112]/20"
+            />
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
+
+      <div className="mt-4 flex items-center justify-between">
+        {subStep > 0 ? (
+          <button
+            type="button"
+            onClick={() => setSubStep((value) => value - 1)}
+            className="text-[10px] text-[#111214]/40 transition-colors hover:text-[#111214]/70"
+          >
+            ← Précédent
+          </button>
+        ) : (
+          <div />
+        )}
+        <div />
+      </div>
+
+      <ContinueButton
+        label={
+          subStep < SYMPTOM_QUESTIONS.length - 1
+            ? "Question suivante"
+            : "Continuer vers les photos"
+        }
+        onClick={handleNext}
+        disabled={!canAdvance()}
+      />
+    </div>
+  );
+}
+
+// ── Step: Photo Guide ──────────────────────────────────────────────────────
+
+function StepPhotoGuide({ onNext }: { onNext: () => void }) {
+  return (
+    <div>
+      <StepTitle
+        eyebrow="Guide photo"
+        title="Préparez vos photos"
+        subtitle="Des images de qualité permettent une analyse dermatologique précise. Voici comment les réussir."
+      />
+
+      {/* Phone illustration */}
+      <div className="mb-6 flex items-center justify-center gap-6 overflow-hidden rounded-[2rem] border border-white bg-white/50 py-5">
+        <PhoneCameraIllustration />
+        <div className="flex flex-col gap-2.5 pr-2">
+          {[
+            { num: "1", label: "Lumière naturelle", color: "bg-amber-50 border-amber-100 text-amber-600" },
+            { num: "2", label: "Distance adaptée", color: "bg-sky-50 border-sky-100 text-sky-600" },
+            { num: "3", label: "Mise au point nette", color: "bg-emerald-50 border-emerald-100 text-emerald-600" },
+          ].map((item) => (
+            <div key={item.num} className={`flex items-center gap-2 rounded-xl border px-2.5 py-1.5 ${item.color}`}>
+              <span className="text-[9px] font-bold">{item.num}</span>
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tips */}
+      <div className="mb-5 space-y-3">
+        {PHOTO_TIPS.map((tip, index) => (
+          <motion.div
+            key={tip.title}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1, duration: 0.35 }}
+            className="flex items-start gap-4 rounded-[1.5rem] border border-white bg-white/70 p-4 shadow-sm"
+          >
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[1rem] bg-[#FEF0D5] text-xl">
+              {tip.icon}
+            </div>
+            <div>
+              <p className="mb-0.5 text-sm font-medium text-[#111214]">{tip.title}</p>
+              <p className="text-[10px] leading-relaxed text-[#111214]/45">{tip.desc}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Photos needed */}
+      <div className="mb-5 rounded-[1.5rem] border border-[#FEF0D5] bg-[#FEF0D5]/60 p-5">
+        <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+          3 photos demandées
+        </p>
+        <div className="space-y-2.5">
+          {PHOTO_SLOTS.map((slot, index) => (
+            <div key={slot.key} className="flex items-center gap-3">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-[#5B1112]/10">
+                <span className="text-[10px] font-bold text-[#5B1112]/65">{index + 1}</span>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-[#111214]/70">{slot.label}</p>
+                <p className="text-[10px] text-[#111214]/40">{slot.hint}</p>
+              </div>
+              <span className="ml-auto text-base">{slot.emoji}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-2 flex items-start gap-3 rounded-[1.25rem] border border-[#00415E]/10 bg-[#00415E]/4 p-4">
+        <Shield size={14} className="mt-0.5 flex-shrink-0 text-[#00415E]/55" />
+        <p className="text-[10px] leading-relaxed text-[#111214]/45">
+          Vos photos sont chiffrées de bout en bout et accessibles uniquement à votre
+          dermatologue. Elles ne sont jamais utilisées à des fins commerciales.
+        </p>
+      </div>
+
+      <ContinueButton label="Commencer la capture" onClick={onNext} icon={Camera} />
+    </div>
+  );
+}
+
+// ── Photo Slot ─────────────────────────────────────────────────────────────
+
+function PhotoSlot({
+  slot,
+  photoUrl,
+  onUpload,
+  index,
+}: {
+  slot: (typeof PHOTO_SLOTS)[number];
+  photoUrl: string | null;
+  onUpload: (file: File, url: string) => void;
+  index?: number;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          onUpload(file, URL.createObjectURL(file));
+          if (inputRef.current) {
+            inputRef.current.value = "";
+          }
+        }}
+        className="sr-only"
+      />
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={() => inputRef.current?.click()}
+        className={`relative w-full overflow-hidden rounded-[2rem] transition-all ${
+          photoUrl
+            ? "border border-[#5B1112]/12 shadow-md"
+            : "border-2 border-dashed border-[#111214]/10 bg-white/60 hover:border-[#5B1112]/20 hover:bg-white/80"
+        }`}
+        style={{ aspectRatio: "4 / 3" }}
+      >
+        {photoUrl ? (
+          <>
+            <img src={photoUrl} alt={slot.label} className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-4">
+              <p className="text-xs font-medium text-white/90">{slot.label}</p>
+              <p className="text-[9px] text-white/55">{slot.hint}</p>
+            </div>
+            <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#5B1112] shadow-lg">
+              <Check size={14} className="text-white" />
+            </div>
+            <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1">
+              <div className="flex items-center gap-1">
+                <RefreshCw size={9} className="text-[#111214]/60" />
+                <span className="text-[9px] font-medium text-[#111214]/60">Reprendre</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6">
+            {index !== undefined ? (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-[#5B1112]/20 bg-[#5B1112]/5">
+                <span className="text-sm font-bold text-[#5B1112]/35">{index + 1}</span>
+              </div>
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-[1.1rem] bg-[#5B1112]/6">
+                <Camera size={22} className="text-[#5B1112]/35" />
+              </div>
+            )}
+            <div className="text-center">
+              <p className="mb-0.5 text-sm font-medium text-[#111214]/60">{slot.label}</p>
+              <p className="text-[10px] leading-relaxed text-[#111214]/30">{slot.hint}</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-[#5B1112]/5 px-3 py-1">
+              <span className="text-base">{slot.emoji}</span>
+              <p className="text-[9px] font-medium text-[#5B1112]/55">{slot.sublabel}</p>
+            </div>
+          </div>
+        )}
+      </motion.button>
+    </>
+  );
+}
+
+// ── Step: Photo Upload ─────────────────────────────────────────────────────
+
+function StepPhotoUpload({
+  data,
+  onPhotoUpload,
+  onNext,
+}: {
+  data: FlowData;
+  onPhotoUpload: (slotKey: keyof FlowData["photos"], file: File, url: string) => void;
+  onNext: () => void;
+}) {
+  const uploadedCount = Object.values(data.photos).filter(Boolean).length;
+
+  return (
+    <div>
+      {/* Progress header */}
+      <div className="mb-5 flex items-center justify-between rounded-[1.5rem] border border-white bg-white/70 px-5 py-3.5 shadow-sm">
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+            Capture photos
+          </p>
+          <p className="mt-0.5 text-sm font-medium text-[#111214]">
+            {uploadedCount === 0
+              ? "3 photos à prendre"
+              : uploadedCount < 3
+                ? `${3 - uploadedCount} photo${3 - uploadedCount > 1 ? "s" : ""} restante${3 - uploadedCount > 1 ? "s" : ""}`
+                : "Toutes les photos prises ! ✓"}
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className={`h-2 w-2 rounded-full transition-all duration-400 ${
+                index < uploadedCount
+                  ? "scale-110 bg-[#5B1112]"
+                  : "bg-[#111214]/12"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <StepTitle
+        eyebrow="Photographiez la zone"
+        title="Suivez chaque mission"
+        subtitle="Appuyez sur un cadre pour ouvrir votre appareil photo."
+      />
+
+      <div className="mb-4 space-y-3">
+        {PHOTO_SLOTS.map((slot, index) => (
+          <PhotoSlot
+            key={slot.key}
+            slot={slot}
+            photoUrl={data.photos[slot.key]}
+            onUpload={(file, url) => onPhotoUpload(slot.key, file, url)}
+            index={index}
+          />
+        ))}
+      </div>
+
+      <ContinueButton
+        label={
+          uploadedCount === 0
+            ? "Capturer plus tard"
+            : uploadedCount < 3
+              ? `Continuer (${uploadedCount}/3)`
+              : "Réviser mes photos"
+        }
+        onClick={onNext}
+        icon={uploadedCount === 3 ? Eye : ArrowRight}
+      />
+    </div>
+  );
+}
+
+// ── Step: Photo Review ─────────────────────────────────────────────────────
+
+function StepPhotoReview({
+  data,
+  onPhotoUpload,
+  onNext,
+}: {
+  data: FlowData;
+  onPhotoUpload: (slotKey: keyof FlowData["photos"], file: File, url: string) => void;
+  onNext: () => void;
+}) {
+  const uploadedCount = Object.values(data.photos).filter(Boolean).length;
+
+  return (
+    <div>
+      <StepTitle
+        eyebrow="Révision photos"
+        title="Vérifiez vos images"
+        subtitle="Assurez-vous que chaque photo est nette, bien éclairée et montre clairement la zone concernée."
+      />
+
+      {uploadedCount === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center py-10 text-center"
+        >
+          <PhoneCameraIllustration />
+          <p className="mt-4 text-sm text-[#111214]/40">Aucune photo ajoutée</p>
+          <p className="mt-1 text-[10px] text-[#111214]/25">
+            Vous pourrez en ajouter après la création du dossier
+          </p>
+        </motion.div>
+      ) : (
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {PHOTO_SLOTS.map((slot, index) => (
+            <PhotoSlot
+              key={slot.key}
+              slot={slot}
+              photoUrl={data.photos[slot.key]}
+              onUpload={(file, url) => onPhotoUpload(slot.key, file, url)}
+              index={index}
+            />
+          ))}
+        </div>
+      )}
+
+      {uploadedCount > 0 ? (
+        <div className="mb-2 flex items-start gap-3 rounded-[1.25rem] border border-[#00415E]/8 bg-[#00415E]/4 p-4">
+          <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0 text-[#00415E]/60" />
+          <p className="text-[10px] leading-relaxed text-[#111214]/45">
+            Vos {uploadedCount} photo{uploadedCount > 1 ? "s" : ""} semblent complètes.
+            Votre dermatologue pourra vous demander des photos complémentaires si nécessaire.
+          </p>
+        </div>
+      ) : null}
+
+      <ContinueButton label="Continuer" onClick={onNext} />
+    </div>
+  );
+}
+
+// ── Medical Field ──────────────────────────────────────────────────────────
+
+function MedicalField({
+  label,
+  hint,
+  value,
+  onChange,
+  placeholder,
+  optional = false,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  optional?: boolean;
+}) {
+  return (
+    <div className="mb-4">
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-xs font-medium text-[#111214]/70">{label}</p>
+        {optional ? (
+          <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
+            Facultatif
+          </span>
+        ) : null}
+      </div>
+      {hint ? <p className="mb-2 text-[10px] leading-relaxed text-[#111214]/35">{hint}</p> : null}
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-[1.25rem] border border-white bg-white/70 px-4 py-3 text-sm text-[#111214] outline-none transition-colors placeholder:text-[#111214]/25 focus:border-[#5B1112]/20 focus:bg-white focus:shadow-sm"
+      />
+    </div>
+  );
+}
+
+// ── Step: Medical History ──────────────────────────────────────────────────
+
+function StepMedicalHistory({
+  data,
+  onUpdate,
+  onNext,
+}: {
+  data: FlowData;
+  onUpdate: (updates: Partial<FlowData>) => void;
+  onNext: () => void;
+}) {
+  const updateField = (key: keyof FlowData["medical"], value: string) => {
+    onUpdate({ medical: { ...data.medical, [key]: value } });
+  };
+
+  return (
+    <div>
+      <StepTitle
+        eyebrow="Contexte médical"
+        title="Quelques informations utiles"
+        subtitle="Ces éléments aident votre dermatologue à proposer un avis adapté. Toutes les questions sont facultatives."
+      />
+
+      {/* Skin type selector */}
+      <div className="mb-5 rounded-[2rem] border border-white bg-white/70 p-5 shadow-sm">
+        <p className="mb-1 text-xs font-medium text-[#111214]/70">Phototype cutané</p>
+        <p className="mb-3 text-[10px] leading-relaxed text-[#111214]/35">
+          Aide à calibrer les recommandations selon votre teinte de peau.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SKIN_TYPES.map((skinType) => (
+            <motion.button
+              key={skinType.id}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => updateField("skinType", skinType.id)}
+              className={`rounded-[1rem] border px-3 py-2 text-xs transition-all ${
+                data.medical.skinType === skinType.id
+                  ? "border-[#5B1112] bg-[#5B1112] text-white shadow-md shadow-[#5B1112]/15"
+                  : "border-white bg-white/70 text-[#111214]/60 hover:bg-white"
+              }`}
+            >
+              <span className="font-medium">{skinType.label}</span>
+              <span
+                className={`ml-1 text-[9px] ${
+                  data.medical.skinType === skinType.id
+                    ? "text-white/55"
+                    : "text-[#111214]/30"
+                }`}
+              >
+                {skinType.desc}
+              </span>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Medical fields */}
+      <div className="rounded-[2rem] border border-white bg-white/70 p-5 shadow-sm">
+        <MedicalField
+          label="Allergies connues"
+          hint="Médicaments, cosmétiques, aliments, ou autres."
+          value={data.medical.allergies}
+          onChange={(value) => updateField("allergies", value)}
+          placeholder="Ex. : pénicilline, parfums synthétiques..."
+          optional
+        />
+        <MedicalField
+          label="Antécédent dermatologique"
+          hint="Ancien diagnostic, traitement suivi, ou condition chronique."
+          value={data.medical.previousDiagnosis}
+          onChange={(value) => updateField("previousDiagnosis", value)}
+          placeholder="Ex. : psoriasis, dermite atopique..."
+          optional
+        />
+        <MedicalField
+          label="Médicaments actuels"
+          hint="Traitements en cours, y compris topiques et traditionnels."
+          value={data.medical.medications}
+          onChange={(value) => updateField("medications", value)}
+          placeholder="Ex. : cortisone, antihistaminiques..."
+          optional
+        />
+        <MedicalField
+          label="Terrain chronique"
+          hint="Ex. diabète, asthme, maladie auto-immune."
+          value={data.medical.chronicCondition}
+          onChange={(value) => updateField("chronicCondition", value)}
+          placeholder="Condition chronique éventuelle"
+          optional
+        />
+        <div className="mb-0">
+          <p className="mb-1.5 text-xs font-medium text-[#111214]/70">
+            Grossesse ou allaitement
+          </p>
+          <div className="flex gap-2">
+            {["Oui", "Non", "Non applicable"].map((option) => (
+              <Chip
+                key={option}
+                label={option}
+                selected={data.medical.pregnancy === option}
+                onClick={() => updateField("pregnancy", option)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <ContinueButton label="Continuer" onClick={onNext} />
+    </div>
+  );
+}
+
+// ── Step: Consent ──────────────────────────────────────────────────────────
+
+function StepConsent({
+  data,
+  onUpdate,
+  onNext,
+}: {
+  data: FlowData;
+  onUpdate: (updates: Partial<FlowData>) => void;
+  onNext: () => void;
+}) {
+  const toggle = (key: keyof FlowData["consent"]) => {
+    onUpdate({
+      consent: {
+        ...data.consent,
+        [key]: !data.consent[key],
+      },
+    });
+  };
+
+  const canContinue = data.consent.caseReview && data.consent.photoUse;
+
+  return (
+    <div>
+      {/* Shield illustration */}
+      <div className="mb-6 flex items-center justify-center overflow-hidden rounded-[2rem] border border-white bg-white/50 py-4 shadow-sm">
+        <ShieldIllustration />
+        <div className="ml-2 pr-4">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#00415E]/55">
+            Données protégées
+          </p>
+          <p className="mt-1 font-serif text-base text-[#111214]/75">
+            Chiffrement de bout en bout
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {["RGPD", "ISO 27001", "Données médicales"].map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-[#00415E]/15 bg-[#00415E]/5 px-2 py-0.5 text-[8.5px] font-medium text-[#00415E]/65"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <StepTitle
+        eyebrow="Consentement & confidentialité"
+        title="Avant d'envoyer votre dossier"
+        subtitle="Deux points importants à confirmer. Votre accord est nécessaire pour la transmission de votre dossier."
+      />
+
+      <div className="mb-5 space-y-3">
+        {[
+          {
+            key: "caseReview" as const,
+            title: "Examen de mon dossier médical",
+            body: "J'autorise un dermatologue qualifié de la plateforme Melanis à analyser mes informations et photos médicales dans le cadre exclusif de cette téléconsultation.",
+          },
+          {
+            key: "photoUse" as const,
+            title: "Utilisation de mes photos",
+            body: "J'accepte que mes photos soient utilisées uniquement dans le cadre de mon suivi dermatologique. Elles ne seront jamais partagées à des tiers ni utilisées à des fins commerciales.",
+          },
+        ].map((item) => (
+          <motion.button
+            key={item.key}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => toggle(item.key)}
+            className={`w-full rounded-[1.75rem] border p-5 text-left transition-all ${
+              data.consent[item.key]
+                ? "border-[#5B1112]/20 bg-white shadow-sm"
+                : "border-white bg-white/60 hover:bg-white/80"
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[0.6rem] border-2 transition-all ${
+                  data.consent[item.key]
+                    ? "border-[#5B1112] bg-[#5B1112]"
+                    : "border-[#111214]/15 bg-transparent"
+                }`}
+              >
+                {data.consent[item.key] ? <Check size={12} className="text-white" /> : null}
+              </div>
+              <div className="flex-1">
+                <p className="mb-1.5 text-sm font-medium text-[#111214]">{item.title}</p>
+                <p className="text-[10px] leading-relaxed text-[#111214]/45">{item.body}</p>
+              </div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+
+      <div className="mb-2 flex items-start gap-3 rounded-[1.25rem] border border-[#5B1112]/8 bg-[#5B1112]/4 p-4">
+        <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-[#5B1112]/55" />
+        <p className="text-[10px] leading-relaxed text-[#111214]/50">
+          Ce service de télé-dermatologie ne remplace pas une consultation d'urgence. En
+          cas de symptômes aigus, veuillez consulter un médecin ou contacter le 15.
+        </p>
+      </div>
+
+      <ContinueButton
+        label="Confirmer et continuer"
+        onClick={onNext}
+        disabled={!canContinue}
+      />
+    </div>
+  );
+}
+
+// ── Review Block ───────────────────────────────────────────────────────────
+
+function ReviewBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 rounded-[1.75rem] border border-white bg-white/70 p-4 shadow-sm">
+      <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+// ── Step: Review ───────────────────────────────────────────────────────────
+
+function StepReview({
+  data,
+  isSubmitting,
+  saveState,
+  hasDraft,
+  onSubmit,
+}: {
+  data: FlowData;
+  isSubmitting: boolean;
+  saveState: string;
+  hasDraft: boolean;
+  onSubmit: () => void;
+}) {
+  const photoCount = Object.values(data.photos).filter(Boolean).length;
+  const hasMinimumRequiredPhotos = Boolean(data.photos.overview && data.photos.closeup);
+
+  return (
+    <div>
+      {/* Review illustration */}
+      <div className="mb-6 flex items-center justify-center overflow-hidden rounded-[2rem] border border-white bg-white/50 py-5 shadow-sm">
+        <ReviewIllustration />
+        <div className="ml-2 pr-4">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#5B1112]/55">
+            Dossier prêt
+          </p>
+          <p className="mt-1 font-serif text-base text-[#111214]/75">
+            Votre dossier est complet
+          </p>
+          <div className="mt-2 flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1.5 shadow-sm">
+            <FileText size={12} className="text-[#5B1112]/50" />
+            <span className="text-[10px] text-[#111214]/55">
+              {isSubmitting ? "Envoi en cours..." : saveState}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <StepTitle
+        eyebrow="Récapitulatif"
+        title="Votre dossier en un coup d'œil"
+        subtitle="Vérifiez les informations avant d'envoyer votre dossier à un dermatologue."
+      />
+
+      <ReviewBlock title="Symptômes ressentis">
+        {data.symptoms.sensations.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {data.symptoms.sensations.map((sensation) => {
+              const Icon = SENSATION_ICON_MAP[sensation as SensationOption] ?? MinusCircle;
+              return (
+                <div
+                  key={sensation}
+                  className="flex items-center gap-1.5 rounded-full border border-[#5B1112]/10 bg-[#5B1112]/6 px-3 py-1.5"
+                >
+                  <Icon className="h-3.5 w-3.5 text-[#5B1112]/60" />
+                  <span className="text-[10px] font-medium text-[#5B1112]/80">{sensation}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[11px] text-[#111214]/40">Aucun symptôme renseigné</p>
+        )}
+      </ReviewBlock>
+
+      <ReviewBlock title="Zone corporelle">
+        <div className="flex flex-wrap gap-1.5">
+          {data.bodyAreas.map((area) => (
+            <span
+              key={area}
+              className="rounded-full bg-[#FEF0D5] px-3 py-1.5 text-[10px] font-medium text-[#111214]/65"
+            >
+              {BODY_AREA_LABELS[area] ?? area}
+            </span>
+          ))}
+        </div>
+      </ReviewBlock>
+
+      <ReviewBlock title="Évolution & intensité">
+        <div className="space-y-2">
+          {data.symptoms.duration ? (
+            <div className="flex items-center gap-2">
+              <Clock size={12} className="text-[#111214]/30" />
+              <p className="text-[10px] text-[#111214]/55">{data.symptoms.duration}</p>
+            </div>
+          ) : null}
+          {data.symptoms.evolution ? (
+            <p className="text-[10px] text-[#111214]/55">
+              Évolution : {data.symptoms.evolution}
+            </p>
+          ) : null}
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
+              Intensité
+            </span>
+            <div className="flex gap-0.5">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-1.5 w-3 rounded-full ${
+                    index < data.symptoms.severity ? "bg-[#5B1112]" : "bg-[#111214]/8"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-[10px] font-medium text-[#5B1112]">
+              {data.symptoms.severity}/10
+            </span>
+          </div>
+        </div>
+      </ReviewBlock>
+
+      <ReviewBlock title={`Photos (${photoCount}/3)`}>
+        <div className="flex gap-2">
+          {PHOTO_SLOTS.map((slot) =>
+            data.photos[slot.key] ? (
+              <div
+                key={slot.key}
+                className="relative h-16 w-16 overflow-hidden rounded-[1rem]"
+              >
+                <img
+                  src={data.photos[slot.key] ?? ""}
+                  alt={slot.label}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/15" />
+              </div>
+            ) : (
+              <div
+                key={slot.key}
+                className="flex h-16 w-16 items-center justify-center rounded-[1rem] border-2 border-dashed border-[#111214]/8 bg-[#111214]/5"
+              >
+                <Camera size={14} className="text-[#111214]/20" />
+              </div>
+            ),
+          )}
+        </div>
+        {!hasMinimumRequiredPhotos ? (
+          <p className="mt-2 text-[10px] text-amber-600">
+            ⚠ La vue d'ensemble et le gros plan sont requis pour soumettre.
+          </p>
+        ) : null}
+      </ReviewBlock>
+
+      <ReviewBlock title="Consentement">
+        <div className="space-y-2">
+          {[
+            { key: "caseReview" as const, label: "Examen du dossier autorisé" },
+            { key: "photoUse" as const, label: "Utilisation des photos acceptée" },
+          ].map((item) => (
+            <div key={item.key} className="flex items-center gap-2">
+              <div
+                className={`flex h-4 w-4 items-center justify-center rounded-full ${
+                  data.consent[item.key] ? "bg-[#5B1112]" : "bg-[#111214]/10"
+                }`}
+              >
+                {data.consent[item.key] ? <Check size={8} className="text-white" /> : null}
+              </div>
+              <p className="text-[10px] text-[#111214]/55">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </ReviewBlock>
+
+      <div className="mb-2 flex items-start gap-3 rounded-[1.25rem] border border-[#00415E]/8 bg-[#00415E]/4 p-4">
+        <FileText size={14} className="mt-0.5 flex-shrink-0 text-[#00415E]/55" />
+        <p className="text-[10px] leading-relaxed text-[#111214]/45">
+          Une fois envoyé, votre dossier sera examiné par un dermatologue qualifié dans
+          un délai de 24 à 48h. Vous serez notifié dès qu'une réponse sera disponible.
+        </p>
+      </div>
+
+      <ContinueButton
+        label={isSubmitting ? "Envoi en cours..." : "Envoyer mon dossier"}
+        onClick={onSubmit}
+        disabled={!hasDraft || isSubmitting || !hasMinimumRequiredPhotos}
+        icon={Send}
+      />
+    </div>
+  );
+}
+
+// ── Step: Success ──────────────────────────────────────────────────────────
+
+function StepSuccess({
+  caseId,
+  onViewCase,
+  onDashboard,
+}: {
+  caseId: string | null;
+  onViewCase: () => void;
+  onDashboard: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      {/* Animated success rings */}
+      <div className="relative mb-6 mt-2 flex items-center justify-center">
+        {[80, 108, 136].map((size, i) => (
+          <motion.div
+            key={size}
+            className="absolute rounded-full border border-[#5B1112]/10"
+            style={{ width: size, height: size }}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3 + i * 0.12, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          />
+        ))}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.1 }}
+          className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[#5B1112]"
+        >
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.3 }}
+          >
+            <Check size={36} className="text-white" strokeWidth={2.5} />
+          </motion.div>
+        </motion.div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45, duration: 0.4 }}
+      >
+        <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
+          Dossier envoyé avec succès
+        </p>
+        <h2
+          className="mb-2 font-serif text-[#111214]"
+          style={{ fontSize: 26, lineHeight: 1.2 }}
+        >
+          Votre dossier est entre de bonnes mains
+        </h2>
+        <p className="mx-auto mb-5 max-w-xs text-xs leading-relaxed text-[#111214]/45">
+          Un dermatologue qualifié va examiner votre dossier et vous transmettre son avis
+          médical personnalisé sous 48h.
+        </p>
+
+        <div className="mb-6 inline-flex items-center gap-2 rounded-[1.25rem] border border-white bg-white/80 px-4 py-2.5 shadow-sm">
+          <FileText size={13} className="text-[#5B1112]/50" />
+          <span className="text-xs text-[#111214]/60">Référence :</span>
+          <span className="text-xs font-semibold text-[#111214]">
+            {createCaseReference(caseId)}
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Next steps */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.58, duration: 0.4 }}
+        className="mb-5 w-full overflow-hidden rounded-[2rem] border border-white bg-white/70 shadow-sm"
+      >
+        <div className="border-b border-[#111214]/5 px-5 py-3.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
+            Prochaines étapes
+          </p>
+        </div>
+        <div className="divide-y divide-[#111214]/5">
+          {[
+            {
+              icon: Clock,
+              label: "Revue sous 24–48h",
+              desc: "Votre dermatologue examine votre dossier et rédige son avis.",
+              color: "bg-amber-50 text-amber-600",
+            },
+            {
+              icon: CheckCircle2,
+              label: "Notification de réponse",
+              desc: "Vous recevrez une notification dès que l'avis sera disponible.",
+              color: "bg-emerald-50 text-emerald-600",
+            },
+            {
+              icon: FileText,
+              label: "Consultation du rapport",
+              desc: "Accédez au rapport médical détaillé depuis votre espace.",
+              color: "bg-sky-50 text-sky-600",
+            },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-4 px-5 py-4">
+              <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[0.9rem] ${item.color}`}>
+                <item.icon size={16} strokeWidth={1.8} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-xs font-medium text-[#111214]">{item.label}</p>
+                <p className="mt-0.5 text-[10px] leading-snug text-[#111214]/40">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Melanis mascot tip */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.72 }}
+        className="mb-6 flex w-full items-start gap-3 text-left"
+      >
+        <MelaniaMascot size={44} delay={0.78} animated={false} />
+        <div className="flex-1 rounded-[1.5rem] border border-white/80 bg-white/70 px-4 py-3 shadow-sm">
+          <p className="text-[10px] italic leading-snug text-[#111214]/50">
+            "En attendant la réponse, continuez votre routine habituelle et évitez
+            d'expérimenter de nouveaux produits sur la zone concernée."
+          </p>
+          <p className="mt-1.5 text-[8.5px] font-semibold uppercase tracking-wider text-[#5B1112]/45">
+            Mélania · Guide peau
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.84 }}
+        className="flex w-full flex-col gap-2.5"
+      >
+        <motion.button
+          whileHover={{ scale: 1.01, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onViewCase}
+          className="flex items-center justify-center gap-2.5 rounded-[1.5rem] bg-[#5B1112] py-4 text-sm font-medium text-white shadow-lg shadow-[#5B1112]/25"
+        >
+          <Eye size={15} />
+          <span>Suivre mon dossier</span>
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onDashboard}
+          className="flex items-center justify-center gap-2 rounded-[1.5rem] border border-white bg-white/70 py-4 text-sm font-medium text-[#111214]/55 transition-all hover:bg-white"
+        >
+          Retour à l'accueil
+        </motion.button>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────
 
 export default function PatientTeledermComposeScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [step, setStep] = useState<Step>("concern");
+  const [direction, setDirection] = useState(1);
+  const [data, setData] = useState<FlowData>(INITIAL_DATA);
+  const [photoFiles, setPhotoFiles] = useState<PhotoFiles>({
+    overview: null,
+    medium: null,
+    closeup: null,
+  });
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [conditionKey, setConditionKey] = useState<string>("acne");
-  const [bodyArea, setBodyArea] = useState<string>("Visage");
-  const [patientSummary, setPatientSummary] = useState("");
-  const [duration, setDuration] = useState("");
-  const [symptoms, setSymptoms] = useState("");
-  const [contextNotes, setContextNotes] = useState("");
-  const [closePhotos, setClosePhotos] = useState<LocalPhoto[]>([]);
-  const [contextPhotos, setContextPhotos] = useState<LocalPhoto[]>([]);
-  const [detailPhotos, setDetailPhotos] = useState<LocalPhoto[]>([]);
+  const [submittedCaseId, setSubmittedCaseId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveState, setSaveState] = useState("Initialisation du brouillon...");
@@ -112,24 +2364,42 @@ export default function PatientTeledermComposeScreen() {
 
   const questionnaireData = useMemo(
     () => ({
-      duration,
-      symptoms,
-      contextNotes,
-      selectedBodyAreas: [bodyArea],
-      motif: conditionKey,
+      bodyAreas: data.bodyAreas,
+      symptoms: data.symptoms,
+      medical: data.medical,
+      consent: data.consent,
+      photoSlotsCompleted: PHOTO_SLOTS.map((slot) => ({
+        key: slot.key,
+        label: slot.label,
+        present: Boolean(data.photos[slot.key]),
+      })),
     }),
-    [bodyArea, conditionKey, contextNotes, duration, symptoms],
+    [data],
+  );
+
+  const patientSummary = useMemo(() => buildPatientSummary(data), [data]);
+  const primaryConditionKey = useMemo(() => {
+    const s = data.symptoms.sensations;
+    if (s.includes("Démangeaisons")) return "rougeurs";
+    if (s.includes("Rougeur")) return "rougeurs";
+    if (s.includes("Brûlure") || s.includes("Douleur")) return "eczema";
+    return "autre";
+  }, [data.symptoms.sensations]);
+  const primaryBodyArea = useMemo(
+    () => bodyAreaToBackendLabel(data.bodyAreas[0] ?? "autre"),
+    [data.bodyAreas],
   );
 
   useEffect(() => {
     if (!auth.user || !auth.actingProfileId || draftId) return;
+
     let mounted = true;
     auth.accountAdapter
       .createAsyncCase({
         actorUserId: auth.user.id,
         profileId: auth.actingProfileId,
-        conditionKey,
-        bodyArea,
+        conditionKey: primaryConditionKey,
+        bodyArea: primaryBodyArea,
         patientSummary,
         questionnaireData,
       })
@@ -138,6 +2408,7 @@ export default function PatientTeledermComposeScreen() {
         setDraftId(draft.id);
         setSaveState("Brouillon prêt");
       });
+
     return () => {
       mounted = false;
     };
@@ -145,52 +2416,80 @@ export default function PatientTeledermComposeScreen() {
     auth.accountAdapter,
     auth.actingProfileId,
     auth.user,
-    bodyArea,
-    conditionKey,
     draftId,
     patientSummary,
+    primaryBodyArea,
+    primaryConditionKey,
     questionnaireData,
   ]);
 
   useEffect(() => {
-    if (!auth.user || !draftId) return;
+    if (!auth.user || !draftId || step === "success") return;
+
+    const actorUserId = auth.user.id;
     const timeout = window.setTimeout(() => {
       setIsSaving(true);
       auth.accountAdapter
         .updateAsyncCase({
-          actorUserId: auth.user!.id,
+          actorUserId,
           caseId: draftId,
-          conditionKey,
-          bodyArea,
+          conditionKey: primaryConditionKey,
+          bodyArea: primaryBodyArea,
           patientSummary,
           questionnaireData,
         })
         .then(() => setSaveState("Modifications enregistrées"))
         .finally(() => setIsSaving(false));
-    }, 500);
+    }, 450);
+
     return () => window.clearTimeout(timeout);
   }, [
     auth.accountAdapter,
     auth.user,
-    bodyArea,
-    conditionKey,
     draftId,
+    primaryConditionKey,
+    primaryBodyArea,
     patientSummary,
     questionnaireData,
+    step,
   ]);
 
-  function addPhotos(
-    setter: React.Dispatch<React.SetStateAction<LocalPhoto[]>>,
-    files: FileList,
-  ) {
-    const next = Array.from(files).map((file) => ({
-      id: randomPhotoId(),
-      url: URL.createObjectURL(file),
-      name: file.name,
-      file,
+  const goTo = (nextStep: Step, nextDirection: number) => {
+    setDirection(nextDirection);
+    setStep(nextStep);
+  };
+
+  const goNext = () => {
+    const currentIndex = STEP_ORDER.indexOf(step);
+    if (currentIndex < STEP_ORDER.length - 1) {
+      goTo(STEP_ORDER[currentIndex + 1], 1);
+    }
+  };
+
+  const goBack = () => {
+    const currentIndex = STEP_ORDER.indexOf(step);
+    if (currentIndex > 0) {
+      goTo(STEP_ORDER[currentIndex - 1], -1);
+      return;
+    }
+    navigate("/patient-flow/auth/telederm");
+  };
+
+  const updateData = (updates: Partial<FlowData>) => {
+    setData((current) => ({ ...current, ...updates }));
+  };
+
+  const updatePhoto = (
+    slotKey: keyof FlowData["photos"],
+    file: File,
+    url: string,
+  ) => {
+    setPhotoFiles((current) => ({ ...current, [slotKey]: file }));
+    setData((current) => ({
+      ...current,
+      photos: { ...current.photos, [slotKey]: url },
     }));
-    setter((current) => [...current, ...next].slice(0, 4));
-  }
+  };
 
   async function handleLogout() {
     await auth.logout();
@@ -199,49 +2498,44 @@ export default function PatientTeledermComposeScreen() {
 
   async function handleSubmit() {
     if (!auth.user || !draftId) return;
+
+    const actorUserId = auth.user.id;
     setIsSubmitting(true);
     try {
-      const closeAssetIds = await uploadFiles(
-        auth.accountAdapter,
-        auth.user.id,
-        draftId,
-        bodyArea,
-        conditionKey,
-        "close",
-        closePhotos,
+      const uploadedAssets = await Promise.all(
+        PHOTO_SLOTS.map((slot) =>
+          uploadPhotoSlot(
+            auth.accountAdapter,
+            actorUserId,
+            draftId,
+            primaryBodyArea,
+            primaryConditionKey,
+            slot,
+            photoFiles[slot.key],
+          ),
+        ),
       );
-      const contextAssetIds = await uploadFiles(
-        auth.accountAdapter,
-        auth.user.id,
-        draftId,
-        bodyArea,
-        conditionKey,
-        "context",
-        contextPhotos,
-      );
-      await uploadFiles(
-        auth.accountAdapter,
-        auth.user.id,
-        draftId,
-        bodyArea,
-        conditionKey,
-        "detail",
-        detailPhotos,
-      );
+
       await auth.accountAdapter.updateAsyncCase({
-        actorUserId: auth.user.id,
+        actorUserId,
         caseId: draftId,
-        conditionKey,
-        bodyArea,
+        conditionKey: primaryConditionKey,
+        bodyArea: primaryBodyArea,
         patientSummary,
-        questionnaireData,
+        questionnaireData: {
+          ...questionnaireData,
+          uploadedAssetIds: uploadedAssets.filter(Boolean).map((item) => item?.id),
+        },
       });
+
       await auth.accountAdapter.submitAsyncCase({
-        actorUserId: auth.user.id,
+        actorUserId,
         caseId: draftId,
-        message: `${patientSummary}\nPhotos jointes: ${closeAssetIds.length + contextAssetIds.length + detailPhotos.length}`,
+        message: patientSummary,
       });
-      navigate(`/patient-flow/auth/telederm/cases/${draftId}`);
+
+      setSubmittedCaseId(draftId);
+      goTo("success", 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -249,184 +2543,89 @@ export default function PatientTeledermComposeScreen() {
 
   return (
     <DashboardLayout fullName={fullName} onLogout={handleLogout}>
-      <div className="space-y-6">
-        <section className="rounded-[2rem] bg-[#111214] p-6 text-white shadow-[0_18px_48px_rgba(17,18,20,0.18)]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/42">
-            Nouveau cas télé-derm
-          </p>
-          <h1 className="mt-3 font-serif text-[2rem] leading-none">
-            Questionnaire, photos guidées, puis envoi au dermatologue.
-          </h1>
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/12 px-4 py-2 text-sm text-white/68">
-            <SaveAll size={15} />
-            {isSaving ? "Enregistrement..." : saveState}
+      <div className="mx-auto max-w-[42rem] pb-20 lg:pb-10">
+        {/* Progress + back */}
+        {step !== "success" ? (
+          <div className="mb-2">
+            <ProgressBar step={step} />
+            <BackButton onClick={goBack} />
           </div>
-        </section>
+        ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <div className="rounded-[2rem] border border-white/70 bg-white/82 p-6 shadow-[0_8px_32px_rgba(17,18,20,0.05)]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
-                Questionnaire
-              </p>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Motif principal</span>
-                  <select
-                    value={conditionKey}
-                    onChange={(event) => setConditionKey(event.target.value)}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/45 px-4 py-3 text-sm outline-none"
-                  >
-                    {MOTIF_OPTIONS.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Zone concernée</span>
-                  <select
-                    value={bodyArea}
-                    onChange={(event) => setBodyArea(event.target.value)}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/45 px-4 py-3 text-sm outline-none"
-                  >
-                    {BODY_AREAS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Expliquez le problème</span>
-                  <textarea
-                    value={patientSummary}
-                    onChange={(event) => setPatientSummary(event.target.value)}
-                    rows={4}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/35 px-4 py-3 text-sm outline-none"
-                    placeholder="Depuis quand ? Qu'est-ce qui vous inquiète ?"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Depuis quand ?</span>
-                  <input
-                    value={duration}
-                    onChange={(event) => setDuration(event.target.value)}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/35 px-4 py-3 text-sm outline-none"
-                    placeholder="Ex. 3 semaines"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Symptômes associés</span>
-                  <input
-                    value={symptoms}
-                    onChange={(event) => setSymptoms(event.target.value)}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/35 px-4 py-3 text-sm outline-none"
-                    placeholder="Démangeaisons, douleur, suintement..."
-                  />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-[#111214]/78">Contexte utile</span>
-                  <textarea
-                    value={contextNotes}
-                    onChange={(event) => setContextNotes(event.target.value)}
-                    rows={3}
-                    className="w-full rounded-[1rem] border border-[#111214]/8 bg-[#FEF0D5]/35 px-4 py-3 text-sm outline-none"
-                    placeholder="Produits utilisés, évolution, facteur déclenchant..."
-                  />
-                </label>
-              </div>
-            </div>
+        {/* Draft status pill (only during non-success steps) */}
+        {step !== "success" ? (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-5 flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-4 py-2 shadow-sm"
+          >
+            <motion.div
+              animate={{ opacity: isSaving ? [1, 0.3, 1] : 1 }}
+              transition={isSaving ? { duration: 1, repeat: Infinity } : {}}
+              className={`h-1.5 w-1.5 rounded-full ${isSaving ? "bg-amber-400" : "bg-emerald-400"}`}
+            />
+            <span className="text-[10px] text-[#111214]/50">
+              {isSaving ? "Enregistrement..." : saveState}
+            </span>
+            <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-[#111214]/25">
+              Télé-Derm
+            </span>
+          </motion.div>
+        ) : null}
 
-            <div className="rounded-[2rem] border border-white/70 bg-white/82 p-6 shadow-[0_8px_32px_rgba(17,18,20,0.05)]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
-                Photos guidées
-              </p>
-              <div className="mt-5 space-y-8">
-                <div>
-                  <h2 className="mb-3 text-lg font-semibold text-[#111214]">1. Photo de près</h2>
-                  <StepPhotos
-                    photos={closePhotos}
-                    appointmentType="video"
-                    motif={conditionKey}
-                    zones={[bodyArea]}
-                    onAddPhotos={(files) => addPhotos(setClosePhotos, files)}
-                    onRemovePhoto={(photoId) =>
-                      setClosePhotos((current) => current.filter((item) => item.id !== photoId))
-                    }
-                  />
-                </div>
-                <div>
-                  <h2 className="mb-3 text-lg font-semibold text-[#111214]">2. Photo de contexte</h2>
-                  <StepPhotos
-                    photos={contextPhotos}
-                    appointmentType="video"
-                    motif={conditionKey}
-                    zones={[bodyArea]}
-                    onAddPhotos={(files) => addPhotos(setContextPhotos, files)}
-                    onRemovePhoto={(photoId) =>
-                      setContextPhotos((current) => current.filter((item) => item.id !== photoId))
-                    }
-                  />
-                </div>
-                <div>
-                  <h2 className="mb-3 text-lg font-semibold text-[#111214]">3. Détails optionnels</h2>
-                  <StepPhotos
-                    photos={detailPhotos}
-                    appointmentType="presentiel"
-                    motif={conditionKey}
-                    zones={[bodyArea]}
-                    onAddPhotos={(files) => addPhotos(setDetailPhotos, files)}
-                    onRemovePhoto={(photoId) =>
-                      setDetailPhotos((current) => current.filter((item) => item.id !== photoId))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="h-fit rounded-[2rem] border border-white/70 bg-white/82 p-6 shadow-[0_8px_32px_rgba(17,18,20,0.05)]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
-              Relecture
-            </p>
-            <h2 className="mt-2 font-serif text-[1.6rem] text-[#111214]">
-              Prêt à envoyer
-            </h2>
-            <div className="mt-5 space-y-3 rounded-[1.5rem] bg-[#FEF0D5]/60 p-4">
-              {[
-                ["Motif", conditionKey],
-                ["Zone", bodyArea],
-                ["Résumé", patientSummary || "À compléter"],
-                ["Photos", `${closePhotos.length + contextPhotos.length + detailPhotos.length} fichier(s)`],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-start justify-between gap-4">
-                  <span className="text-xs uppercase tracking-[0.16em] text-[#111214]/36">{label}</span>
-                  <span className="text-right text-sm text-[#111214]/72">{value}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 rounded-[1.25rem] border border-[#5B1112]/12 bg-[#5B1112]/[0.04] p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 text-[#5B1112]" size={18} />
-                <p className="text-sm leading-6 text-[#111214]/66">
-                  Pour soumettre le cas, il faut au minimum une photo de près et
-                  une photo de contexte.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              disabled={isSubmitting || !draftId || closePhotos.length === 0 || contextPhotos.length === 0 || patientSummary.trim().length < 10}
-              onClick={() => void handleSubmit()}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#5B1112] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? "Envoi..." : "Envoyer au dermatologue"}
-              <ArrowRight size={16} />
-            </button>
-          </div>
-        </section>
+        {/* Step content */}
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={step}
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {step === "concern" ? (
+              <StepConcern data={data} onUpdate={updateData} onNext={goNext} />
+            ) : null}
+            {step === "body-area" ? (
+              <StepBodyArea data={data} onUpdate={updateData} onNext={goNext} />
+            ) : null}
+            {step === "symptoms" ? (
+              <StepSymptoms data={data} onUpdate={updateData} onNext={goNext} />
+            ) : null}
+            {step === "photo-guide" ? <StepPhotoGuide onNext={goNext} /> : null}
+            {step === "photo-upload" ? (
+              <StepPhotoUpload data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
+            ) : null}
+            {step === "photo-review" ? (
+              <StepPhotoReview data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
+            ) : null}
+            {step === "medical-history" ? (
+              <StepMedicalHistory data={data} onUpdate={updateData} onNext={goNext} />
+            ) : null}
+            {step === "consent" ? (
+              <StepConsent data={data} onUpdate={updateData} onNext={goNext} />
+            ) : null}
+            {step === "review" ? (
+              <StepReview
+                data={data}
+                isSubmitting={isSubmitting}
+                saveState={saveState}
+                hasDraft={Boolean(draftId)}
+                onSubmit={() => void handleSubmit()}
+              />
+            ) : null}
+            {step === "success" ? (
+              <StepSuccess
+                caseId={submittedCaseId}
+                onViewCase={() =>
+                  navigate(`/patient-flow/auth/telederm/cases/${submittedCaseId ?? draftId ?? ""}`)
+                }
+                onDashboard={() => navigate("/patient-flow/auth/dashboard")}
+              />
+            ) : null}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </DashboardLayout>
   );

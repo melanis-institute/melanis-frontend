@@ -5,6 +5,7 @@ import {
   FileText,
   Home,
   LogOut,
+  MessagesSquare,
   ScanFace,
   Search,
   User,
@@ -19,6 +20,7 @@ const PATHS = {
   appointments: "/patient-flow/auth/dashboard#appointments",
   records: "/patient-flow/auth/dashboard#records",
   documents: "/patient-flow/auth/dashboard/documents",
+  telederm: "/patient-flow/auth/telederm",
   profile: "/patient-flow/account",
   scan: "/patient-flow/auth/dashboard#scan",
 } as const;
@@ -177,6 +179,12 @@ export function DashboardLayout({
   const menuItems = [
     { icon: Home, label: "Accueil", path: PATHS.home, exact: true },
     { icon: Calendar, label: "Agenda", path: PATHS.appointments, exact: true },
+    {
+      icon: MessagesSquare,
+      label: "Télé-derm",
+      path: PATHS.telederm,
+      exact: false,
+    },
     { icon: FileText, label: "Dossier", path: PATHS.records, exact: true },
     { icon: User, label: "Profil", path: PATHS.profile, exact: true },
   ];
@@ -186,10 +194,13 @@ export function DashboardLayout({
 
   const isRecords =
     isPath(PATHS.records, true) || location.pathname.startsWith(PATHS.documents);
+  const isTelederm = isPath(PATHS.telederm, false);
   const isScan = isPath(PATHS.scan, true);
   const pageTitle = location.pathname.startsWith(PATHS.documents)
     ? "Dossier patient"
-    : "Tableau de bord";
+    : location.pathname.startsWith(PATHS.telederm)
+      ? "Télé-derm"
+      : "Tableau de bord";
 
   return (
     <div className="relative flex min-h-screen w-full overflow-hidden bg-[#FEF0D5] font-sans">
@@ -217,14 +228,14 @@ export function DashboardLayout({
 
           <nav className="relative z-10 flex-1 space-y-0.5">
             {[
-              ...menuItems.slice(0, 2),
+              ...menuItems.slice(0, 3),
               {
                 icon: ScanFace,
                 label: "Scan IA",
                 path: PATHS.scan,
                 exact: true,
               },
-              ...menuItems.slice(2),
+              ...menuItems.slice(3),
             ].map((item) => (
               <SidebarItem
                 key={item.path}
@@ -234,6 +245,8 @@ export function DashboardLayout({
                 isActive={
                   item.path === PATHS.records
                     ? isRecords
+                    : item.path === PATHS.telederm
+                      ? isTelederm
                     : isPath(item.path, item.exact)
                 }
               />
