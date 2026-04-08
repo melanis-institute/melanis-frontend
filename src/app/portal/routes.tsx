@@ -35,6 +35,15 @@ const PreconsultConfirmationScreen = lazy(
 const PreconsultSuccessScreen = lazy(
   () => import("@portal/features/patient/preconsult/success-screen"),
 );
+const PatientTeledermInboxScreen = lazy(
+  () => import("@portal/features/patient/telederm/inbox-screen"),
+);
+const PatientTeledermComposeScreen = lazy(
+  () => import("@portal/features/patient/telederm/compose-screen"),
+);
+const PatientTeledermCaseDetailScreen = lazy(
+  () => import("@portal/features/patient/telederm/case-detail-screen"),
+);
 const PatientDashboardScreen = lazy(
   () => import("@portal/features/patient/dashboard/screen"),
 );
@@ -53,6 +62,12 @@ const PractitionerAppointmentDetailScreen = lazy(
 );
 const PractitionerCalendarScreen = lazy(
   () => import("@portal/features/practitioner/calendar-screen"),
+);
+const PractitionerTeledermInboxScreen = lazy(
+  () => import("@portal/features/practitioner/telederm/inbox-screen"),
+);
+const PractitionerTeledermCaseDetailScreen = lazy(
+  () => import("@portal/features/practitioner/telederm/case-detail-screen"),
 );
 const StaffHomeScreen = lazy(() => import("@portal/features/staff/home-screen"));
 const AdminHomeScreen = lazy(() => import("@portal/features/admin/home-screen"));
@@ -156,6 +171,30 @@ function PF05Lazy() {
   );
 }
 
+function TD01Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientTeledermInboxScreen />
+    </Suspense>
+  );
+}
+
+function TD02Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientTeledermComposeScreen />
+    </Suspense>
+  );
+}
+
+function TD03Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientTeledermCaseDetailScreen />
+    </Suspense>
+  );
+}
+
 function PRAC01Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -184,6 +223,22 @@ function PRAC04Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerCalendarScreen />
+    </Suspense>
+  );
+}
+
+function PRAC05Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PractitionerTeledermInboxScreen />
+    </Suspense>
+  );
+}
+
+function PRAC06Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PractitionerTeledermCaseDetailScreen />
     </Suspense>
   );
 }
@@ -343,6 +398,18 @@ export const portalRoutes: RouteObject[] = [
                         path: "confirmation-succes",
                         Component: PF05Lazy,
                       },
+                      {
+                        path: "auth/telederm",
+                        Component: TD01Lazy,
+                      },
+                      {
+                        path: "auth/telederm/new",
+                        Component: TD02Lazy,
+                      },
+                      {
+                        path: "auth/telederm/cases/:caseId",
+                        Component: TD03Lazy,
+                      },
                     ],
                   },
                 ],
@@ -368,6 +435,14 @@ export const portalRoutes: RouteObject[] = [
                       {
                         path: "calendar",
                         Component: PRAC04Lazy,
+                      },
+                      {
+                        path: "telederm",
+                        Component: PRAC05Lazy,
+                      },
+                      {
+                        path: "telederm/:caseId",
+                        Component: PRAC06Lazy,
                       },
                     ],
                   },

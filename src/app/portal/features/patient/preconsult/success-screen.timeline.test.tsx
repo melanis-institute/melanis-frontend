@@ -19,7 +19,7 @@ const user = {
 };
 
 describe("PF05 timeline logging", () => {
-  it("appends appointment booking once with deterministic sourceRef", async () => {
+  it("does not create bookings or append timeline events on the success screen", async () => {
     const adapter = new MockAccountAdapter();
     const profile = await adapter.ensureSelfProfile({
       userId: user.id,
@@ -74,20 +74,7 @@ describe("PF05 timeline logging", () => {
       </AuthContext.Provider>,
     );
 
-    await waitFor(() => expect(appendSpy).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(appointmentCreateSpy).toHaveBeenCalledTimes(1));
-    expect(appendSpy.mock.calls[0][0]).toMatchObject({
-      actorUserId: user.id,
-      profileId: profile.id,
-      type: "appointment_booked",
-      source: "booking_flow",
-      sourceRef: `booking:${profile.id}:2026-02-25:10:30:dr._awa_ndiaye:presentiel`,
-    });
-    expect(appointmentCreateSpy.mock.calls[0][0]).toMatchObject({
-      bookingSourceRef: `booking:${profile.id}:2026-02-25:10:30:dr._awa_ndiaye:presentiel`,
-      profileId: profile.id,
-      createdByUserId: user.id,
-      practitionerId: "pract-awa-001",
-    });
+    await waitFor(() => expect(appendSpy).not.toHaveBeenCalled());
+    await waitFor(() => expect(appointmentCreateSpy).not.toHaveBeenCalled());
   });
 });

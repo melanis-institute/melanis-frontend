@@ -1,6 +1,7 @@
 import type {
   ClinicalDocumentRecord,
   ClinicalMeasurement,
+  PreConsultSubmissionRecord,
   ScreeningCadence,
   ScreeningReminder,
 } from "@portal/domains/account/types";
@@ -34,6 +35,7 @@ export interface AppointmentRecord {
   inConsultationAt?: string;
   completedAt?: string;
   preConsultData?: unknown;
+  preConsultSubmission?: PreConsultSubmissionRecord;
   diagnosis?: string;
   clinicalSummary?: string;
   measurements: ClinicalMeasurement[];

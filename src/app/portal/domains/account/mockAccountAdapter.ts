@@ -1,18 +1,29 @@
 import type {
   AccountAdapter,
+  CreateAsyncCaseInput,
+  CreateAsyncCaseUploadIntentsInput,
   AppendTimelineEventInput,
   CompleteMediaUploadInput,
   CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
   CreatePreConsultSubmissionInput,
   EnsureSelfProfileInput,
+  ReplyAsyncCaseInput,
+  RequestMoreInfoInput,
+  RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
+  SubmitAsyncCaseInput,
+  UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
   UpdateProfileInput,
   UpdateScreeningReminderInput,
 } from "./adapter.types";
 import type {
+  AppNotificationRecord,
+  AsyncCaseDetailRecord,
+  AsyncCaseMessageRecord,
+  AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
   ClinicalDocumentRecord,
@@ -43,6 +54,9 @@ const SCREENING_REMINDERS_KEY = "melanis_account_screening_reminders_v1";
 const CLINICAL_DOCUMENTS_KEY = "melanis_account_clinical_documents_v1";
 const MEDIA_ASSETS_KEY = "melanis_account_media_assets_v1";
 const PRECONSULT_SUBMISSIONS_KEY = "melanis_account_preconsult_submissions_v1";
+const APP_NOTIFICATIONS_KEY = "melanis_account_app_notifications_v1";
+const ASYNC_CASES_KEY = "melanis_account_async_cases_v1";
+const ASYNC_CASE_MESSAGES_KEY = "melanis_account_async_case_messages_v1";
 
 const CONSENT_TEMPLATES: Array<{ type: ConsentType; title: string }> = [
   { type: "medical_record", title: "Accès au dossier médical" },
@@ -156,6 +170,30 @@ function readPreConsultSubmissions() {
 
 function writePreConsultSubmissions(submissions: PreConsultSubmissionRecord[]) {
   safeWrite(PRECONSULT_SUBMISSIONS_KEY, submissions.slice(-2000));
+}
+
+function readNotifications() {
+  return safeRead<AppNotificationRecord[]>(APP_NOTIFICATIONS_KEY, []);
+}
+
+function writeNotifications(notifications: AppNotificationRecord[]) {
+  safeWrite(APP_NOTIFICATIONS_KEY, notifications.slice(-2000));
+}
+
+function readAsyncCases() {
+  return safeRead<AsyncCaseRecord[]>(ASYNC_CASES_KEY, []);
+}
+
+function writeAsyncCases(cases: AsyncCaseRecord[]) {
+  safeWrite(ASYNC_CASES_KEY, cases.slice(-500));
+}
+
+function readAsyncCaseMessages() {
+  return safeRead<AsyncCaseMessageRecord[]>(ASYNC_CASE_MESSAGES_KEY, []);
+}
+
+function writeAsyncCaseMessages(messages: AsyncCaseMessageRecord[]) {
+  safeWrite(ASYNC_CASE_MESSAGES_KEY, messages.slice(-2000));
 }
 
 function createAuditEvent(
@@ -276,6 +314,12 @@ function timelineTitleFromType(type: PatientRecordEventType) {
   if (type === "document_shared") return "Document clinique disponible";
   if (type === "follow_up_scheduled") return "Suivi planifié";
   if (type === "measurement_recorded") return "Mesures cliniques ajoutées";
+  if (type === "telederm_case_submitted") return "Cas télé-derm soumis";
+  if (type === "telederm_case_claimed") return "Cas télé-derm pris en charge";
+  if (type === "telederm_more_info_requested") return "Informations complémentaires demandées";
+  if (type === "telederm_patient_replied") return "Réponse patient reçue";
+  if (type === "telederm_response_published") return "Réponse dermatologue disponible";
+  if (type === "telederm_case_closed") return "Cas télé-derm clos";
   return "Profil dépendant dissocié";
 }
 
@@ -474,6 +518,90 @@ function deriveSkinScores(profileId: string, days: number): SkinScoreRecord[] {
   }
 
   return result;
+}
+
+function appendNotification(notification: AppNotificationRecord) {
+  const notifications = readNotifications();
+  notifications.push(notification);
+  writeNotifications(notifications);
+}
+
+function createNotification(params: Omit<AppNotificationRecord, "id" | "createdAt" | "updatedAt">) {
+  const timestamp = nowIso();
+  appendNotification({
+    id: randomId("notif"),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...params,
+  });
+}
+
+function createAsyncCaseMessage(
+  asyncCaseId: string,
+  profileId: string,
+  authorRole: AsyncCaseMessageRecord["authorRole"],
+  type: AsyncCaseMessageRecord["type"],
+  body?: string,
+  actorUserId?: string,
+  mediaAssetIds: string[] = [],
+  meta?: Record<string, unknown>,
+) {
+  const messages = readAsyncCaseMessages();
+  const message: AsyncCaseMessageRecord = {
+    id: randomId("async_msg"),
+    asyncCaseId,
+    profileId,
+    actorUserId,
+    authorRole,
+    type,
+    body,
+    mediaAssetIds,
+    meta,
+    createdAt: nowIso(),
+  };
+  messages.push(message);
+  writeAsyncCaseMessages(messages);
+  return message;
+}
+
+function getAsyncCaseDetail(caseId: string): AsyncCaseDetailRecord {
+  const asyncCase = readAsyncCases().find((item) => item.id === caseId);
+  if (!asyncCase) {
+    throw new Error("Cas télé-derm introuvable");
+  }
+  const mediaAssets = readMediaAssets().filter((item) => item.asyncCaseId === caseId);
+  const messages = readAsyncCaseMessages().filter((item) => item.asyncCaseId === caseId);
+  const documents = readClinicalDocuments().filter(
+    (item) =>
+      item.id === asyncCase.responseDocumentId || item.id === asyncCase.prescriptionDocumentId,
+  );
+  const comparisonGroups =
+    asyncCase.bodyArea || asyncCase.conditionKey
+      ? [
+          {
+            profileId: asyncCase.profileId,
+            bodyArea: asyncCase.bodyArea,
+            conditionKey: asyncCase.conditionKey,
+            mediaAssets: readMediaAssets()
+              .filter(
+                (item) =>
+                  item.profileId === asyncCase.profileId &&
+                  item.bodyArea === asyncCase.bodyArea &&
+                  item.conditionKey === asyncCase.conditionKey &&
+                  item.status === "uploaded",
+              )
+              .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
+          },
+        ]
+      : [];
+
+  return {
+    case: asyncCase,
+    mediaAssets,
+    messages,
+    comparisonGroups,
+    documents,
+  };
 }
 
 export class MockAccountAdapter implements AccountAdapter {
@@ -1138,6 +1266,358 @@ export class MockAccountAdapter implements AccountAdapter {
     return (
       readPreConsultSubmissions().find((item) => item.appointmentId === appointmentId) ?? null
     );
+  }
+
+  async listNotifications(
+    actorUserId: string,
+    _limit?: number,
+  ): Promise<AppNotificationRecord[]> {
+    return readNotifications()
+      .filter((item) => item.recipientUserId === actorUserId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async markNotificationRead(
+    actorUserId: string,
+    notificationId: string,
+  ): Promise<AppNotificationRecord> {
+    const notifications = readNotifications();
+    const notification = notifications.find(
+      (item) => item.id === notificationId && item.recipientUserId === actorUserId,
+    );
+    if (!notification) {
+      throw new Error("Notification introuvable");
+    }
+    notification.readAt = nowIso();
+    notification.updatedAt = nowIso();
+    writeNotifications(notifications);
+    return notification;
+  }
+
+  async markAllNotificationsRead(actorUserId: string): Promise<void> {
+    const notifications = readNotifications();
+    const timestamp = nowIso();
+    for (const notification of notifications) {
+      if (notification.recipientUserId !== actorUserId) continue;
+      notification.readAt = timestamp;
+      notification.updatedAt = timestamp;
+    }
+    writeNotifications(notifications);
+  }
+
+  async listAsyncCases(actorUserId: string, profileId: string): Promise<AsyncCaseRecord[]> {
+    assertProfileAccessible(actorUserId, profileId);
+    return readAsyncCases()
+      .filter((item) => item.profileId === profileId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async createAsyncCase(input: CreateAsyncCaseInput): Promise<AsyncCaseRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    ensureConsentSigned(input.profileId, input.actorUserId, "medical_record");
+    ensureConsentSigned(input.profileId, input.actorUserId, "telederm");
+    const timestamp = nowIso();
+    const asyncCase: AsyncCaseRecord = {
+      id: randomId("async_case"),
+      profileId: input.profileId,
+      createdByUserId: input.actorUserId,
+      status: "draft",
+      conditionKey: input.conditionKey,
+      bodyArea: input.bodyArea,
+      patientSummary: input.patientSummary,
+      questionnaireData: input.questionnaireData,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const cases = readAsyncCases();
+    cases.push(asyncCase);
+    writeAsyncCases(cases);
+    return asyncCase;
+  }
+
+  async updateAsyncCase(input: UpdateAsyncCaseInput): Promise<AsyncCaseRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    assertProfileAccessible(input.actorUserId, asyncCase.profileId);
+    asyncCase.conditionKey = input.conditionKey ?? asyncCase.conditionKey;
+    asyncCase.bodyArea = input.bodyArea ?? asyncCase.bodyArea;
+    asyncCase.patientSummary = input.patientSummary ?? asyncCase.patientSummary;
+    asyncCase.questionnaireData = input.questionnaireData ?? asyncCase.questionnaireData;
+    asyncCase.updatedAt = nowIso();
+    writeAsyncCases(cases);
+    return asyncCase;
+  }
+
+  async createAsyncCaseUploadIntents(
+    input: CreateAsyncCaseUploadIntentsInput,
+  ): Promise<MediaUploadIntent[]> {
+    const asyncCase = readAsyncCases().find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    assertProfileAccessible(input.actorUserId, asyncCase.profileId);
+    ensureConsentSigned(asyncCase.profileId, input.actorUserId, "media_share");
+
+    const timestamp = nowIso();
+    const assets = readMediaAssets();
+    const intents: MediaUploadIntent[] = input.files.map((file, index) => {
+      const assetId = randomId("media");
+      assets.push({
+        id: assetId,
+        profileId: asyncCase.profileId,
+        asyncCaseId: asyncCase.id,
+        captureSessionId: input.captureSessionId,
+        captureKind: input.captureKind,
+        bodyArea: input.bodyArea ?? asyncCase.bodyArea,
+        conditionKey: input.conditionKey ?? asyncCase.conditionKey,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        status: "pending",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        downloadUrl: `blob:mock-${assetId}-${index}`,
+      });
+      return {
+        id: assetId,
+        profileId: asyncCase.profileId,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        status: "pending",
+        uploadMethod: "PUT",
+        uploadUrl: `mock-upload://${assetId}`,
+        createdAt: timestamp,
+      };
+    });
+    writeMediaAssets(assets);
+    return intents;
+  }
+
+  async completeAsyncCaseMediaUpload(
+    actorUserId: string,
+    assetId: string,
+  ): Promise<MediaAssetRecord> {
+    const assets = readMediaAssets();
+    const asset = assets.find((item) => item.id === assetId);
+    if (!asset || !asset.asyncCaseId) throw new Error("Média télé-derm introuvable");
+    assertProfileAccessible(actorUserId, asset.profileId);
+    asset.status = "uploaded";
+    asset.uploadedAt = nowIso();
+    asset.updatedAt = nowIso();
+    writeMediaAssets(assets);
+    return asset;
+  }
+
+  async submitAsyncCase(input: SubmitAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    assertProfileAccessible(input.actorUserId, asyncCase.profileId);
+    const timestamp = nowIso();
+    asyncCase.status = "submitted";
+    asyncCase.submittedAt = timestamp;
+    asyncCase.latestMessageAt = timestamp;
+    asyncCase.slaDueAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    asyncCase.updatedAt = timestamp;
+    writeAsyncCases(cases);
+    createAsyncCaseMessage(
+      asyncCase.id,
+      asyncCase.profileId,
+      "patient",
+      "submission",
+      input.message ?? asyncCase.patientSummary,
+      input.actorUserId,
+      readMediaAssets()
+        .filter((item) => item.asyncCaseId === asyncCase.id)
+        .map((item) => item.id),
+    );
+    appendTimelineEventInternal({
+      actorUserId: input.actorUserId,
+      profileId: asyncCase.profileId,
+      type: "telederm_case_submitted",
+      title: timelineTitleFromType("telederm_case_submitted"),
+      source: "telederm",
+      sourceRef: asyncCase.id,
+    });
+    createNotification({
+      recipientUserId: "mock-practitioner",
+      profileId: asyncCase.profileId,
+      kind: "telederm_case_submitted",
+      title: "Nouveau cas télé-derm",
+      body: "Un dossier asynchrone attend une prise en charge.",
+      entityType: "async_case",
+      entityId: asyncCase.id,
+    });
+    return getAsyncCaseDetail(asyncCase.id);
+  }
+
+  async getAsyncCase(actorUserId: string, caseId: string): Promise<AsyncCaseDetailRecord> {
+    const detail = getAsyncCaseDetail(caseId);
+    assertProfileAccessible(actorUserId, detail.case.profileId);
+    return detail;
+  }
+
+  async replyToAsyncCase(input: ReplyAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    assertProfileAccessible(input.actorUserId, asyncCase.profileId);
+    asyncCase.status = "patient_replied";
+    asyncCase.latestMessageAt = nowIso();
+    asyncCase.updatedAt = asyncCase.latestMessageAt;
+    writeAsyncCases(cases);
+    createAsyncCaseMessage(
+      asyncCase.id,
+      asyncCase.profileId,
+      "patient",
+      "patient_reply",
+      input.body,
+      input.actorUserId,
+      input.mediaAssetIds,
+    );
+    appendTimelineEventInternal({
+      actorUserId: input.actorUserId,
+      profileId: asyncCase.profileId,
+      type: "telederm_patient_replied",
+      title: timelineTitleFromType("telederm_patient_replied"),
+      source: "telederm",
+      sourceRef: asyncCase.id,
+    });
+    return getAsyncCaseDetail(asyncCase.id);
+  }
+
+  async listPractitionerAsyncCases(
+    _actorUserId: string,
+    status?: string,
+  ): Promise<AsyncCaseRecord[]> {
+    return readAsyncCases()
+      .filter((item) => (status ? item.status === status : true))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async claimAsyncCase(_actorUserId: string, caseId: string): Promise<AsyncCaseRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    asyncCase.status = "in_review";
+    asyncCase.claimedByUserId = "mock-practitioner";
+    asyncCase.assignedPractitionerId = "practitioner_demo";
+    asyncCase.updatedAt = nowIso();
+    writeAsyncCases(cases);
+    return asyncCase;
+  }
+
+  async requestMoreInfo(input: RequestMoreInfoInput): Promise<void> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    asyncCase.status = "waiting_for_patient";
+    asyncCase.updatedAt = nowIso();
+    writeAsyncCases(cases);
+    createAsyncCaseMessage(
+      asyncCase.id,
+      asyncCase.profileId,
+      "practitioner",
+      "request_more_info",
+      input.body,
+      input.actorUserId,
+    );
+    createNotification({
+      recipientUserId: asyncCase.createdByUserId,
+      profileId: asyncCase.profileId,
+      kind: "telederm_more_info_requested",
+      title: "Informations complémentaires demandées",
+      body: input.body,
+      entityType: "async_case",
+      entityId: asyncCase.id,
+    });
+  }
+
+  async respondToAsyncCase(input: RespondAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === input.caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    const timestamp = nowIso();
+    const documents = readClinicalDocuments();
+    const reportId = randomId("clinical_doc");
+    documents.push({
+      id: reportId,
+      profileId: asyncCase.profileId,
+      createdByUserId: input.actorUserId,
+      practitionerId: "practitioner_demo",
+      kind: "report",
+      status: "published",
+      title: "Compte-rendu télé-dermatologie",
+      summary: input.clinicalSummary ?? input.diagnosis,
+      body: input.body ?? input.clinicalSummary,
+      prescriptionItems: [],
+      version: 1,
+      publishedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    if (input.prescriptionItems.length > 0) {
+      documents.push({
+        id: randomId("clinical_doc"),
+        profileId: asyncCase.profileId,
+        createdByUserId: input.actorUserId,
+        practitionerId: "practitioner_demo",
+        kind: "prescription",
+        status: "published",
+        title: "Ordonnance télé-dermatologie",
+        summary: "Prescription issue après revue asynchrone.",
+        body: input.clinicalSummary,
+        prescriptionItems: input.prescriptionItems,
+        version: 1,
+        publishedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+    }
+    safeWrite(CLINICAL_DOCUMENTS_KEY, documents.slice(-2000));
+    asyncCase.status = "responded";
+    asyncCase.respondedAt = timestamp;
+    asyncCase.responseDocumentId = reportId;
+    asyncCase.prescriptionDocumentId = documents
+      .find((item) => item.title === "Ordonnance télé-dermatologie" && item.profileId === asyncCase.profileId)
+      ?.id;
+    asyncCase.updatedAt = timestamp;
+    writeAsyncCases(cases);
+    createAsyncCaseMessage(
+      asyncCase.id,
+      asyncCase.profileId,
+      "practitioner",
+      "practitioner_response",
+      input.clinicalSummary ?? input.diagnosis,
+      input.actorUserId,
+    );
+    appendTimelineEventInternal({
+      actorUserId: input.actorUserId,
+      profileId: asyncCase.profileId,
+      type: "telederm_response_published",
+      title: timelineTitleFromType("telederm_response_published"),
+      source: "telederm",
+      sourceRef: asyncCase.id,
+    });
+    createNotification({
+      recipientUserId: asyncCase.createdByUserId,
+      profileId: asyncCase.profileId,
+      kind: "telederm_response_ready",
+      title: "Votre réponse dermatologue est disponible",
+      body: "Consultez le compte-rendu dans votre dossier.",
+      entityType: "async_case",
+      entityId: asyncCase.id,
+    });
+    return getAsyncCaseDetail(asyncCase.id);
+  }
+
+  async closeAsyncCase(_actorUserId: string, caseId: string): Promise<AsyncCaseRecord> {
+    const cases = readAsyncCases();
+    const asyncCase = cases.find((item) => item.id === caseId);
+    if (!asyncCase) throw new Error("Cas télé-derm introuvable");
+    asyncCase.status = "closed";
+    asyncCase.closedAt = nowIso();
+    asyncCase.updatedAt = asyncCase.closedAt;
+    writeAsyncCases(cases);
+    return asyncCase;
   }
 
   async recordProfileSwitch(userId: string, profileId: string): Promise<void> {

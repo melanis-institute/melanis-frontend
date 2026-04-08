@@ -19,22 +19,18 @@ import {
   Check,
   ChevronRight,
   Clock,
-  CloudSun,
-  Droplets,
   FileText,
   Pill,
   Plus,
   ScanFace,
   Sparkles,
-  Star,
   TrendingUp,
   User,
   Video,
-  Wind,
   type LucideIcon,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 const DASHBOARD_PATH = "/patient-flow/auth/dashboard";
@@ -51,6 +47,7 @@ const PATHS = {
   records: `${DASHBOARD_PATH}#records`,
   profile: PROFILE_PATH,
   scan: `${DASHBOARD_PATH}#scan`,
+  telederm: "/patient-flow/auth/telederm",
   photos: `${DASHBOARD_PATH}#photos`,
   cases: BOOKING_PATH,
   booking: BOOKING_PATH,
@@ -385,6 +382,7 @@ function QuickActions() {
 
   const actions = [
     { Icon: Calendar, label: "Réserver un RDV", to: PATHS.booking },
+    { Icon: ScanFace, label: "Télé-derm", to: PATHS.telederm },
     { Icon: FileText, label: "Mon dossier", to: PATHS.records },
     { Icon: Bell, label: "Rappels", to: PATHS.records },
     { Icon: User, label: "Mon profil", to: PROFILE_PATH },
@@ -1035,155 +1033,87 @@ function TodayCard({
   );
 }
 
-function RoutineItem({
-  title,
-  subtitle,
-  checked,
-  onToggle,
-  trailing,
-  isMed = false,
-}: {
+interface CarePlanItem {
+  id: string;
+  label: string;
   title: string;
-  subtitle?: string;
-  checked: boolean;
-  onToggle: () => void;
-  trailing?: ReactNode;
-  isMed?: boolean;
-}) {
+  subtitle: string;
+  Icon: LucideIcon;
+  tone: "urgent" | "attention" | "stable";
+  to: string;
+  cta: string;
+  badge?: string;
+}
+
+function planToneClasses(tone: CarePlanItem["tone"]) {
+  if (tone === "urgent") {
+    return {
+      icon: "bg-[#5B1112] text-white",
+      badge: "border-[#5B1112]/14 bg-[#5B1112]/[0.07] text-[#5B1112]",
+    };
+  }
+  if (tone === "attention") {
+    return {
+      icon: "bg-amber-50 text-amber-700",
+      badge: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+  return {
+    icon: "bg-[#111214]/5 text-[#111214]/60",
+    badge: "border-[#111214]/10 bg-[#111214]/5 text-[#111214]/55",
+  };
+}
+
+function selectLatestPrescription(
+  documents: ClinicalDocumentRecord[],
+): ClinicalDocumentRecord | null {
   return (
-    <motion.div
-      layout
-      onClick={onToggle}
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.99 }}
-      className={`flex cursor-pointer select-none items-center gap-3.5 rounded-[1.5rem] px-4 py-3.5 transition-colors duration-200 ${
-        checked
-          ? "bg-white/30"
-          : "bg-white shadow-[0_2px_16px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.06)]"
-      }`}
-    >
-      <div
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
-          checked ? "bg-[#5B1112]" : "border-2 border-[#111214]/10"
-        }`}
-      >
-        <Check
-          size={12}
-          strokeWidth={3}
-          className={`text-white transition-opacity ${checked ? "opacity-100" : "opacity-0"}`}
-        />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p
-            className={`truncate text-sm font-medium transition-all ${
-              checked ? "text-[#111214]/30 line-through" : "text-[#111214]"
-            }`}
-          >
-            {title}
-          </p>
-          {isMed ? (
-            <span className="flex-shrink-0 rounded-full bg-[#5B1112]/8 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-[#5B1112]/55">
-              Medicament
-            </span>
-          ) : null}
-        </div>
-
-        {subtitle ? (
-          <p className="mt-0.5 truncate text-[10px] text-[#111214]/35">
-            {subtitle}
-          </p>
-        ) : null}
-      </div>
-
-      {trailing ? <div className="flex-shrink-0">{trailing}</div> : null}
-    </motion.div>
+    [...documents]
+      .sort((first, second) =>
+        (second.publishedAt ?? second.createdAt).localeCompare(
+          first.publishedAt ?? first.createdAt,
+        ),
+      )
+      .find(
+        (document) =>
+          document.kind === "prescription" ||
+          document.prescriptionItems.length > 0,
+      ) ?? null
   );
 }
 
-type RoutineTab = "matin" | "soir";
-
-interface RoutineEntry {
-  title: string;
-  subtitle?: string;
-  trailing?: ReactNode;
-  isMed?: boolean;
-  initDone: boolean;
+function selectNextReminder(
+  reminders: ScreeningReminder[],
+): ScreeningReminder | null {
+  return (
+    [...reminders]
+      .filter((reminder) => reminder.status !== "completed")
+      .sort((first, second) => first.nextDueAt.localeCompare(second.nextDueAt))[0] ??
+    null
+  );
 }
 
-const ROUTINE_DATA: Record<RoutineTab, RoutineEntry[]> = {
-  matin: [
-    {
-      title: "Nettoyage doux",
-      subtitle: "Gel nettoyant · Tonique equilibrant",
-      trailing: <Sparkles size={13} className="text-[#5B1112]" />,
-      isMed: false,
-      initDone: true,
-    },
-    {
-      title: "Hydratation + SPF 50",
-      subtitle: "UV 8/12 · Harmattan actif · 32 C",
-      trailing: (
-        <div className="flex items-center gap-1 rounded-xl border border-amber-100 bg-amber-50 px-2 py-1">
-          <CloudSun size={11} className="text-amber-500" />
-          <span className="text-[9px] font-semibold text-amber-500">32 C</span>
-        </div>
-      ),
-      isMed: false,
-      initDone: false,
-    },
-    {
-      title: "Doxycycline 100 mg",
-      subtitle: "Avec repas du matin",
-      trailing: (
-        <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#111214]/5">
-          <Pill size={12} className="text-[#111214]/30" />
-        </div>
-      ),
-      isMed: true,
-      initDone: false,
-    },
-  ],
-  soir: [
-    {
-      title: "Demaquillage complet",
-      subtitle: "Huile · Eau micellaire",
-      trailing: null,
-      isMed: false,
-      initDone: false,
-    },
-    {
-      title: "Serum Retinol 0.25%",
-      subtitle: "Appliquer sur peau propre et seche",
-      trailing: (
-        <div className="rounded-lg bg-[#5B1112]/6 px-2 py-1">
-          <span className="text-[9px] font-semibold text-[#5B1112]">0.25%</span>
-        </div>
-      ),
-      isMed: false,
-      initDone: false,
-    },
-    {
-      title: "Creme nuit nourrissante",
-      subtitle: "Karite · Niacinamide",
-      trailing: <Star size={12} className="fill-[#5B1112] text-[#FEF0D5]" />,
-      isMed: false,
-      initDone: false,
-    },
-  ],
-};
+function selectLatestTimelineEvent(
+  events: PatientRecordEvent[],
+): PatientRecordEvent | null {
+  return (
+    [...events].sort((first, second) =>
+      second.occurredAt.localeCompare(first.occurredAt),
+    )[0] ?? null
+  );
+}
 
-function RoutineCard({ delay = 0 }: { delay?: number }) {
+function RoutineCard({
+  delay = 0,
+  upcoming,
+}: {
+  delay?: number;
+  upcoming: UpcomingAppointment | null;
+}) {
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
   const actingProfileId = auth.actingProfileId;
   const hasPatientContext = Boolean(userId && actingProfileId);
-  const [tab, setTab] = useState<RoutineTab>("matin");
-  const [checked, setChecked] = useState<Record<RoutineTab, boolean[]>>({
-    matin: ROUTINE_DATA.matin.map((item) => item.initDone),
-    soir: ROUTINE_DATA.soir.map((item) => item.initDone),
-  });
   const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>(
     [],
   );
@@ -1195,20 +1125,6 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   >([]);
   const [isHubLoading, setIsHubLoading] = useState(false);
   const [hubError, setHubError] = useState<string | null>(null);
-
-  const toggle = (currentTab: RoutineTab, index: number) => {
-    setChecked((prev) => ({
-      ...prev,
-      [currentTab]: prev[currentTab].map((value, mapIndex) =>
-        mapIndex === index ? !value : value,
-      ),
-    }));
-  };
-
-  const totalDone =
-    checked.matin.filter(Boolean).length + checked.soir.filter(Boolean).length;
-  const totalItems = ROUTINE_DATA.matin.length + ROUTINE_DATA.soir.length;
-  const progress = (totalDone / totalItems) * 100;
 
   useEffect(() => {
     if (!userId || !actingProfileId) {
@@ -1271,6 +1187,89 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
   );
 
   const featuredDocument = latestDocuments[0] ?? null;
+  const latestPrescription = useMemo(
+    () => selectLatestPrescription(visibleClinicalDocuments),
+    [visibleClinicalDocuments],
+  );
+  const nextReminder = useMemo(
+    () => selectNextReminder(visibleScreeningReminders),
+    [visibleScreeningReminders],
+  );
+  const latestTimelineEvent = useMemo(
+    () => selectLatestTimelineEvent(visibleTimelineEvents),
+    [visibleTimelineEvents],
+  );
+  const carePlanItems = useMemo<CarePlanItem[]>(() => {
+    const items: CarePlanItem[] = [];
+
+    if (upcoming) {
+      const minutesUntil = minutesUntilDate(upcoming.scheduledFor);
+      items.push({
+        id: "upcoming-appointment",
+        label: "Rendez-vous",
+        title: `${upcoming.practitioner} · ${upcoming.dateLabel}`,
+        subtitle: `${upcoming.timeLabel} · ${upcoming.location}`,
+        Icon: Calendar,
+        tone:
+          minutesUntil !== null && minutesUntil <= 24 * 60 ? "urgent" : "stable",
+        to: PATHS.appointments,
+        cta: "Voir le rendez-vous",
+        badge:
+          minutesUntil !== null && minutesUntil >= 0
+            ? `Dans ${formatRelativeFromNow(upcoming.scheduledFor)}`
+            : "Planifié",
+      });
+    }
+
+    if (latestPrescription) {
+      const leadItem = latestPrescription.prescriptionItems[0];
+      items.push({
+        id: "active-prescription",
+        label: "Ordonnance active",
+        title: leadItem?.name ?? latestPrescription.title,
+        subtitle:
+          leadItem?.instructions ??
+          documentPreviewText(latestPrescription).slice(0, 120),
+        Icon: Pill,
+        tone: "attention",
+        to: getDocumentDetailPath(latestPrescription.id),
+        cta: "Ouvrir l'ordonnance",
+        badge: `v${latestPrescription.version}`,
+      });
+    }
+
+    if (nextReminder) {
+      items.push({
+        id: "next-follow-up",
+        label: "Rappel de suivi",
+        title: nextReminder.screeningType,
+        subtitle: `Échéance le ${formatDate(nextReminder.nextDueAt)} · ${CADENCE_LABELS[nextReminder.cadence]}`,
+        Icon: Bell,
+        tone: nextReminder.status === "snoozed" ? "attention" : "stable",
+        to: PATHS.records,
+        cta: "Voir les rappels",
+        badge: STATUS_LABELS[nextReminder.status],
+      });
+    }
+
+    if (latestTimelineEvent) {
+      items.push({
+        id: "latest-timeline-event",
+        label: "Dernière mise à jour",
+        title: latestTimelineEvent.title,
+        subtitle:
+          latestTimelineEvent.description ??
+          `Enregistré ${formatRelativeFromNow(latestTimelineEvent.occurredAt)} plus tôt`,
+        Icon: timelineIcon(latestTimelineEvent.type),
+        tone: "stable",
+        to: PATHS.records,
+        cta: "Ouvrir le dossier",
+        badge: formatDateTime(latestTimelineEvent.occurredAt),
+      });
+    }
+
+    return items;
+  }, [latestPrescription, latestTimelineEvent, nextReminder, upcoming]);
 
   if (!actingProfileId) {
     return (
@@ -1284,11 +1283,12 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
           Dossier & rappels
         </p>
         <h3 className="mt-2 font-serif text-[#111214]" style={{ fontSize: 22 }}>
-          Dossier patient vide
+          Plan de suivi indisponible
         </h3>
         <p className="mt-2 text-sm text-[#111214]/62">
-          Le dossier, les rappels et les préférences apparaîtront après votre
-          premier rendez-vous ou votre premier scan.
+          Le plan clinique, les rappels et les derniers documents
+          apparaîtront dès qu&apos;un profil actif et une première activité de
+          soin seront disponibles.
         </p>
         <Link
           to={PATHS.booking}
@@ -1303,7 +1303,7 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
 
   return (
     <>
-      {/* ── Card 1 : Routine du jour ── */}
+      {/* ── Card 1 : Plan de suivi ── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1313,64 +1313,88 @@ function RoutineCard({ delay = 0 }: { delay?: number }) {
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/30">
-              Routine du jour
+              Plan de suivi
             </p>
             <span className="text-[10px] font-semibold text-[#5B1112]">
-              {totalDone}/{totalItems} complété
+              {carePlanItems.length} repère{carePlanItems.length > 1 ? "s" : ""}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[#111214]/6">
-            <motion.div
-              className="h-full rounded-full bg-gradient-to-r from-[#5B1112] to-[#8B1A1B]"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{
-                delay: delay + 0.3,
-                duration: 1.2,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-            />
-          </div>
+          <p className="text-xs text-[#111214]/50">
+            Synthèse en temps réel de votre rendez-vous, de vos documents
+            cliniques et des rappels déjà enregistrés.
+          </p>
         </div>
 
-        <div className="flex gap-1 rounded-[1.25rem] bg-[#111214]/5 p-1">
-          {(["matin", "soir"] as const).map((itemTab) => (
-            <button
-              key={itemTab}
-              onClick={() => setTab(itemTab)}
-              className={`flex-1 rounded-[1rem] py-2 text-xs font-medium capitalize transition-all duration-200 ${
-                tab === itemTab
-                  ? "bg-white text-[#111214] shadow-sm"
-                  : "text-[#111214]/40 hover:text-[#111214]/60"
-              }`}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Documents", value: `${latestDocuments.length}` },
+            { label: "Rappels", value: `${visibleScreeningReminders.length}` },
+            { label: "Événements", value: `${visibleTimelineEvents.length}` },
+          ].map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-[1.1rem] border border-[#111214]/8 bg-white px-3 py-3"
             >
-              {itemTab === "matin" ? "Matin" : "Soir"}
-            </button>
+              <p className="text-[9px] uppercase tracking-[0.18em] text-[#111214]/35">
+                {metric.label}
+              </p>
+              <p className="mt-1 font-serif text-xl text-[#111214]">
+                {metric.value}
+              </p>
+            </div>
           ))}
         </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.18 }}
-            className="flex flex-col gap-2"
-          >
-            {ROUTINE_DATA[tab].map((item, index) => (
-              <RoutineItem
-                key={`${item.title}-${index}`}
-                title={item.title}
-                subtitle={item.subtitle}
-                checked={checked[tab][index]}
-                onToggle={() => toggle(tab, index)}
-                trailing={item.trailing}
-                isMed={item.isMed}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
+        {carePlanItems.length === 0 && !visibleIsHubLoading ? (
+          <div className="rounded-xl border border-dashed border-[#111214]/14 px-3 py-3 text-xs text-[#111214]/52">
+            Aucun repère clinique n&apos;est encore disponible pour ce profil.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {carePlanItems.map((item) => {
+              const toneClasses = planToneClasses(item.tone);
+              return (
+                <Link
+                  key={item.id}
+                  to={item.to}
+                  className="rounded-[1.25rem] border border-[#111214]/6 bg-white px-4 py-3 transition-all hover:border-[#5B1112]/10 hover:bg-[#FAF7F2]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[1rem] ${toneClasses.icon}`}
+                    >
+                      <item.Icon size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-[9px] uppercase tracking-[0.18em] text-[#111214]/35">
+                          {item.label}
+                        </p>
+                        {item.badge ? (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[9px] font-medium ${toneClasses.badge}`}
+                          >
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm font-medium text-[#111214]">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#111214]/50">
+                        {item.subtitle}
+                      </p>
+                      <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#5B1112]">
+                        {item.cta}
+                        <ArrowUpRight size={11} />
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
 
       {/* ── Card 2 : Ordonnances & documents ── */}
@@ -1737,7 +1761,22 @@ function WeeklyScanCard({
   );
 }
 
-function RightPanel() {
+function RightPanel({
+  hasActingProfile,
+  upcoming,
+  recentDocuments,
+  skinScores,
+}: {
+  hasActingProfile: boolean;
+  upcoming: UpcomingAppointment | null;
+  recentDocuments: ClinicalDocumentRecord[];
+  skinScores: SkinScoreRecord[];
+}) {
+  const latestDocument = recentDocuments[0] ?? null;
+  const latestScore =
+    [...skinScores].sort((first, second) =>
+      second.measuredAt.localeCompare(first.measuredAt),
+    )[0] ?? null;
   const shortcuts = [
     {
       Icon: ScanFace,
@@ -1759,11 +1798,49 @@ function RightPanel() {
     },
   ];
 
+  const summary = !hasActingProfile
+    ? "Activez un profil pour afficher vos rendez-vous, vos documents et votre suivi clinique."
+    : upcoming
+      ? `Prochain rendez-vous ${upcoming.dateLabel} à ${upcoming.timeLabel} avec ${upcoming.practitioner}.`
+      : latestDocument
+        ? `${documentKindLabel(latestDocument.kind)} publié le ${formatDate(latestDocument.publishedAt ?? latestDocument.createdAt)}.`
+        : latestScore
+          ? `Dernier score peau ${latestScore.score}/100 enregistré il y a ${formatRelativeFromNow(latestScore.measuredAt)}.`
+          : "Aucune activité clinique récente n'est encore disponible pour ce profil.";
+  const summaryLabel = !hasActingProfile
+    ? "Profil à activer"
+    : upcoming
+      ? "Suivi planifié"
+      : latestDocument
+        ? "Nouveau document"
+        : latestScore
+          ? "Dernier scan"
+          : "En attente";
   const stats = [
-    { Icon: CloudSun, label: "UV Index", value: "8", unit: "/12", warn: true },
-    { Icon: Droplets, label: "Hydratat.", value: "72", unit: "%", warn: false },
-    { Icon: Wind, label: "Harmattan", value: "Actif", unit: "", warn: false },
-    { Icon: Activity, label: "Peau", value: "Bon", unit: "", warn: false },
+    {
+      Icon: Calendar,
+      label: "RDV",
+      value: upcoming ? upcoming.timeLabel : "--",
+      unit: upcoming ? upcoming.dateLabel : "",
+    },
+    {
+      Icon: FileText,
+      label: "Docs",
+      value: String(recentDocuments.length),
+      unit: "publiés",
+    },
+    {
+      Icon: ScanFace,
+      label: "Scans",
+      value: String(skinScores.length),
+      unit: "enregistrés",
+    },
+    {
+      Icon: TrendingUp,
+      label: "Score",
+      value: latestScore ? String(latestScore.score) : "--",
+      unit: latestScore ? "/100" : "",
+    },
   ];
 
   return (
@@ -1787,13 +1864,13 @@ function RightPanel() {
           />
           <div className="rounded-[1.25rem] border border-[#111214]/5 bg-[#FEF0D5]/80 px-5 py-4 backdrop-blur-sm">
             <p className="text-center text-xs italic leading-relaxed text-[#111214]/60">
-              "Ta peau est bien hydratee aujourd'hui. Continue avec ton serum."
+              {summary}
             </p>
           </div>
         </div>
 
         <p className="z-10 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#5B1112]/40">
-          Melanis · Votre guide peau
+          Melanis · {summaryLabel}
         </p>
       </motion.div>
 
@@ -1841,25 +1918,18 @@ function RightPanel() {
         className="rounded-[2rem] border border-white bg-white/70 p-6 shadow-[0_4px_30px_rgba(0,0,0,0.03)] backdrop-blur-xl"
       >
         <p className="mb-4 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#111214]/30">
-          Meteo Peau · Dakar
+          Repères du dossier
         </p>
         <div className="grid grid-cols-4 gap-2">
-          {stats.map(({ Icon, label, value, unit, warn }, index) => (
+          {stats.map(({ Icon, label, value, unit }, index) => (
             <motion.div
               key={`${label}-${index}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + index * 0.07 }}
-              className={`flex flex-col items-center gap-1 rounded-[1.25rem] py-3 ${
-                warn
-                  ? "border border-amber-100/80 bg-amber-50"
-                  : "bg-[#111214]/3"
-              }`}
+              className="flex flex-col items-center gap-1 rounded-[1.25rem] bg-[#111214]/3 py-3"
             >
-              <Icon
-                size={13}
-                className={warn ? "text-amber-500" : "text-[#5B1112]/50"}
-              />
+              <Icon size={13} className="text-[#5B1112]/50" />
               <div className="flex items-baseline gap-px">
                 <span className="font-serif text-sm text-[#111214]">
                   {value}
@@ -1877,6 +1947,11 @@ function RightPanel() {
             </motion.div>
           ))}
         </div>
+        {latestDocument ? (
+          <p className="mt-4 text-[10px] text-[#111214]/45">
+            Dernier document: {latestDocument.title}
+          </p>
+        ) : null}
       </motion.div>
     </div>
   );
@@ -1964,7 +2039,7 @@ export function DashboardHome({
         </div>
 
         <div id="records" className="scroll-mt-28">
-          <RoutineCard delay={0.28} />
+          <RoutineCard delay={0.28} upcoming={upcoming} />
         </div>
 
         <div id="scan" className="scroll-mt-28">
@@ -1979,7 +2054,12 @@ export function DashboardHome({
       </div>
 
       <div className="hidden xl:block">
-        <RightPanel />
+        <RightPanel
+          hasActingProfile={hasActingProfile}
+          upcoming={upcoming}
+          recentDocuments={recentDocuments}
+          skinScores={skinScores}
+        />
       </div>
     </div>
   );

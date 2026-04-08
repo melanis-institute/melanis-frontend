@@ -1,18 +1,28 @@
 import type { AccountAdapter } from "./adapter.types";
 import type {
+  CreateAsyncCaseInput,
+  CreateAsyncCaseUploadIntentsInput,
   AppendTimelineEventInput,
   CompleteMediaUploadInput,
   CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
   CreatePreConsultSubmissionInput,
   EnsureSelfProfileInput,
+  ReplyAsyncCaseInput,
+  RequestMoreInfoInput,
+  RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
+  SubmitAsyncCaseInput,
+  UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
   UpdateProfileInput,
   UpdateScreeningReminderInput,
 } from "./adapter.types";
 import type {
+  AppNotificationRecord,
+  AsyncCaseDetailRecord,
+  AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
   ClinicalDocumentRecord,
@@ -214,6 +224,135 @@ export class BackendAccountAdapter implements AccountAdapter {
     return this.http.get<PreConsultSubmissionRecord | null>(
       `/api/v1/preconsult/submissions/appointment/${appointmentId}`,
     );
+  }
+
+  async listNotifications(
+    _actorUserId: string,
+    limit?: number,
+  ): Promise<AppNotificationRecord[]> {
+    return this.http.get<AppNotificationRecord[]>("/api/v1/notifications", { limit });
+  }
+
+  async markNotificationRead(
+    _actorUserId: string,
+    notificationId: string,
+  ): Promise<AppNotificationRecord> {
+    return this.http.post<AppNotificationRecord>(
+      `/api/v1/notifications/${notificationId}/read`,
+    );
+  }
+
+  async markAllNotificationsRead(_actorUserId: string): Promise<void> {
+    await this.http.post<unknown>("/api/v1/notifications/read-all");
+  }
+
+  async listAsyncCases(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<AsyncCaseRecord[]> {
+    return this.http.get<AsyncCaseRecord[]>("/api/v1/telederm/cases", { profileId });
+  }
+
+  async createAsyncCase(input: CreateAsyncCaseInput): Promise<AsyncCaseRecord> {
+    return this.http.post<AsyncCaseRecord>("/api/v1/telederm/cases", {
+      profileId: input.profileId,
+      conditionKey: input.conditionKey,
+      bodyArea: input.bodyArea,
+      patientSummary: input.patientSummary,
+      questionnaireData: input.questionnaireData,
+    });
+  }
+
+  async updateAsyncCase(input: UpdateAsyncCaseInput): Promise<AsyncCaseRecord> {
+    return this.http.patch<AsyncCaseRecord>(`/api/v1/telederm/cases/${input.caseId}`, {
+      conditionKey: input.conditionKey,
+      bodyArea: input.bodyArea,
+      patientSummary: input.patientSummary,
+      questionnaireData: input.questionnaireData,
+    });
+  }
+
+  async createAsyncCaseUploadIntents(
+    input: CreateAsyncCaseUploadIntentsInput,
+  ): Promise<MediaUploadIntent[]> {
+    const result = await this.http.post<{ intents: MediaUploadIntent[] }>(
+      `/api/v1/telederm/cases/${input.caseId}/media/upload-intents`,
+      {
+        files: input.files,
+        captureSessionId: input.captureSessionId,
+        captureKind: input.captureKind,
+        bodyArea: input.bodyArea,
+        conditionKey: input.conditionKey,
+      },
+    );
+    return result.intents;
+  }
+
+  async completeAsyncCaseMediaUpload(
+    _actorUserId: string,
+    assetId: string,
+  ): Promise<MediaAssetRecord> {
+    return this.http.post<MediaAssetRecord>(`/api/v1/telederm/media-assets/${assetId}/complete`);
+  }
+
+  async submitAsyncCase(input: SubmitAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    const result = await this.http.post<{
+      case: AsyncCaseRecord;
+      messages: unknown[];
+    }>(`/api/v1/telederm/cases/${input.caseId}/submit`, {
+      message: input.message,
+    });
+    return this.getAsyncCase(input.actorUserId, result.case.id);
+  }
+
+  async getAsyncCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<AsyncCaseDetailRecord> {
+    return this.http.get<AsyncCaseDetailRecord>(`/api/v1/telederm/cases/${caseId}`);
+  }
+
+  async replyToAsyncCase(input: ReplyAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    return this.http.post<AsyncCaseDetailRecord>(`/api/v1/telederm/cases/${input.caseId}/reply`, {
+      body: input.body,
+      mediaAssetIds: input.mediaAssetIds,
+    });
+  }
+
+  async listPractitionerAsyncCases(
+    _actorUserId: string,
+    status?: string,
+  ): Promise<AsyncCaseRecord[]> {
+    return this.http.get<AsyncCaseRecord[]>("/api/v1/practitioner/telederm/cases", {
+      status,
+    });
+  }
+
+  async claimAsyncCase(_actorUserId: string, caseId: string): Promise<AsyncCaseRecord> {
+    return this.http.post<AsyncCaseRecord>(`/api/v1/practitioner/telederm/cases/${caseId}/claim`);
+  }
+
+  async requestMoreInfo(input: RequestMoreInfoInput): Promise<void> {
+    await this.http.post<unknown>(
+      `/api/v1/practitioner/telederm/cases/${input.caseId}/request-more-info`,
+      { body: input.body },
+    );
+  }
+
+  async respondToAsyncCase(input: RespondAsyncCaseInput): Promise<AsyncCaseDetailRecord> {
+    return this.http.post<AsyncCaseDetailRecord>(
+      `/api/v1/practitioner/telederm/cases/${input.caseId}/respond`,
+      {
+        diagnosis: input.diagnosis,
+        clinicalSummary: input.clinicalSummary,
+        body: input.body,
+        prescriptionItems: input.prescriptionItems,
+      },
+    );
+  }
+
+  async closeAsyncCase(_actorUserId: string, caseId: string): Promise<AsyncCaseRecord> {
+    return this.http.post<AsyncCaseRecord>(`/api/v1/practitioner/telederm/cases/${caseId}/close`);
   }
 
   async recordProfileSwitch(_userId: string, profileId: string): Promise<void> {

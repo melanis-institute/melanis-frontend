@@ -93,6 +93,11 @@ export interface MediaAssetRecord {
   profileId: string;
   appointmentId?: string;
   preconsultSubmissionId?: string;
+  asyncCaseId?: string;
+  captureSessionId?: string;
+  captureKind?: string;
+  bodyArea?: string;
+  conditionKey?: string;
   fileName: string;
   contentType: string;
   status: MediaAssetStatus;
@@ -173,7 +178,13 @@ export type PatientRecordEventType =
   | "prescription_issued"
   | "document_shared"
   | "follow_up_scheduled"
-  | "measurement_recorded";
+  | "measurement_recorded"
+  | "telederm_case_submitted"
+  | "telederm_case_claimed"
+  | "telederm_more_info_requested"
+  | "telederm_patient_replied"
+  | "telederm_response_published"
+  | "telederm_case_closed";
 
 export interface PatientRecordEvent {
   id: string;
@@ -200,6 +211,93 @@ export interface ScreeningReminder {
   lastCompletedAt?: string;
   channels: NotificationChannelPreference;
   updatedAt: string;
+}
+
+export type AppNotificationKind =
+  | "telederm_case_submitted"
+  | "telederm_more_info_requested"
+  | "telederm_response_ready"
+  | "telederm_case_claimed"
+  | "telederm_patient_replied";
+
+export interface AppNotificationRecord {
+  id: string;
+  recipientUserId: string;
+  profileId?: string;
+  kind: AppNotificationKind;
+  title: string;
+  body: string;
+  entityType: string;
+  entityId: string;
+  readAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AsyncCaseStatus =
+  | "draft"
+  | "submitted"
+  | "in_review"
+  | "waiting_for_patient"
+  | "patient_replied"
+  | "responded"
+  | "closed";
+
+export type AsyncCaseMessageType =
+  | "submission"
+  | "request_more_info"
+  | "patient_reply"
+  | "practitioner_response"
+  | "status_change";
+
+export interface AsyncCaseRecord {
+  id: string;
+  profileId: string;
+  createdByUserId: string;
+  assignedPractitionerId?: string;
+  claimedByUserId?: string;
+  status: AsyncCaseStatus;
+  conditionKey?: string;
+  bodyArea?: string;
+  patientSummary?: string;
+  questionnaireData: Record<string, unknown>;
+  submittedAt?: string;
+  latestMessageAt?: string;
+  respondedAt?: string;
+  closedAt?: string;
+  slaDueAt?: string;
+  responseDocumentId?: string;
+  prescriptionDocumentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AsyncCaseMessageRecord {
+  id: string;
+  asyncCaseId: string;
+  profileId: string;
+  actorUserId?: string;
+  authorRole: "patient" | "caregiver" | "practitioner" | "system";
+  type: AsyncCaseMessageType;
+  body?: string;
+  mediaAssetIds: string[];
+  meta?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AsyncCaseComparisonGroup {
+  profileId: string;
+  bodyArea?: string;
+  conditionKey?: string;
+  mediaAssets: MediaAssetRecord[];
+}
+
+export interface AsyncCaseDetailRecord {
+  case: AsyncCaseRecord;
+  mediaAssets: MediaAssetRecord[];
+  messages: AsyncCaseMessageRecord[];
+  comparisonGroups: AsyncCaseComparisonGroup[];
+  documents: ClinicalDocumentRecord[];
 }
 
 export type ConsentSnapshot = Partial<Record<ConsentType, ConsentRecord>>;

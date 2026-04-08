@@ -1,6 +1,6 @@
 import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
+import { NotificationCenter } from "@portal/shared/components/NotificationCenter";
 import {
-  Bell,
   Calendar,
   FileText,
   Home,
@@ -289,9 +289,10 @@ export function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button className="rounded-full border border-white/60 bg-white/60 p-2 text-[#111214]/60 shadow-sm transition-colors hover:bg-white">
-              <Bell size={18} />
-            </button>
+            <NotificationCenter
+              buttonClassName="relative rounded-full border border-white/60 bg-white/60 p-2 text-[#111214]/60 shadow-sm transition-colors hover:bg-white"
+              panelClassName="right-0"
+            />
             <Link
               to={PATHS.profile}
               className="h-9 w-9 overflow-hidden rounded-full border-2 border-white shadow-md"
@@ -325,9 +326,10 @@ export function DashboardLayout({
               />
             </div>
 
-            <button className="group rounded-full border border-white/70 bg-white/70 p-2.5 text-[#111214]/50 shadow-sm transition-all hover:bg-[#5B1112] hover:text-white">
-              <Bell size={18} />
-            </button>
+            <NotificationCenter
+              buttonClassName="group relative rounded-full border border-white/70 bg-white/70 p-2.5 text-[#111214]/50 shadow-sm transition-all hover:bg-[#5B1112] hover:text-white"
+              panelClassName="right-0"
+            />
 
             <Link
               to={PATHS.profile}

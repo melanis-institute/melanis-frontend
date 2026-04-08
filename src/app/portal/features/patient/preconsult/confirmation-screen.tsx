@@ -572,10 +572,36 @@ export default function PF04() {
     };
   }, [preConsultData, preConsultSkipped]);
 
+  const bookingSourceRef = useMemo(() => {
+    if (!auth.actingProfileId) return null;
+    const practitionerRef = String(practitioner.name ?? "praticien")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    const dateRef = String(state?.date ?? selectedSlot.date ?? "date").trim();
+    const timeRef = String(state?.time ?? selectedSlot.time ?? "time").trim();
+    return `booking:${auth.actingProfileId}:${dateRef}:${timeRef}:${practitionerRef}:${appointmentType}`;
+  }, [
+    appointmentType,
+    auth.actingProfileId,
+    practitioner.name,
+    selectedSlot.date,
+    selectedSlot.time,
+    state?.date,
+    state?.time,
+  ]);
+
   const handleConfirm = async () => {
     try {
       setIsSubmitting(true);
       setSubmitError(null);
+
+      if (!auth.user || !auth.actingProfileId || !bookingSourceRef) {
+        throw new Error("Session ou profil patient indisponible.");
+      }
+      if (typeof practitioner.id !== "string" || practitioner.id.length === 0) {
+        throw new Error("Praticien indisponible.");
+      }
 
       let uploadedPreConsultData = preConsultData;
       if (preConsultData && auth.user && auth.actingProfileId) {
@@ -585,6 +611,56 @@ export default function PF04() {
           auth.actingProfileId,
           preConsultData,
         );
+      }
+
+      const patientLabel = auth.actingProfile
+        ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`.trim()
+        : "Profil patient";
+
+      const appointment = await auth.appointmentAdapter.createAppointmentFromBooking({
+        bookingSourceRef,
+        profileId: auth.actingProfileId,
+        patientLabel,
+        availabilitySlotId:
+          typeof state?.availabilitySlotId === "string" ? state.availabilitySlotId : undefined,
+        practitionerId: practitioner.id,
+        practitionerName: String(practitioner.name ?? "Praticien"),
+        practitionerSpecialty:
+          typeof practitioner.specialty === "string" ? practitioner.specialty : undefined,
+        practitionerLocation:
+          typeof practitioner.location === "string" ? practitioner.location : undefined,
+        appointmentType,
+        scheduledFor: selectedSlot.startsAt ?? new Date().toISOString(),
+        dateLabel: String(selectedSlot.date ?? "À définir"),
+        timeLabel: String(selectedSlot.time ?? "À définir"),
+        createdByUserId: auth.user.id,
+        preConsultData: uploadedPreConsultData,
+      });
+
+      if (uploadedPreConsultData) {
+        const preConsultPayload = uploadedPreConsultData as { photos?: unknown };
+        const mediaAssetIds = Array.isArray(preConsultPayload.photos)
+          ? preConsultPayload.photos
+              .map((photo: unknown) =>
+                typeof photo === "object" &&
+                photo !== null &&
+                "assetId" in photo &&
+                typeof photo.assetId === "string"
+                  ? photo.assetId
+                  : null,
+              )
+              .filter((value: string | null): value is string => Boolean(value))
+          : [];
+
+        await auth.accountAdapter.createPreConsultSubmission({
+          actorUserId: auth.user.id,
+          profileId: auth.actingProfileId,
+          appointmentId: appointment.id,
+          practitionerId: practitioner.id,
+          appointmentType,
+          questionnaireData: uploadedPreConsultData as unknown as Record<string, unknown>,
+          mediaAssetIds,
+        });
       }
 
       navigate("/patient-flow/confirmation-succes", {
@@ -597,6 +673,8 @@ export default function PF04() {
           availabilitySlotId: state?.availabilitySlotId,
           selectedSlot,
           practitioner,
+          appointmentId: appointment.id,
+          bookingSourceRef,
           preConsultData: uploadedPreConsultData,
         },
       });
@@ -1229,7 +1307,7 @@ export default function PF04() {
                 : "0 4px 16px rgba(91,17,18,0.25), 0 2px 4px rgba(91,17,18,0.15)",
             }}
           >
-            {isSubmitting ? "Téléversement en cours..." : "Confirmer le rendez-vous"}
+            {isSubmitting ? "Confirmation en cours..." : "Confirmer le rendez-vous"}
           </motion.button>
         </div>
       </div>

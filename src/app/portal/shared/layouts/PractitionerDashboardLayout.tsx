@@ -1,10 +1,11 @@
 import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
+import { NotificationCenter } from "@portal/shared/components/NotificationCenter";
 import {
-  Bell,
   Calendar,
   CalendarDays,
   Home,
   LogOut,
+  MessagesSquare,
   PanelLeftOpen,
   PanelRightOpen,
   Search,
@@ -18,6 +19,7 @@ const PRAC_PATHS = {
   home: "/patient-flow/practitioner",
   appointments: "/patient-flow/practitioner/appointments",
   calendar: "/patient-flow/practitioner/calendar",
+  telederm: "/patient-flow/practitioner/telederm",
 } as const;
 
 const DEFAULT_PROFILE_AVATAR = "/default-avatar-profile.svg";
@@ -170,6 +172,12 @@ export function PractitionerDashboardLayout({
       icon: CalendarDays,
       label: "Agenda",
       path: PRAC_PATHS.calendar,
+      exact: false,
+    },
+    {
+      icon: MessagesSquare,
+      label: "Télé-derm",
+      path: PRAC_PATHS.telederm,
       exact: false,
     },
   ];
@@ -331,12 +339,10 @@ export function PractitionerDashboardLayout({
               melanis
             </span>
           </div>
-          <button
-            type="button"
-            className="rounded-full border border-white/60 bg-white/60 p-2 text-[#111214]/60 shadow-sm transition-colors hover:bg-white"
-          >
-            <Bell size={18} />
-          </button>
+          <NotificationCenter
+            buttonClassName="relative rounded-full border border-white/60 bg-white/60 p-2 text-[#111214]/60 shadow-sm transition-colors hover:bg-white"
+            panelClassName="right-0"
+          />
         </header>
 
         {/* Desktop header */}
@@ -358,12 +364,10 @@ export function PractitionerDashboardLayout({
                 className="w-full border-none bg-transparent text-sm text-[#111214] outline-none placeholder:text-[#111214]/35"
               />
             </div>
-            <button
-              type="button"
-              className="group rounded-full border border-white/70 bg-white/70 p-2.5 text-[#111214]/50 shadow-sm transition-all hover:bg-[#5B1112] hover:text-white"
-            >
-              <Bell size={18} />
-            </button>
+            <NotificationCenter
+              buttonClassName="group relative rounded-full border border-white/70 bg-white/70 p-2.5 text-[#111214]/50 shadow-sm transition-all hover:bg-[#5B1112] hover:text-white"
+              panelClassName="right-0"
+            />
           </div>
         </header>
 

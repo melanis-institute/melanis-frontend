@@ -705,10 +705,12 @@ export default function PRAC03AppointmentDetail() {
 
         const [foundSubmission, foundDocuments] = auth.user
           ? await Promise.all([
-              auth.accountAdapter.getPreConsultSubmissionForAppointment(
-                auth.user.id,
-                appointmentId,
-              ),
+              found.preConsultSubmission
+                ? Promise.resolve(found.preConsultSubmission)
+                : auth.accountAdapter.getPreConsultSubmissionForAppointment(
+                    auth.user.id,
+                    appointmentId,
+                  ),
               auth.accountAdapter.listClinicalDocuments(
                 auth.user.id,
                 found.profileId,

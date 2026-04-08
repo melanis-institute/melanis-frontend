@@ -1,4 +1,7 @@
 import type {
+  AppNotificationRecord,
+  AsyncCaseDetailRecord,
+  AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
   ClinicalDocumentRecord,
@@ -99,6 +102,69 @@ export interface CreatePreConsultSubmissionInput {
   mediaAssetIds: string[];
 }
 
+export interface CreateAsyncCaseInput {
+  actorUserId: string;
+  profileId: string;
+  conditionKey?: string;
+  bodyArea?: string;
+  patientSummary?: string;
+  questionnaireData: Record<string, unknown>;
+}
+
+export interface UpdateAsyncCaseInput {
+  actorUserId: string;
+  caseId: string;
+  conditionKey?: string;
+  bodyArea?: string;
+  patientSummary?: string;
+  questionnaireData?: Record<string, unknown>;
+}
+
+export interface CreateAsyncCaseUploadIntentsInput {
+  actorUserId: string;
+  caseId: string;
+  captureSessionId: string;
+  captureKind: "close" | "context" | "detail" | "follow_up";
+  bodyArea?: string;
+  conditionKey?: string;
+  files: Array<{
+    fileName: string;
+    contentType: string;
+  }>;
+}
+
+export interface SubmitAsyncCaseInput {
+  actorUserId: string;
+  caseId: string;
+  message?: string;
+}
+
+export interface ReplyAsyncCaseInput {
+  actorUserId: string;
+  caseId: string;
+  body: string;
+  mediaAssetIds: string[];
+}
+
+export interface RequestMoreInfoInput {
+  actorUserId: string;
+  caseId: string;
+  body: string;
+}
+
+export interface RespondAsyncCaseInput {
+  actorUserId: string;
+  caseId: string;
+  diagnosis?: string;
+  clinicalSummary?: string;
+  body?: string;
+  prescriptionItems: Array<{
+    name: string;
+    instructions: string;
+    isMedication: boolean;
+  }>;
+}
+
 export interface AccountAdapter {
   ensureSelfProfile(input: EnsureSelfProfileInput): Promise<PatientProfileRecord>;
   listProfiles(userId: string): Promise<PatientProfileRecord[]>;
@@ -150,6 +216,33 @@ export interface AccountAdapter {
     actorUserId: string,
     appointmentId: string,
   ): Promise<PreConsultSubmissionRecord | null>;
+  listNotifications(actorUserId: string, limit?: number): Promise<AppNotificationRecord[]>;
+  markNotificationRead(
+    actorUserId: string,
+    notificationId: string,
+  ): Promise<AppNotificationRecord>;
+  markAllNotificationsRead(actorUserId: string): Promise<void>;
+  listAsyncCases(actorUserId: string, profileId: string): Promise<AsyncCaseRecord[]>;
+  createAsyncCase(input: CreateAsyncCaseInput): Promise<AsyncCaseRecord>;
+  updateAsyncCase(input: UpdateAsyncCaseInput): Promise<AsyncCaseRecord>;
+  createAsyncCaseUploadIntents(
+    input: CreateAsyncCaseUploadIntentsInput,
+  ): Promise<MediaUploadIntent[]>;
+  completeAsyncCaseMediaUpload(
+    actorUserId: string,
+    assetId: string,
+  ): Promise<MediaAssetRecord>;
+  submitAsyncCase(input: SubmitAsyncCaseInput): Promise<AsyncCaseDetailRecord>;
+  getAsyncCase(actorUserId: string, caseId: string): Promise<AsyncCaseDetailRecord>;
+  replyToAsyncCase(input: ReplyAsyncCaseInput): Promise<AsyncCaseDetailRecord>;
+  listPractitionerAsyncCases(
+    actorUserId: string,
+    status?: string,
+  ): Promise<AsyncCaseRecord[]>;
+  claimAsyncCase(actorUserId: string, caseId: string): Promise<AsyncCaseRecord>;
+  requestMoreInfo(input: RequestMoreInfoInput): Promise<void>;
+  respondToAsyncCase(input: RespondAsyncCaseInput): Promise<AsyncCaseDetailRecord>;
+  closeAsyncCase(actorUserId: string, caseId: string): Promise<AsyncCaseRecord>;
 
   recordProfileSwitch(userId: string, profileId: string): Promise<void>;
   listAuditEvents(userId: string): Promise<AuditEvent[]>;

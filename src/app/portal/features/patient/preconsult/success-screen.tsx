@@ -1,7 +1,6 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ComponentType,
   type SVGProps,
@@ -205,8 +204,6 @@ export default function PF05() {
     paiement: false,
     questions: false,
   });
-  const timelineLoggedRef = useRef(false);
-  const bookingSyncRef = useRef(false);
 
   const hasPreConsult = Boolean(state?.preConsultData);
 
@@ -240,145 +237,6 @@ export default function PF05() {
     fallback.setUTCDate(fallback.getUTCDate() + 1);
     return fallback;
   }, [state?.date, state?.time, selectedSlot.time]);
-
-  const timelineSourceRef = useMemo(() => {
-    if (!auth.actingProfileId) return null;
-    const practitionerRef = String(practitioner.name ?? "praticien")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "_");
-    const dateRef = String(state?.date ?? selectedSlot.date ?? "date").trim();
-    const timeRef = String(state?.time ?? selectedSlot.time ?? "time").trim();
-    return `booking:${auth.actingProfileId}:${dateRef}:${timeRef}:${practitionerRef}:${appointmentType}`;
-  }, [
-    appointmentType,
-    auth.actingProfileId,
-    practitioner.name,
-    selectedSlot.date,
-    selectedSlot.time,
-    state?.date,
-    state?.time,
-  ]);
-
-  useEffect(() => {
-    if (timelineLoggedRef.current) return;
-    if (!auth.user || !auth.actingProfileId || !timelineSourceRef) return;
-
-    timelineLoggedRef.current = true;
-
-    void auth.accountAdapter.appendTimelineEvent({
-      actorUserId: auth.user.id,
-      profileId: auth.actingProfileId,
-      type: "appointment_booked",
-      title: "Rendez-vous confirmé",
-      description: `${selectedSlot.date} à ${selectedSlot.time} avec ${practitioner.name}`,
-      source: "booking_flow",
-      sourceRef: timelineSourceRef,
-      meta: {
-        appointmentType,
-        practitionerName: practitioner.name,
-        date: selectedSlot.date,
-        time: selectedSlot.time,
-      },
-    });
-  }, [
-    appointmentType,
-    auth.accountAdapter,
-    auth.actingProfileId,
-    auth.user,
-    practitioner.name,
-    selectedSlot.date,
-    selectedSlot.time,
-    timelineSourceRef,
-  ]);
-
-  useEffect(() => {
-    if (bookingSyncRef.current) return;
-    if (!auth.user || !auth.actingProfileId || !timelineSourceRef) return;
-    if (typeof practitioner.id !== "string" || practitioner.id.length === 0) return;
-
-    bookingSyncRef.current = true;
-    const actorUserId = auth.user.id;
-    const actingProfileId = auth.actingProfileId;
-    const practitionerId = practitioner.id;
-
-    const patientLabel = auth.actingProfile
-      ? `${auth.actingProfile.firstName} ${auth.actingProfile.lastName}`.trim()
-      : "Profil patient";
-
-    void (async () => {
-      try {
-        const appointment = await auth.appointmentAdapter.createAppointmentFromBooking({
-          bookingSourceRef: timelineSourceRef,
-          profileId: actingProfileId,
-          patientLabel,
-          availabilitySlotId:
-            typeof state?.availabilitySlotId === "string" ? state.availabilitySlotId : undefined,
-          practitionerId,
-          practitionerName: String(practitioner.name ?? "Praticien"),
-          practitionerSpecialty:
-            typeof practitioner.specialty === "string" ? practitioner.specialty : undefined,
-          practitionerLocation:
-            typeof practitioner.location === "string" ? practitioner.location : undefined,
-          appointmentType,
-          scheduledFor: resolvedAppointmentDate.toISOString(),
-          dateLabel: String(selectedSlot.date ?? "À définir"),
-          timeLabel: String(selectedSlot.time ?? "À définir"),
-          createdByUserId: actorUserId,
-          preConsultData: state?.preConsultData,
-        });
-
-        if (state?.preConsultData) {
-          const preConsultPayload = state.preConsultData as { photos?: unknown };
-          const mediaAssetIds = Array.isArray(preConsultPayload.photos)
-            ? preConsultPayload.photos
-                .map((photo: unknown) =>
-                  typeof photo === "object" &&
-                  photo !== null &&
-                  "assetId" in photo &&
-                  typeof photo.assetId === "string"
-                    ? photo.assetId
-                    : null,
-                )
-                .filter((value: string | null): value is string => Boolean(value))
-            : [];
-
-          await auth.accountAdapter.createPreConsultSubmission({
-            actorUserId,
-            profileId: actingProfileId,
-            appointmentId: appointment.id,
-            practitionerId,
-            appointmentType,
-            questionnaireData: state.preConsultData as Record<string, unknown>,
-            mediaAssetIds,
-          });
-        }
-      } catch (error) {
-        setFeedback(
-          error instanceof Error
-            ? error.message
-            : "Impossible d'enregistrer entièrement le rendez-vous.",
-        );
-      }
-    })();
-  }, [
-    appointmentType,
-    auth.accountAdapter,
-    auth.actingProfile,
-    auth.actingProfileId,
-    auth.appointmentAdapter,
-    auth.user,
-    practitioner.id,
-    practitioner.location,
-    practitioner.name,
-    practitioner.specialty,
-    resolvedAppointmentDate,
-    selectedSlot.date,
-    selectedSlot.time,
-    state?.availabilitySlotId,
-    state?.preConsultData,
-    timelineSourceRef,
-  ]);
 
   const setReminder = (key: keyof ReminderPrefs) => {
     setReminderPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
