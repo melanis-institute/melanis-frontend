@@ -10,13 +10,21 @@ import {
   Clock,
   Eye,
   FileText,
+  HelpCircle,
   Lock,
   MinusCircle,
-  Plus,
   RefreshCw,
   Send,
   Shield,
+  Sparkles,
+  X,
 } from "lucide-react";
+import {
+  IconAllergies,
+  IconConsultation,
+  IconMedicaments,
+  IconGrossesse,
+} from "@portal/features/patient/preconsult/components/historique-icons";
 import {
   IconDemangeaisons,
   IconDouleur,
@@ -275,10 +283,6 @@ const BODY_AREA_LABELS: Record<string, string> = Object.fromEntries(
   BODY_AREAS.map((item) => [item.id, item.label]),
 );
 
-const CONCERN_LABELS: Record<string, string> = Object.fromEntries(
-  CONCERNS.map((item) => [item.id, item.label]),
-);
-
 const PHOTO_TIPS = [
   {
     icon: "☀️",
@@ -404,19 +408,75 @@ const SENSATION_ICON_MAP: Record<
   Aucune: null,
 };
 
+const PHOTOTYPE_COLORS: Record<string, string> = {
+  "I-II": "#FAD9C5",
+  "III": "#EFBA8A",
+  "IV": "#C8884E",
+  "V": "#8A5424",
+  "VI": "#4A2208",
+};
+
+const MEDICAL_QUESTIONS: Array<{
+  key: keyof FlowData["medical"];
+  type: "phototype" | "binary" | "pregnancy";
+  label: string;
+  subtitle: string;
+  Icon: React.ElementType | null;
+  placeholder?: string;
+}> = [
+  {
+    key: "skinType",
+    type: "phototype",
+    label: "Quel est votre phototype ?",
+    subtitle: "Aide à calibrer les recommandations selon votre teinte de peau naturelle.",
+    Icon: null,
+  },
+  {
+    key: "allergies",
+    type: "binary",
+    label: "Avez-vous des allergies connues ?",
+    subtitle: "Médicaments, cosmétiques, aliments, latex...",
+    Icon: IconAllergies,
+    placeholder: "Ex : pénicilline, parfums synthétiques, nickel...",
+  },
+  {
+    key: "previousDiagnosis",
+    type: "binary",
+    label: "Antécédent dermatologique ?",
+    subtitle: "Diagnostic ou condition dermatologique déjà traitée.",
+    Icon: IconConsultation,
+    placeholder: "Ex : psoriasis, dermite atopique, eczéma chronique...",
+  },
+  {
+    key: "medications",
+    type: "binary",
+    label: "Prenez-vous des médicaments ?",
+    subtitle: "Traitements en cours, y compris topiques et remèdes traditionnels.",
+    Icon: IconMedicaments,
+    placeholder: "Ex : cortisone, antihistaminiques, isotrétinoïne...",
+  },
+  {
+    key: "chronicCondition",
+    type: "binary",
+    label: "Avez-vous une condition chronique ?",
+    subtitle: "Pouvant influencer votre peau ou limiter certains traitements.",
+    Icon: null,
+    placeholder: "Ex : diabète, asthme, lupus, maladie auto-immune...",
+  },
+  {
+    key: "pregnancy",
+    type: "pregnancy",
+    label: "Grossesse ou allaitement ?",
+    subtitle: "Cette information influence les recommandations thérapeutiques.",
+    Icon: IconGrossesse,
+  },
+];
+
 // ── Utility functions ──────────────────────────────────────────────────────
 
 function createCaseReference(caseId: string | null) {
   if (!caseId) return "ML-EN-ATTENTE";
   return `ML-${new Date().getFullYear()}-${caseId.slice(-6).toUpperCase()}`;
-}
-
-function concernToBackendKey(concern: string) {
-  if (concern === "irritation") return "eczema";
-  if (concern === "demangeaisons") return "rougeurs";
-  if (concern === "chevelure") return "cheveux";
-  if (concern === "eruption") return "eczema";
-  return concern;
 }
 
 function bodyAreaToBackendLabel(areaId: string) {
@@ -490,193 +550,243 @@ async function uploadPhotoSlot(
 
 function BodySilhouette({ selectedAreas }: { selectedAreas: string[] }) {
   const has = (area: string) => selectedAreas.includes(area);
-  const outline = "#BEA27D";
-  const skin = "#F8EAD7";
-  const detail = "#EADBC6";
-  const selectedFill = "rgba(91,17,18,0.12)";
-  const selectedStroke = "#7A2324";
-  const fillFor = (area: string) => (has(area) ? selectedFill : skin);
-  const strokeFor = (area: string) => (has(area) ? selectedStroke : outline);
-  const nailsStroke = has("ongles") ? selectedStroke : outline;
+  const SK = "#F4E8D2";      // skin
+  const OL = "#BBA07A";      // outline
+  const HR = "#C8A67A";      // hair
+  const DT = "rgba(187,160,122,0.42)"; // detail lines
+  const SF = "rgba(91,17,18,0.14)";   // selected fill
+  const SS = "#7B2324";               // selected stroke
+
+  const f = (z: string) => (has(z) ? SF : SK);
+  const s = (z: string) => (has(z) ? SS : OL);
+  const d = (z: string) => (has(z) ? "rgba(123,35,36,0.28)" : DT);
 
   return (
-    <svg
-      viewBox="0 0 260 420"
-      fill="none"
-      className="mx-auto w-40"
-      aria-hidden
-    >
-      {/* Hair / scalp */}
+    <svg viewBox="0 0 260 444" fill="none" className="mx-auto w-40 drop-shadow-sm" aria-hidden>
+
+      {/* ── HAIR ──────────────────────────────────────────────── */}
       <path
-        d="M95 48C98 29 112 18 130 18C148 18 162 29 165 48C161 40 151 31 130 31C109 31 99 40 95 48Z"
-        fill={has("cuir-chevelu") ? selectedFill : "#C4A681"}
-        stroke={strokeFor("cuir-chevelu")}
+        d="M100 50
+           C99 30 111 18 130 18
+           C149 18 161 30 160 50
+           C156 38 146 30 130 30
+           C114 30 104 38 100 50Z"
+        fill={has("cuir-chevelu") ? SF : HR}
+        stroke={s("cuir-chevelu")}
+        strokeWidth="1.6"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── HEAD / FACE ───────────────────────────────────────── */}
+      <ellipse cx="130" cy="57" rx="27" ry="33"
+        fill={f("visage")} stroke={s("visage")} strokeWidth="2"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── NECK (fills gap head→torso) ───────────────────────── */}
+      <path d="M116 88 L144 88 L146 104 L114 104Z"
+        fill={f("torse")} stroke="none"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── LEFT ARM ──────────────────────────────────────────── */}
+      {/* Outer path: shoulder → elbow → wrist → hand → back up inner edge */}
+      <path
+        d="M78 112
+           C70 112 60 116 52 126
+           C46 134 44 150 44 168
+           L44 222
+           C44 238 46 252 48 264
+           C50 272 52 280 52 286
+           C52 294 55 301 62 304
+           C69 307 75 302 77 296
+           C79 289 77 280 75 272
+           C73 262 73 246 73 230
+           L73 188
+           C75 166 79 146 83 128
+           C85 120 83 114 78 112Z"
+        fill={f("bras")} stroke={s("bras")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── RIGHT ARM ─────────────────────────────────────────── */}
+      <path
+        d="M182 112
+           C190 112 200 116 208 126
+           C214 134 216 150 216 168
+           L216 222
+           C216 238 214 252 212 264
+           C210 272 208 280 208 286
+           C208 294 205 301 198 304
+           C191 307 185 302 183 296
+           C181 289 183 280 185 272
+           C187 262 187 246 187 230
+           L187 188
+           C185 166 181 146 177 128
+           C175 120 177 114 182 112Z"
+        fill={f("bras")} stroke={s("bras")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── TORSO ─────────────────────────────────────────────── */}
+      {/* Neck base → shoulders → sides (waist taper) → hips → briefs top */}
+      <path
+        d="M114 104
+           C104 106 90 112 78 120
+           C74 123 73 126 75 130
+           C79 116 81 116 83 120
+           C87 138 89 160 89 182
+           C89 200 87 214 85 224
+           C83 232 82 240 84 250
+           C86 260 92 268 106 272
+           L154 272
+           C168 268 174 260 176 250
+           C178 240 177 232 175 224
+           C173 214 171 200 171 182
+           C171 160 173 138 177 120
+           C179 116 181 116 185 130
+           C187 126 186 123 182 120
+           C170 112 156 106 146 104Z"
+        fill={f("torse")} stroke={s("torse")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+
+      {/* ── BRIEFS / INTIME ───────────────────────────────────── */}
+      <path
+        d="M106 272
+           C98 264 88 256 84 248
+           C82 256 84 266 92 276
+           C102 284 116 288 130 288
+           C144 288 158 284 168 276
+           C176 266 178 256 176 248
+           C172 256 162 264 154 272Z"
+        fill={has("intime") ? "rgba(0,65,94,0.14)" : SK}
+        stroke={has("intime") ? "#00415E" : OL}
         strokeWidth="1.5"
         className="transition-colors duration-300"
       />
-
-      {/* Head / face */}
-      <ellipse
-        cx="130"
-        cy="61"
-        rx="24"
-        ry="33"
-        fill={fillFor("visage")}
-        stroke={strokeFor("visage")}
-        strokeWidth="1.8"
-        className="transition-colors duration-300"
+      {/* Waistband line */}
+      <path d="M106 272 C114 276 122 278 130 278 C138 278 146 276 154 272"
+        stroke={has("intime") ? "#00415E" : DT}
+        strokeWidth="1.2" strokeLinecap="round"
       />
 
-      {/* Neck */}
+      {/* ── LEFT LEG ──────────────────────────────────────────── */}
       <path
-        d="M113 89C114 98 108 102 99 106M147 89C146 98 152 102 161 106"
-        stroke={outline}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-
-      {/* Torso */}
-      <path
-        d="M99 106C86 109 74 115 66 126C59 137 57 149 57 166V196C57 202 54 208 52 214M161 106C174 109 186 115 194 126C201 137 203 149 203 166V196C203 202 206 208 208 214"
-        stroke={strokeFor("torse")}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
-      />
-      <path
-        d="M99 106C104 115 115 120 130 120C145 120 156 115 161 106C174 109 186 115 194 126C201 137 203 149 203 166V196C203 202 206 208 208 214C208 231 205 249 201 270C197 285 193 301 190 319C189 336 188 351 187 365M52 214C52 231 55 249 59 270C63 285 67 301 70 319C71 336 72 351 73 365M84 231C94 219 109 214 130 214C151 214 166 219 176 231L176 249C169 257 154 261 130 261C106 261 91 257 84 249Z"
-        fill={fillFor("torse")}
-        stroke={strokeFor("torse")}
-        strokeWidth="2"
-        strokeLinecap="round"
+        d="M106 272
+           C98 274 90 282 87 295
+           L85 323
+           C85 335 85 343 87 354
+           C91 370 93 388 93 404
+           C93 414 91 422 89 430
+           C87 436 91 440 101 440
+           L122 440
+           C130 440 132 436 131 430
+           C130 424 126 415 123 406
+           C120 394 120 378 120 362
+           C120 345 118 328 116 314
+           L114 295
+           C112 283 110 275 106 272Z"
+        fill={f("jambes")} stroke={s("jambes")} strokeWidth="2"
         strokeLinejoin="round"
         className="transition-colors duration-300"
       />
 
-      {/* Chest / torso details */}
+      {/* ── RIGHT LEG ─────────────────────────────────────────── */}
       <path
-        d="M130 124V204"
-        stroke={has("torse") ? "rgba(122,35,36,0.3)" : detail}
-        strokeWidth="1.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M95 131C103 128 113 128 121 131M139 131C147 128 157 128 165 131"
-        stroke={has("torse") ? "rgba(122,35,36,0.25)" : detail}
-        strokeWidth="1.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M90 171C100 176 114 176 122 172M138 172C146 176 160 176 170 171"
-        stroke={has("torse") ? "rgba(122,35,36,0.18)" : "rgba(234,219,198,0.95)"}
-        strokeWidth="1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M81 232C92 221 107 216 130 216C153 216 168 221 179 232"
-        stroke={has("torse") ? "rgba(122,35,36,0.3)" : detail}
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        className="transition-colors duration-300"
-      />
-
-      {/* Arms */}
-      <path
-        d="M66 126C60 144 58 164 58 183V219C60 227 61 234 61 240C61 254 68 265 77 269C84 272 91 267 91 259C91 252 87 247 82 244C82 236 82 223 84 210C86 189 90 169 97 149"
-        fill={fillFor("bras")}
-        stroke={strokeFor("bras")}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
-      />
-      <path
-        d="M194 126C200 144 202 164 202 183V219C200 227 199 234 199 240C199 254 192 265 183 269C176 272 169 267 169 259C169 252 173 247 178 244C178 236 178 223 176 210C174 189 170 169 163 149"
-        fill={fillFor("bras")}
-        stroke={strokeFor("bras")}
-        strokeWidth="2"
-        strokeLinecap="round"
+        d="M154 272
+           C162 274 170 282 173 295
+           L175 323
+           C175 335 175 343 173 354
+           C169 370 167 388 167 404
+           C167 414 169 422 171 430
+           C173 436 169 440 159 440
+           L138 440
+           C130 440 128 436 129 430
+           C130 424 134 415 137 406
+           C140 394 140 378 140 362
+           C140 345 142 328 144 314
+           L146 295
+           C148 283 150 275 154 272Z"
+        fill={f("jambes")} stroke={s("jambes")} strokeWidth="2"
         strokeLinejoin="round"
         className="transition-colors duration-300"
       />
 
-      {/* Intimate / pelvis area */}
-      <path
-        d="M123 236H137L141 312H119L123 236Z"
-        fill={has("intime") ? "rgba(91,17,18,0.18)" : "rgba(232,215,190,0.55)"}
-        stroke={strokeFor("intime")}
-        strokeWidth="1.4"
+      {/* ── DETAIL LINES ──────────────────────────────────────── */}
+
+      {/* Sternum / center line */}
+      <path d="M130 106 L130 224"
+        stroke={d("torse")} strokeWidth="1.2" strokeLinecap="round"
+      />
+
+      {/* Left pec arc */}
+      <path d="M93 130 C101 126 112 126 121 130"
+        stroke={d("torse")} strokeWidth="1.1" strokeLinecap="round"
+      />
+      {/* Right pec arc */}
+      <path d="M139 130 C148 126 159 126 167 130"
+        stroke={d("torse")} strokeWidth="1.1" strokeLinecap="round"
+      />
+
+      {/* Abs row 1 */}
+      <path d="M118 162 C121 159 126 159 130 159 C134 159 139 159 142 162"
+        stroke={d("torse")} strokeWidth="1" strokeLinecap="round"
+      />
+      {/* Abs row 2 */}
+      <path d="M118 184 C121 181 126 181 130 181 C134 181 139 181 142 184"
+        stroke={d("torse")} strokeWidth="1" strokeLinecap="round"
+      />
+
+      {/* Left knee cap */}
+      <ellipse cx="100" cy="342" rx="13" ry="10"
+        fill={has("jambes") ? "rgba(91,17,18,0.07)" : "rgba(244,232,210,0.7)"}
+        stroke={s("jambes")} strokeWidth="1.2"
+        className="transition-colors duration-300"
+      />
+      {/* Right knee cap */}
+      <ellipse cx="160" cy="342" rx="13" ry="10"
+        fill={has("jambes") ? "rgba(91,17,18,0.07)" : "rgba(244,232,210,0.7)"}
+        stroke={s("jambes")} strokeWidth="1.2"
         className="transition-colors duration-300"
       />
 
-      {/* Legs */}
-      <path
-        d="M119 261C118 279 116 298 112 322C108 346 107 367 112 386C108 392 104 398 101 404C98 410 101 414 109 414H126C134 414 137 410 136 404C135 398 130 392 126 386C126 367 127 346 129 322C130 298 129 279 127 261Z"
-        fill={fillFor("jambes")}
-        stroke={strokeFor("jambes")}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
+      {/* Left elbow crease */}
+      <path d="M48 224 C50 230 52 234 54 238"
+        stroke={has("bras") ? "rgba(122,35,36,0.2)" : DT}
+        strokeWidth="1" strokeLinecap="round"
       />
-      <path
-        d="M141 261C142 279 144 298 148 322C152 346 153 367 148 386C152 392 156 398 159 404C162 410 159 414 151 414H134C126 414 123 410 124 404C125 398 130 392 134 386C134 367 133 346 131 322C130 298 131 279 133 261Z"
-        fill={fillFor("jambes")}
-        stroke={strokeFor("jambes")}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
+      {/* Right elbow crease */}
+      <path d="M212 224 C210 230 208 234 206 238"
+        stroke={has("bras") ? "rgba(122,35,36,0.2)" : DT}
+        strokeWidth="1" strokeLinecap="round"
       />
 
-      {/* Knees */}
-      <ellipse
-        cx="115"
-        cy="306"
-        rx="11"
-        ry="8"
-        fill={has("jambes") ? "rgba(91,17,18,0.08)" : "rgba(232,215,190,0.45)"}
-        stroke={strokeFor("jambes")}
-        strokeWidth="1.2"
-        className="transition-colors duration-300"
-      />
-      <ellipse
-        cx="145"
-        cy="306"
-        rx="11"
-        ry="8"
-        fill={has("jambes") ? "rgba(91,17,18,0.08)" : "rgba(232,215,190,0.45)"}
-        stroke={strokeFor("jambes")}
-        strokeWidth="1.2"
-        className="transition-colors duration-300"
-      />
-
-      {/* Feet */}
-      <path
-        d="M112 386C107 392 102 397 98 404C95 410 99 414 109 414H126C132 414 136 411 136 406C136 398 130 391 123 386"
-        fill={fillFor("jambes")}
-        stroke={strokeFor("jambes")}
-        strokeWidth="2"
+      {/* Nail / finger accent left hand */}
+      <path d="M55 292 C56 298 58 302 62 304"
+        stroke={has("ongles") ? SS : OL}
+        strokeWidth={has("ongles") ? 1.8 : 1.1}
         strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
       />
-      <path
-        d="M148 386C153 392 158 397 162 404C165 410 161 414 151 414H134C128 414 124 411 124 406C124 398 130 391 137 386"
-        fill={fillFor("jambes")}
-        stroke={strokeFor("jambes")}
-        strokeWidth="2"
+      {/* Nail / finger accent right hand */}
+      <path d="M205 292 C204 298 202 302 198 304"
+        stroke={has("ongles") ? SS : OL}
+        strokeWidth={has("ongles") ? 1.8 : 1.1}
         strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-colors duration-300"
       />
-
-      {/* Ongles accents */}
-      <path
-        d="M82 244C79 248 77 253 76 258M178 244C181 248 183 253 184 258M111 409L103 404M149 409L157 404"
-        stroke={nailsStroke}
-        strokeWidth={has("ongles") ? 1.9 : 1.3}
+      {/* Toe accent left */}
+      <path d="M100 436 C104 439 110 440 116 440"
+        stroke={has("ongles") ? SS : OL}
+        strokeWidth={has("ongles") ? 1.8 : 1.1}
+        strokeLinecap="round"
+      />
+      {/* Toe accent right */}
+      <path d="M160 436 C156 439 150 440 144 440"
+        stroke={has("ongles") ? SS : OL}
+        strokeWidth={has("ongles") ? 1.8 : 1.1}
         strokeLinecap="round"
       />
     </svg>
@@ -1714,45 +1824,6 @@ function StepPhotoReview({
   );
 }
 
-// ── Medical Field ──────────────────────────────────────────────────────────
-
-function MedicalField({
-  label,
-  hint,
-  value,
-  onChange,
-  placeholder,
-  optional = false,
-}: {
-  label: string;
-  hint?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  optional?: boolean;
-}) {
-  return (
-    <div className="mb-4">
-      <div className="mb-1.5 flex items-center justify-between">
-        <p className="text-xs font-medium text-[#111214]/70">{label}</p>
-        {optional ? (
-          <span className="text-[9px] uppercase tracking-wider text-[#111214]/30">
-            Facultatif
-          </span>
-        ) : null}
-      </div>
-      {hint ? <p className="mb-2 text-[10px] leading-relaxed text-[#111214]/35">{hint}</p> : null}
-      <input
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-[1.25rem] border border-white bg-white/70 px-4 py-3 text-sm text-[#111214] outline-none transition-colors placeholder:text-[#111214]/25 focus:border-[#5B1112]/20 focus:bg-white focus:shadow-sm"
-      />
-    </div>
-  );
-}
-
 // ── Step: Medical History ──────────────────────────────────────────────────
 
 function StepMedicalHistory({
@@ -1764,103 +1835,285 @@ function StepMedicalHistory({
   onUpdate: (updates: Partial<FlowData>) => void;
   onNext: () => void;
 }) {
-  const updateField = (key: keyof FlowData["medical"], value: string) => {
+  const [subStep, setSubStep] = useState(0);
+
+  const updateMedical = (key: keyof FlowData["medical"], value: string) =>
     onUpdate({ medical: { ...data.medical, [key]: value } });
+
+  const handleContinue = () => {
+    if (subStep < MEDICAL_QUESTIONS.length - 1) setSubStep((s) => s + 1);
+    else onNext();
   };
+
+  const q = MEDICAL_QUESTIONS[subStep];
+  const currentValue = data.medical[q.key];
+
+  const getBinaryState = (val: string): "oui" | "non" | "nsp" | null => {
+    if (!val) return null;
+    if (val === "Non") return "non";
+    if (val === "Non mentionné") return "nsp";
+    return "oui";
+  };
+
+  const binaryState = getBinaryState(currentValue);
+  const binaryText =
+    binaryState === "oui" && currentValue !== "Oui" ? currentValue : "";
+
+  const QuestionIcon = q.Icon;
 
   return (
     <div>
       <StepTitle
         eyebrow="Contexte médical"
-        title="Quelques informations utiles"
-        subtitle="Ces éléments aident votre dermatologue à proposer un avis adapté. Toutes les questions sont facultatives."
+        title="Quelques précisions utiles"
+        subtitle="Tout est facultatif — plus vous partagez, plus l'avis sera précis."
       />
 
-      {/* Skin type selector */}
-      <div className="mb-5 rounded-[2rem] border border-white bg-white/70 p-5 shadow-sm">
-        <p className="mb-1 text-xs font-medium text-[#111214]/70">Phototype cutané</p>
-        <p className="mb-3 text-[10px] leading-relaxed text-[#111214]/35">
-          Aide à calibrer les recommandations selon votre teinte de peau.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {SKIN_TYPES.map((skinType) => (
-            <motion.button
-              key={skinType.id}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => updateField("skinType", skinType.id)}
-              className={`rounded-[1rem] border px-3 py-2 text-xs transition-all ${
-                data.medical.skinType === skinType.id
-                  ? "border-[#5B1112] bg-[#5B1112] text-white shadow-md shadow-[#5B1112]/15"
-                  : "border-white bg-white/70 text-[#111214]/60 hover:bg-white"
+      {/* Sub-step progress */}
+      <div className="mb-5 flex items-center gap-2">
+        <div className="flex flex-1 gap-1">
+          {MEDICAL_QUESTIONS.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                i <= subStep ? "bg-[#5B1112]" : "bg-[#111214]/10"
               }`}
-            >
-              <span className="font-medium">{skinType.label}</span>
-              <span
-                className={`ml-1 text-[9px] ${
-                  data.medical.skinType === skinType.id
-                    ? "text-white/55"
-                    : "text-[#111214]/30"
-                }`}
-              >
-                {skinType.desc}
-              </span>
-            </motion.button>
+            />
           ))}
         </div>
+        <span className="text-[9px] font-semibold text-[#5B1112]/55">
+          {subStep + 1} / {MEDICAL_QUESTIONS.length}
+        </span>
       </div>
 
-      {/* Medical fields */}
-      <div className="rounded-[2rem] border border-white bg-white/70 p-5 shadow-sm">
-        <MedicalField
-          label="Allergies connues"
-          hint="Médicaments, cosmétiques, aliments, ou autres."
-          value={data.medical.allergies}
-          onChange={(value) => updateField("allergies", value)}
-          placeholder="Ex. : pénicilline, parfums synthétiques..."
-          optional
-        />
-        <MedicalField
-          label="Antécédent dermatologique"
-          hint="Ancien diagnostic, traitement suivi, ou condition chronique."
-          value={data.medical.previousDiagnosis}
-          onChange={(value) => updateField("previousDiagnosis", value)}
-          placeholder="Ex. : psoriasis, dermite atopique..."
-          optional
-        />
-        <MedicalField
-          label="Médicaments actuels"
-          hint="Traitements en cours, y compris topiques et traditionnels."
-          value={data.medical.medications}
-          onChange={(value) => updateField("medications", value)}
-          placeholder="Ex. : cortisone, antihistaminiques..."
-          optional
-        />
-        <MedicalField
-          label="Terrain chronique"
-          hint="Ex. diabète, asthme, maladie auto-immune."
-          value={data.medical.chronicCondition}
-          onChange={(value) => updateField("chronicCondition", value)}
-          placeholder="Condition chronique éventuelle"
-          optional
-        />
-        <div className="mb-0">
-          <p className="mb-1.5 text-xs font-medium text-[#111214]/70">
-            Grossesse ou allaitement
-          </p>
-          <div className="flex gap-2">
-            {["Oui", "Non", "Non applicable"].map((option) => (
-              <Chip
-                key={option}
-                label={option}
-                selected={data.medical.pregnancy === option}
-                onClick={() => updateField("pregnancy", option)}
-              />
-            ))}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={subStep}
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-3"
+        >
+          {/* Question header */}
+          <div className="rounded-[2rem] border border-white bg-white/80 p-5 shadow-sm backdrop-blur-sm">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#5B1112]/[0.07]">
+                {QuestionIcon ? (
+                  <QuestionIcon className="h-5 w-5 text-[#5B1112]/60" />
+                ) : (
+                  <Sparkles size={17} className="text-[#5B1112]/60" />
+                )}
+              </div>
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5B1112]/50">
+                Question {subStep + 1}
+              </span>
+            </div>
+            <p className="text-[15px] font-medium leading-snug text-[#111214]">
+              {q.label}
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#111214]/42">
+              {q.subtitle}
+            </p>
           </div>
-        </div>
-      </div>
 
-      <ContinueButton label="Continuer" onClick={onNext} />
+          {/* ── Phototype swatches ── */}
+          {q.type === "phototype" && (
+            <div className="grid grid-cols-5 gap-2">
+              {SKIN_TYPES.map((st) => {
+                const active = data.medical.skinType === st.id;
+                return (
+                  <motion.button
+                    key={st.id}
+                    type="button"
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => updateMedical("skinType", st.id)}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-3 transition-all ${
+                      active
+                        ? "border-[#5B1112]/30 bg-[#5B1112]/[0.06] shadow-sm"
+                        : "border-white bg-white/70 hover:bg-white"
+                    }`}
+                  >
+                    <div
+                      className={`h-10 w-10 rounded-full shadow-md transition-all ${
+                        active
+                          ? "ring-2 ring-[#5B1112]/50 ring-offset-1"
+                          : ""
+                      }`}
+                      style={{
+                        background:
+                          PHOTOTYPE_COLORS[st.id] ?? "#EFBA8A",
+                      }}
+                    />
+                    <span
+                      className={`text-center text-[9px] font-semibold leading-tight ${
+                        active ? "text-[#5B1112]" : "text-[#111214]/55"
+                      }`}
+                    >
+                      {st.label}
+                    </span>
+                    <span
+                      className={`text-center text-[8px] leading-tight ${
+                        active ? "text-[#5B1112]/60" : "text-[#111214]/28"
+                      }`}
+                    >
+                      {st.desc}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Binary question (Oui / Non / NSP) ── */}
+          {q.type === "binary" && (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    {
+                      ans: "oui" as const,
+                      label: "Oui",
+                      Icon: Check,
+                      store: "Oui",
+                      active:
+                        "border-[#5B1112]/25 bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/20",
+                    },
+                    {
+                      ans: "non" as const,
+                      label: "Non",
+                      Icon: X,
+                      store: "Non",
+                      active:
+                        "border-emerald-300 bg-emerald-500 text-white shadow-lg shadow-emerald-400/20",
+                    },
+                    {
+                      ans: "nsp" as const,
+                      label: "Je ne sais pas",
+                      Icon: HelpCircle,
+                      store: "Non mentionné",
+                      active:
+                        "border-[#111214]/15 bg-white text-[#111214]/65 shadow-sm",
+                    },
+                  ] as const
+                ).map(({ ans, label, Icon: AnsIcon, store, active }) => (
+                  <motion.button
+                    key={ans}
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => updateMedical(q.key, store)}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 transition-all duration-200 ${
+                      binaryState === ans
+                        ? active
+                        : "border-white bg-white/70 text-[#111214]/45 hover:bg-white"
+                    }`}
+                  >
+                    <AnsIcon size={22} strokeWidth={1.8} />
+                    <span className="text-center text-[10px] font-medium leading-tight">
+                      {label}
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Expandable text when Oui */}
+              <AnimatePresence>
+                {binaryState === "oui" ? (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.28 }}
+                  >
+                    <textarea
+                      autoFocus
+                      rows={3}
+                      placeholder={q.placeholder ?? "Précisez..."}
+                      value={binaryText}
+                      onChange={(e) =>
+                        updateMedical(q.key, e.target.value || "Oui")
+                      }
+                      className="w-full resize-none rounded-2xl border border-white bg-white/80 px-4 py-3 text-sm text-[#111214] outline-none transition-all placeholder:text-[#111214]/30 focus:border-[#5B1112]/25 focus:bg-white focus:shadow-sm"
+                    />
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* ── Pregnancy question ── */}
+          {q.type === "pregnancy" && (
+            <div className="grid grid-cols-3 gap-2.5">
+              {(
+                [
+                  {
+                    val: "Oui",
+                    label: "Oui",
+                    Icon: IconGrossesse,
+                    active:
+                      "border-rose-300 bg-rose-500 text-white shadow-lg shadow-rose-400/20",
+                  },
+                  {
+                    val: "Non",
+                    label: "Non",
+                    Icon: X,
+                    active:
+                      "border-emerald-300 bg-emerald-500 text-white shadow-lg shadow-emerald-400/20",
+                  },
+                  {
+                    val: "Non applicable",
+                    label: "Non\napplicable",
+                    Icon: MinusCircle,
+                    active:
+                      "border-[#111214]/15 bg-white text-[#111214]/65 shadow-sm",
+                  },
+                ] as const
+              ).map(({ val, label, Icon: PregIcon, active }) => (
+                <motion.button
+                  key={val}
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => updateMedical("pregnancy", val)}
+                  className={`flex flex-col items-center gap-2.5 rounded-2xl border p-4 text-center transition-all duration-200 ${
+                    data.medical.pregnancy === val
+                      ? active
+                      : "border-white bg-white/70 text-[#111214]/45 hover:bg-white"
+                  }`}
+                >
+                  <PregIcon
+                    size={24}
+                    strokeWidth={1.7}
+                    className="h-6 w-6 flex-shrink-0"
+                  />
+                  <span className="whitespace-pre-line text-[10px] font-medium leading-tight">
+                    {label}
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Navigation */}
+      <div className="mt-5 flex items-center gap-2.5">
+        {subStep > 0 ? (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSubStep((s) => s - 1)}
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-white bg-white/70 text-[#111214]/40 transition-colors hover:bg-white"
+          >
+            <ChevronLeft size={18} />
+          </motion.button>
+        ) : null}
+        <ContinueButton
+          label={
+            subStep === MEDICAL_QUESTIONS.length - 1 ? "Terminer" : "Suivant"
+          }
+          onClick={handleContinue}
+        />
+      </div>
     </div>
   );
 }

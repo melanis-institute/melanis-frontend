@@ -1489,6 +1489,7 @@ export class MockAccountAdapter implements AccountAdapter {
     status?: string,
   ): Promise<AsyncCaseRecord[]> {
     return readAsyncCases()
+      .filter((item) => item.status !== "draft")
       .filter((item) => (status ? item.status === status : true))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }

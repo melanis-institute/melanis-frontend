@@ -16,7 +16,9 @@ export default function PatientTeledermInboxScreen() {
   useEffect(() => {
     if (!auth.user || !auth.actingProfileId) return;
     let active = true;
-    setLoading(true);
+    queueMicrotask(() => {
+      if (active) setLoading(true);
+    });
     auth.accountAdapter
       .listAsyncCases(auth.user.id, auth.actingProfileId)
       .then((items) => {

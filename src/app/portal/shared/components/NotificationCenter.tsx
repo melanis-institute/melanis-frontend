@@ -28,14 +28,20 @@ export function NotificationCenter({
   iconSize = 18,
 }: NotificationCenterProps) {
   const auth = useAuth();
+  const canUseNotifications =
+    typeof auth.accountAdapter.listNotifications === "function" &&
+    typeof auth.accountAdapter.markNotificationRead === "function" &&
+    typeof auth.accountAdapter.markAllNotificationsRead === "function";
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotificationRecord[]>([]);
 
   useEffect(() => {
-    if (!auth.user) return;
+    if (!auth.user || !canUseNotifications) return;
     let isMounted = true;
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (isMounted) setIsLoading(true);
+    });
     auth.accountAdapter
       .listNotifications(auth.user.id, 20)
       .then((items) => {
@@ -47,7 +53,7 @@ export function NotificationCenter({
     return () => {
       isMounted = false;
     };
-  }, [auth.accountAdapter, auth.user]);
+  }, [auth.accountAdapter, auth.user, canUseNotifications]);
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.readAt).length,
@@ -55,7 +61,7 @@ export function NotificationCenter({
   );
 
   async function handleRead(notification: AppNotificationRecord) {
-    if (!auth.user || notification.readAt) return;
+    if (!auth.user || !canUseNotifications || notification.readAt) return;
     const updated = await auth.accountAdapter.markNotificationRead(
       auth.user.id,
       notification.id,
@@ -66,7 +72,7 @@ export function NotificationCenter({
   }
 
   async function handleReadAll() {
-    if (!auth.user) return;
+    if (!auth.user || !canUseNotifications) return;
     await auth.accountAdapter.markAllNotificationsRead(auth.user.id);
     setNotifications((current) =>
       current.map((item) => ({
