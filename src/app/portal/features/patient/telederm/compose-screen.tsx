@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -37,7 +37,6 @@ import {
   IconDesquamation,
 } from "@portal/features/patient/preconsult/components/symptom-icons";
 import { useNavigate } from "react-router";
-import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
 import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
 import { useAuth } from "@portal/session/useAuth";
 import type { AccountAdapter } from "@portal/domains/account/adapter.types";
@@ -65,8 +64,6 @@ const STEP_ORDER: Step[] = [
   "review",
   "success",
 ];
-
-const PROGRESS_STEPS = STEP_ORDER.slice(0, 9);
 
 const STEP_LABELS: Record<Step, string> = {
   "concern": "Motif de consultation",
@@ -143,9 +140,9 @@ const INITIAL_DATA: FlowData = {
 };
 
 const stepVariants = {
-  enter: (direction: number) => ({ x: direction * 28, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (direction: number) => ({ x: direction * -28, opacity: 0 }),
+  enter: (direction: number) => ({ x: direction * 36, opacity: 0, scale: 0.97 }),
+  center: { x: 0, opacity: 1, scale: 1 },
+  exit: (direction: number) => ({ x: direction * -36, opacity: 0, scale: 0.97 }),
 };
 
 // ── Concern colour palettes ────────────────────────────────────────────────
@@ -282,6 +279,17 @@ const BODY_AREAS = [
 const BODY_AREA_LABELS: Record<string, string> = Object.fromEntries(
   BODY_AREAS.map((item) => [item.id, item.label]),
 );
+
+const BODY_AREA_EMOJIS: Record<string, string> = {
+  visage: "😊",
+  "cuir-chevelu": "💆",
+  bras: "💪",
+  jambes: "🦵",
+  torse: "👕",
+  intime: "🔒",
+  ongles: "💅",
+  autre: "📌",
+};
 
 const PHOTO_TIPS = [
   {
@@ -913,52 +921,6 @@ function ReviewIllustration() {
 
 // ── Shared UI components ────────────────────────────────────────────────────
 
-function ProgressBar({ step }: { step: Step }) {
-  const currentIndex = PROGRESS_STEPS.indexOf(step);
-  if (currentIndex === -1) return null;
-  const label = STEP_LABELS[step] ?? "";
-
-  return (
-    <div className="mb-5">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#111214]/40">
-          {label}
-        </span>
-        <span className="text-[9px] font-semibold text-[#5B1112]/55">
-          {currentIndex + 1} / {PROGRESS_STEPS.length}
-        </span>
-      </div>
-      <div className="flex gap-1">
-        {PROGRESS_STEPS.map((item, index) => (
-          <motion.div
-            key={item}
-            className={`h-[3px] flex-1 rounded-full transition-all duration-500 ${
-              index < currentIndex
-                ? "bg-[#5B1112]"
-                : index === currentIndex
-                  ? "bg-[#5B1112]/45"
-                  : "bg-[#111214]/8"
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.95 }}
-      onClick={onClick}
-      className="mb-5 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/60 px-3 py-2 text-xs font-medium text-[#111214]/50 shadow-sm transition-all hover:bg-white hover:text-[#5B1112]"
-    >
-      <ChevronLeft size={15} />
-      <span>Retour</span>
-    </motion.button>
-  );
-}
-
 function StepTitle({
   eyebrow,
   title,
@@ -999,18 +961,18 @@ function ContinueButton({
 }) {
   return (
     <motion.button
-      whileHover={!disabled ? { scale: 1.01, y: -1 } : {}}
-      whileTap={!disabled ? { scale: 0.98 } : {}}
+      whileHover={!disabled ? { scale: 1.015, y: -2 } : {}}
+      whileTap={!disabled ? { scale: 0.975 } : {}}
       onClick={onClick}
       disabled={disabled}
-      className={`mt-6 flex w-full items-center justify-center gap-2.5 rounded-[1.5rem] py-4 text-sm font-medium transition-all ${
+      className={`mt-6 flex w-full items-center justify-center gap-2.5 rounded-[1.5rem] py-4 text-sm font-semibold transition-all duration-200 ${
         disabled
-          ? "cursor-not-allowed bg-[#111214]/8 text-[#111214]/25"
-          : "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/25 hover:shadow-xl hover:shadow-[#5B1112]/30"
+          ? "cursor-not-allowed bg-[#111214]/[0.06] text-[#111214]/22"
+          : "bg-gradient-to-br from-[#5B1112] to-[#7B2224] text-white shadow-lg shadow-[#5B1112]/30 hover:shadow-xl hover:shadow-[#5B1112]/35"
       }`}
     >
       <span>{label}</span>
-      <Icon size={15} />
+      <Icon size={15} strokeWidth={2.2} />
     </motion.button>
   );
 }
@@ -1057,29 +1019,35 @@ function SensationCard({
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.92 }}
+      whileTap={{ scale: 0.90 }}
+      whileHover={{ y: -2 }}
       onClick={onClick}
-      className={`relative flex flex-col items-center gap-2 rounded-2xl border p-3 transition-all duration-200 ${
+      className={`relative flex flex-col items-center gap-2 rounded-2xl border p-3.5 transition-all duration-200 ${
         selected
-          ? "border-[#5B1112]/30 bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/20"
-          : "border-white bg-white/80 text-[#111214]/50 hover:border-[#5B1112]/15 hover:bg-white hover:text-[#5B1112]/70"
+          ? "border-[#5B1112]/20 bg-gradient-to-br from-[#5B1112] to-[#7B2224] text-white shadow-xl shadow-[#5B1112]/25"
+          : "border-white/90 bg-white/85 text-[#111214]/45 shadow-sm hover:border-[#5B1112]/15 hover:bg-white hover:text-[#5B1112]/70 hover:shadow-md"
       }`}
     >
-      <div className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${selected ? "bg-white/15" : "bg-[#5B1112]/5"}`}>
+      <div
+        className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+          selected ? "bg-white/15" : "bg-[#5B1112]/6"
+        }`}
+      >
         {Icon ? (
-          <Icon className="h-[22px] w-[22px]" />
+          <Icon className="h-6 w-6" />
         ) : (
-          <MinusCircle size={22} />
+          <MinusCircle size={24} />
         )}
       </div>
-      <span className="text-center text-[10px] font-medium leading-tight">{label}</span>
+      <span className="text-center text-[10px] font-semibold leading-tight">{label}</span>
       {selected ? (
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-white/30"
+          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+          className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-white/35"
         >
-          <Check size={8} strokeWidth={3} />
+          <Check size={8} strokeWidth={3.5} />
         </motion.div>
       ) : null}
     </motion.button>
@@ -1259,33 +1227,39 @@ function StepBodyArea({
               </div>
             ) : null}
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => toggleArea(area.id)}
               className={`relative w-full rounded-[1.5rem] border p-4 text-left transition-all duration-200 ${
                 data.bodyAreas.includes(area.id)
                   ? area.id === "intime"
-                    ? "border-[#00415E] bg-[#00415E] shadow-lg shadow-[#00415E]/20"
-                    : "border-[#5B1112] bg-[#5B1112] shadow-lg shadow-[#5B1112]/20"
+                    ? "border-[#00415E]/60 bg-gradient-to-br from-[#00415E] to-[#005a80] shadow-lg shadow-[#00415E]/20"
+                    : "border-[#5B1112]/30 bg-gradient-to-br from-[#5B1112] to-[#7B2224] shadow-lg shadow-[#5B1112]/22"
                   : area.id === "intime"
-                    ? "border-[#00415E]/15 bg-white/70 hover:border-[#00415E]/30 hover:bg-white"
-                    : "border-white bg-white/70 hover:border-[#5B1112]/15 hover:bg-white"
+                    ? "border-[#00415E]/15 bg-white/80 shadow-sm hover:border-[#00415E]/30 hover:bg-white hover:shadow-md"
+                    : "border-white/90 bg-white/80 shadow-sm hover:border-[#5B1112]/15 hover:bg-white hover:shadow-md"
               }`}
             >
-              <p className={`text-sm font-medium leading-snug ${
+              <span className="mb-2 block text-xl">{BODY_AREA_EMOJIS[area.id]}</span>
+              <p className={`text-sm font-semibold leading-snug ${
                 data.bodyAreas.includes(area.id) ? "text-white" : "text-[#111214]"
               }`}>
                 {area.label}
               </p>
               <p className={`mt-0.5 text-[10px] leading-relaxed ${
-                data.bodyAreas.includes(area.id) ? "text-white/55" : "text-[#111214]/38"
+                data.bodyAreas.includes(area.id) ? "text-white/55" : "text-[#111214]/35"
               }`}>
                 {area.desc}
               </p>
               {data.bodyAreas.includes(area.id) ? (
-                <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white/20">
-                  <Check size={11} className="text-white" />
-                </div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                  className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white/25"
+                >
+                  <Check size={11} className="text-white" strokeWidth={2.5} />
+                </motion.div>
               ) : null}
             </motion.button>
           </div>
@@ -2595,6 +2569,105 @@ function StepSuccess({
   );
 }
 
+// ── Focused flow shell ──────────────────────────────────────────────────────
+
+function TeledermFlowShell({
+  step,
+  isSaving,
+  onBack,
+  children,
+}: {
+  step: Step;
+  isSaving: boolean;
+  onBack: () => void;
+  children: ReactNode;
+}) {
+  const showMeta = step !== "success";
+  const currentIndex = STEP_ORDER.indexOf(step);
+  const progressPct =
+    currentIndex >= 0 ? (currentIndex / (STEP_ORDER.length - 2)) * 100 : 100;
+
+  return (
+    <div className="relative min-h-screen bg-[#FEF0D5] font-sans">
+      {/* Ambient blobs */}
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
+        <div className="absolute left-[-6%] top-[-10%] h-[50vw] w-[50vw] rounded-full bg-white/65 blur-[140px]" />
+        <div className="absolute bottom-[-6%] right-[-6%] h-[42vw] w-[42vw] rounded-full bg-[#5B1112]/5 blur-[130px]" />
+        <div className="absolute left-1/2 top-1/3 h-[55vw] w-[55vw] -translate-x-1/2 rounded-full bg-[#FEF0D5]/30 blur-[90px]" />
+      </div>
+
+      {/* Sticky top bar */}
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-white/40 bg-[#FEF0D5]/92 px-4 backdrop-blur-xl">
+        {step !== "success" ? (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onBack}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#111214]/55 shadow-sm transition hover:bg-white hover:text-[#111214]"
+          >
+            <ChevronLeft size={17} />
+          </motion.button>
+        ) : (
+          <div className="h-9 w-9" />
+        )}
+
+        <div className="flex items-center gap-2">
+          <MelaniaMascot size={26} animated={false} />
+          <span
+            className="font-serif text-[#111214]"
+            style={{ fontSize: 16, letterSpacing: "-0.02em" }}
+          >
+            melanis
+          </span>
+        </div>
+
+        {showMeta ? (
+          <div className="flex h-8 items-center gap-1.5 rounded-full border border-white/70 bg-white/60 px-3 shadow-sm">
+            <motion.div
+              animate={{ opacity: isSaving ? [1, 0.3, 1] : 1 }}
+              transition={isSaving ? { duration: 1.2, repeat: Infinity } : {}}
+              className={`h-1.5 w-1.5 rounded-full ${isSaving ? "bg-amber-400" : "bg-emerald-400"}`}
+            />
+            <span className="text-[9px] font-medium text-[#111214]/40">
+              {isSaving ? "Enreg." : "Sauvegardé"}
+            </span>
+          </div>
+        ) : (
+          <div className="h-8 w-[72px]" />
+        )}
+      </header>
+
+      {/* Progress bar */}
+      {showMeta ? (
+        <div className="sticky top-14 z-30 bg-[#FEF0D5]/92 px-5 pb-3 pt-2.5 backdrop-blur-xl">
+          <div className="mx-auto max-w-[480px]">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[8.5px] font-bold uppercase tracking-[0.24em] text-[#111214]/38">
+                {STEP_LABELS[step]}
+              </span>
+              <span className="text-[8.5px] font-bold text-[#5B1112]/55">
+                {currentIndex + 1}&thinsp;/&thinsp;{STEP_ORDER.length - 1}
+              </span>
+            </div>
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-[#111214]/[0.07]">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-[#5B1112] to-[#9B3335]"
+                initial={false}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Content */}
+      <main className="relative z-10 flex justify-center px-4 pb-28 pt-5">
+        <div className="w-full max-w-[480px]">{children}</div>
+      </main>
+    </div>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function PatientTeledermComposeScreen() {
@@ -2613,8 +2686,6 @@ export default function PatientTeledermComposeScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveState, setSaveState] = useState("Initialisation du brouillon...");
-  const fullName = auth.user?.fullName ?? "Patient";
-
   const questionnaireData = useMemo(
     () => ({
       bodyAreas: data.bodyAreas,
@@ -2744,11 +2815,6 @@ export default function PatientTeledermComposeScreen() {
     }));
   };
 
-  async function handleLogout() {
-    await auth.logout();
-    navigate("/patient-flow/auth/connexion");
-  }
-
   async function handleSubmit() {
     if (!auth.user || !draftId) return;
 
@@ -2795,91 +2861,60 @@ export default function PatientTeledermComposeScreen() {
   }
 
   return (
-    <DashboardLayout fullName={fullName} onLogout={handleLogout}>
-      <div className="mx-auto max-w-[42rem] pb-20 lg:pb-10">
-        {/* Progress + back */}
-        {step !== "success" ? (
-          <div className="mb-2">
-            <ProgressBar step={step} />
-            <BackButton onClick={goBack} />
-          </div>
-        ) : null}
-
-        {/* Draft status pill (only during non-success steps) */}
-        {step !== "success" ? (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-5 flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-4 py-2 shadow-sm"
-          >
-            <motion.div
-              animate={{ opacity: isSaving ? [1, 0.3, 1] : 1 }}
-              transition={isSaving ? { duration: 1, repeat: Infinity } : {}}
-              className={`h-1.5 w-1.5 rounded-full ${isSaving ? "bg-amber-400" : "bg-emerald-400"}`}
+    <TeledermFlowShell step={step} isSaving={isSaving} onBack={goBack}>
+      {/* Step content */}
+      <AnimatePresence mode="wait" custom={direction}>
+        <motion.div
+          key={step}
+          custom={direction}
+          variants={stepVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {step === "concern" ? (
+            <StepConcern data={data} onUpdate={updateData} onNext={goNext} />
+          ) : null}
+          {step === "body-area" ? (
+            <StepBodyArea data={data} onUpdate={updateData} onNext={goNext} />
+          ) : null}
+          {step === "symptoms" ? (
+            <StepSymptoms data={data} onUpdate={updateData} onNext={goNext} />
+          ) : null}
+          {step === "photo-guide" ? <StepPhotoGuide onNext={goNext} /> : null}
+          {step === "photo-upload" ? (
+            <StepPhotoUpload data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
+          ) : null}
+          {step === "photo-review" ? (
+            <StepPhotoReview data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
+          ) : null}
+          {step === "medical-history" ? (
+            <StepMedicalHistory data={data} onUpdate={updateData} onNext={goNext} />
+          ) : null}
+          {step === "consent" ? (
+            <StepConsent data={data} onUpdate={updateData} onNext={goNext} />
+          ) : null}
+          {step === "review" ? (
+            <StepReview
+              data={data}
+              isSubmitting={isSubmitting}
+              saveState={saveState}
+              hasDraft={Boolean(draftId)}
+              onSubmit={() => void handleSubmit()}
             />
-            <span className="text-[10px] text-[#111214]/50">
-              {isSaving ? "Enregistrement..." : saveState}
-            </span>
-            <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-[#111214]/25">
-              Télé-Derm
-            </span>
-          </motion.div>
-        ) : null}
-
-        {/* Step content */}
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={step}
-            custom={direction}
-            variants={stepVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {step === "concern" ? (
-              <StepConcern data={data} onUpdate={updateData} onNext={goNext} />
-            ) : null}
-            {step === "body-area" ? (
-              <StepBodyArea data={data} onUpdate={updateData} onNext={goNext} />
-            ) : null}
-            {step === "symptoms" ? (
-              <StepSymptoms data={data} onUpdate={updateData} onNext={goNext} />
-            ) : null}
-            {step === "photo-guide" ? <StepPhotoGuide onNext={goNext} /> : null}
-            {step === "photo-upload" ? (
-              <StepPhotoUpload data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
-            ) : null}
-            {step === "photo-review" ? (
-              <StepPhotoReview data={data} onPhotoUpload={updatePhoto} onNext={goNext} />
-            ) : null}
-            {step === "medical-history" ? (
-              <StepMedicalHistory data={data} onUpdate={updateData} onNext={goNext} />
-            ) : null}
-            {step === "consent" ? (
-              <StepConsent data={data} onUpdate={updateData} onNext={goNext} />
-            ) : null}
-            {step === "review" ? (
-              <StepReview
-                data={data}
-                isSubmitting={isSubmitting}
-                saveState={saveState}
-                hasDraft={Boolean(draftId)}
-                onSubmit={() => void handleSubmit()}
-              />
-            ) : null}
-            {step === "success" ? (
-              <StepSuccess
-                caseId={submittedCaseId}
-                onViewCase={() =>
-                  navigate(`/patient-flow/auth/telederm/cases/${submittedCaseId ?? draftId ?? ""}`)
-                }
-                onDashboard={() => navigate("/patient-flow/auth/dashboard")}
-              />
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </DashboardLayout>
+          ) : null}
+          {step === "success" ? (
+            <StepSuccess
+              caseId={submittedCaseId}
+              onViewCase={() =>
+                navigate(`/patient-flow/auth/telederm/cases/${submittedCaseId ?? draftId ?? ""}`)
+              }
+              onDashboard={() => navigate("/patient-flow/auth/dashboard")}
+            />
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
+    </TeledermFlowShell>
   );
 }

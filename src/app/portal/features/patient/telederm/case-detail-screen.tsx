@@ -5,7 +5,7 @@ import { useAuth } from "@portal/session/useAuth";
 import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
 import { Link, useNavigate, useParams } from "react-router";
 import { TELEDERM_STATUS_LABELS, TELEDERM_STATUS_STYLES, formatTeledermDate } from "@portal/features/telederm/shared";
-import { ArrowRight, MessageCircleMore, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Circle, Clock3, MessageCircleMore, Send } from "lucide-react";
 
 type ReplyPhoto = {
   id: string;
@@ -13,13 +13,116 @@ type ReplyPhoto = {
   url: string;
 };
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [header, data] = dataUrl.split(",");
-  const mimeMatch = header.match(/data:(.*?);base64/);
-  const mimeType = mimeMatch?.[1] ?? "application/octet-stream";
-  const binary = atob(data);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new Blob([bytes], { type: mimeType });
+type PatientProgressStep = {
+  key: string;
+  label: string;
+  description: string;
+  occurredAt?: string;
+  state: "completed" | "current" | "upcoming";
+};
+
+const STATUS_ORDER: AsyncCaseDetailRecord["case"]["status"][] = [
+  "draft",
+  "submitted",
+  "in_review",
+  "waiting_for_patient",
+  "patient_replied",
+  "responded",
+  "closed",
+];
+
+const CAPTURE_KIND_LABELS: Record<string, string> = {
+  context: "Vue d'ensemble",
+  close: "Gros plan",
+  follow_up: "Photo complémentaire",
+};
+
+function getStatusRank(status: AsyncCaseDetailRecord["case"]["status"]) {
+  return STATUS_ORDER.indexOf(status);
+}
+
+function getProgressState(
+  currentStatus: AsyncCaseDetailRecord["case"]["status"],
+  statuses: AsyncCaseDetailRecord["case"]["status"][],
+): PatientProgressStep["state"] {
+  const currentRank = getStatusRank(currentStatus);
+  const highestRank = Math.max(...statuses.map((status) => getStatusRank(status)));
+  if (statuses.some((status) => status === currentStatus)) return "current";
+  return highestRank >= currentRank ? "completed" : "upcoming";
+}
+
+function buildPatientProgress(detail: AsyncCaseDetailRecord): PatientProgressStep[] {
+  const statusesSeen = new Set<AsyncCaseDetailRecord["case"]["status"]>(["submitted"]);
+  detail.messages.forEach((message) => {
+    const status = message.meta?.status;
+    if (typeof status === "string" && STATUS_ORDER.includes(status as AsyncCaseDetailRecord["case"]["status"])) {
+      statusesSeen.add(status as AsyncCaseDetailRecord["case"]["status"]);
+    }
+  });
+  statusesSeen.add(detail.case.status);
+
+  const timeline: PatientProgressStep[] = [
+    {
+      key: "submitted",
+      label: "Dossier envoyé",
+      description: "Votre demande a bien été transmise à l'équipe dermatologique.",
+      occurredAt: detail.case.submittedAt ?? detail.case.createdAt,
+      state: getProgressState(detail.case.status, ["submitted"]),
+    },
+    {
+      key: "in_review",
+      label: "Analyse en cours",
+      description: "Un dermatologue examine vos photos et votre questionnaire.",
+      occurredAt:
+        detail.messages.find(
+          (message) =>
+            message.type === "status_change" &&
+            typeof message.meta?.status === "string" &&
+            ["in_review", "patient_replied", "responded", "closed"].includes(message.meta.status),
+        )?.createdAt ?? detail.case.latestMessageAt,
+      state: getProgressState(detail.case.status, ["in_review", "patient_replied", "responded", "closed"]),
+    },
+  ];
+
+  if (
+    statusesSeen.has("waiting_for_patient") ||
+    statusesSeen.has("patient_replied") ||
+    detail.case.status === "waiting_for_patient"
+  ) {
+    timeline.push({
+      key: "waiting_for_patient",
+      label: "Compléments demandés",
+      description:
+        detail.case.status === "waiting_for_patient"
+          ? "Le dermatologue attend des précisions ou de nouvelles photos de votre part."
+          : "Vous avez répondu à la demande de compléments.",
+      occurredAt:
+        detail.messages.find(
+          (message) =>
+            message.type === "request_more_info" ||
+            (message.type === "status_change" && message.meta?.status === "waiting_for_patient"),
+        )?.createdAt,
+      state: getProgressState(detail.case.status, ["waiting_for_patient", "patient_replied"]),
+    });
+  }
+
+  timeline.push({
+    key: "responded",
+    label: "Réponse disponible",
+    description: "Votre compte-rendu et vos recommandations sont prêts à être consultés.",
+    occurredAt: detail.case.respondedAt,
+    state: getProgressState(detail.case.status, ["responded", "closed"]),
+  });
+
+  timeline.push({
+    key: "closed",
+    label: "Cas clôturé",
+    description: "Le dossier est finalisé et archivé dans votre suivi.",
+    occurredAt: detail.case.closedAt,
+    state: getProgressState(detail.case.status, ["closed"]),
+  });
+
+  return timeline;
 }
 
 async function uploadReplyPhotos(
@@ -51,7 +154,7 @@ async function uploadReplyPhotos(
       const response = await fetch(intent.uploadUrl, {
         method: intent.uploadMethod,
         headers: { "Content-Type": intent.contentType },
-        body: dataUrlToBlob(photo.url),
+        body: photo.file,
       });
       if (!response.ok) {
         throw new Error("Impossible de téléverser la photo de réponse.");
@@ -71,11 +174,18 @@ export default function PatientTeledermCaseDetailScreen() {
   const [replyBody, setReplyBody] = useState("");
   const [replyPhotos, setReplyPhotos] = useState<ReplyPhoto[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!auth.user || !caseId) return;
     auth.accountAdapter.getAsyncCase(auth.user.id, caseId).then(setDetail);
   }, [auth.accountAdapter, auth.user, caseId]);
+
+  useEffect(() => {
+    return () => {
+      replyPhotos.forEach((photo) => URL.revokeObjectURL(photo.url));
+    };
+  }, [replyPhotos]);
 
   async function handleLogout() {
     await auth.logout();
@@ -84,6 +194,7 @@ export default function PatientTeledermCaseDetailScreen() {
 
   async function handleReply() {
     if (!auth.user || !detail) return;
+    setReplyError(null);
     setIsSubmitting(true);
     try {
       const mediaAssetIds = await uploadReplyPhotos(
@@ -101,7 +212,14 @@ export default function PatientTeledermCaseDetailScreen() {
       });
       setDetail(nextDetail);
       setReplyBody("");
+      replyPhotos.forEach((photo) => URL.revokeObjectURL(photo.url));
       setReplyPhotos([]);
+    } catch (error) {
+      setReplyError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'envoyer votre réponse pour le moment.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +243,9 @@ export default function PatientTeledermCaseDetailScreen() {
               )}
             </div>
             <div className="px-3 py-2">
-              <p className="text-sm font-medium text-[#111214]">{asset.captureKind ?? "photo"}</p>
+              <p className="text-sm font-medium text-[#111214]">
+                {asset.captureKind ? (CAPTURE_KIND_LABELS[asset.captureKind] ?? asset.captureKind) : "Photo"}
+              </p>
               <p className="mt-1 text-xs text-[#111214]/50">{asset.fileName}</p>
             </div>
           </div>
@@ -146,6 +266,7 @@ export default function PatientTeledermCaseDetailScreen() {
 
   const statusStyle = TELEDERM_STATUS_STYLES[detail.case.status];
   const StatusIcon = statusStyle.icon;
+  const progressSteps = buildPatientProgress(detail);
 
   return (
     <DashboardLayout fullName={auth.user?.fullName ?? "Patient"} onLogout={handleLogout}>
@@ -166,6 +287,77 @@ export default function PatientTeledermCaseDetailScreen() {
           <p className="mt-4 text-sm text-white/66">
             Dernière activité {formatTeledermDate(detail.case.latestMessageAt ?? detail.case.updatedAt)}
           </p>
+        </section>
+
+        <section className="rounded-[2rem] border border-white/70 bg-white/82 p-6 shadow-[0_8px_32px_rgba(17,18,20,0.05)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
+                Progression du dossier
+              </p>
+              <p className="mt-2 text-sm text-[#111214]/58">
+                Suivez chaque étape du traitement asynchrone de votre cas.
+              </p>
+            </div>
+            {detail.case.slaDueAt ? (
+              <span className="rounded-full bg-[#FEF0D5] px-3 py-1 text-xs font-medium text-[#111214]/62">
+                Réponse estimée avant le {formatTeledermDate(detail.case.slaDueAt)}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {progressSteps.map((step) => (
+              <div
+                key={step.key}
+                className={`rounded-[1.5rem] border px-4 py-4 ${
+                  step.state === "current"
+                    ? "border-[#5B1112]/18 bg-[#5B1112]/[0.04]"
+                    : step.state === "completed"
+                      ? "border-emerald-200 bg-emerald-50/70"
+                      : "border-[#111214]/6 bg-[#111214]/[0.02]"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${
+                      step.state === "current"
+                        ? "bg-[#5B1112] text-white"
+                        : step.state === "completed"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-[#111214]/6 text-[#111214]/32"
+                    }`}
+                  >
+                    {step.state === "completed" ? (
+                      <CheckCircle2 size={16} />
+                    ) : step.state === "current" ? (
+                      <Clock3 size={16} />
+                    ) : (
+                      <Circle size={14} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-[#111214]">{step.label}</p>
+                      <span className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/32">
+                        {step.state === "completed"
+                          ? "Terminé"
+                          : step.state === "current"
+                            ? "En cours"
+                            : "À venir"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-[#111214]/58">{step.description}</p>
+                    {step.occurredAt ? (
+                      <p className="mt-2 text-xs text-[#111214]/42">
+                        {formatTeledermDate(step.occurredAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -279,7 +471,8 @@ export default function PatientTeledermCaseDetailScreen() {
                     multiple
                     className="mt-3 block w-full text-xs"
                     onChange={(event) => {
-                      const files = Array.from(event.target.files ?? []).map((file) => ({
+                      replyPhotos.forEach((photo) => URL.revokeObjectURL(photo.url));
+                      const files = Array.from(event.target.files ?? []).slice(0, 4).map((file) => ({
                         id: `${file.name}_${Date.now()}`,
                         file,
                         url: URL.createObjectURL(file),
@@ -288,6 +481,26 @@ export default function PatientTeledermCaseDetailScreen() {
                     }}
                   />
                 </label>
+                {replyPhotos.length > 0 ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {replyPhotos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        className="overflow-hidden rounded-[1rem] border border-[#111214]/8 bg-[#111214]/[0.03]"
+                      >
+                        <div className="aspect-[4/3] bg-[#FEF0D5]/70">
+                          <img src={photo.url} alt={photo.file.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="px-3 py-2 text-xs text-[#111214]/54">{photo.file.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {replyError ? (
+                  <div className="mt-4 rounded-[1rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {replyError}
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void handleReply()}
