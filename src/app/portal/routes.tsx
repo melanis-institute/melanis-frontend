@@ -62,6 +62,15 @@ const PatientPreventionAlertDetailScreen = lazy(
 const PatientRemindersScreen = lazy(
   () => import("@portal/features/patient/reminders/screen"),
 );
+const PatientEventsScreen = lazy(
+  () => import("@portal/features/patient/events/screen"),
+);
+const PatientEventDetailScreen = lazy(
+  () => import("@portal/features/patient/events/detail-screen"),
+);
+const PatientBillingScreen = lazy(
+  () => import("@portal/features/patient/billing/screen"),
+);
 const PatientDashboardScreen = lazy(
   () => import("@portal/features/patient/dashboard/screen"),
 );
@@ -86,6 +95,12 @@ const PractitionerTeledermInboxScreen = lazy(
 );
 const PractitionerTeledermCaseDetailScreen = lazy(
   () => import("@portal/features/practitioner/telederm/case-detail-screen"),
+);
+const PractitionerInterPractitionerInboxScreen = lazy(
+  () => import("@portal/features/practitioner/inter-practitioner/inbox-screen"),
+);
+const PractitionerInterPractitionerCaseDetailScreen = lazy(
+  () => import("@portal/features/practitioner/inter-practitioner/case-detail-screen"),
 );
 const StaffHomeScreen = lazy(() => import("@portal/features/staff/home-screen"));
 const AdminHomeScreen = lazy(() => import("@portal/features/admin/home-screen"));
@@ -261,6 +276,30 @@ function P406Lazy() {
   );
 }
 
+function P501Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientEventsScreen />
+    </Suspense>
+  );
+}
+
+function P502Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientEventDetailScreen />
+    </Suspense>
+  );
+}
+
+function P503Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientBillingScreen />
+    </Suspense>
+  );
+}
+
 function PRAC01Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -305,6 +344,22 @@ function PRAC06Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerTeledermCaseDetailScreen />
+    </Suspense>
+  );
+}
+
+function PRAC07Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PractitionerInterPractitionerInboxScreen />
+    </Suspense>
+  );
+}
+
+function PRAC08Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PractitionerInterPractitionerCaseDetailScreen />
     </Suspense>
   );
 }
@@ -500,6 +555,18 @@ export const portalRoutes: RouteObject[] = [
                         path: "auth/reminders",
                         Component: P406Lazy,
                       },
+                      {
+                        path: "auth/events",
+                        Component: P501Lazy,
+                      },
+                      {
+                        path: "auth/events/:eventId",
+                        Component: P502Lazy,
+                      },
+                      {
+                        path: "auth/billing",
+                        Component: P503Lazy,
+                      },
                     ],
                   },
                 ],
@@ -533,6 +600,14 @@ export const portalRoutes: RouteObject[] = [
                       {
                         path: "telederm/:caseId",
                         Component: PRAC06Lazy,
+                      },
+                      {
+                        path: "inter-practitioner",
+                        Component: PRAC07Lazy,
+                      },
+                      {
+                        path: "inter-practitioner/:caseId",
+                        Component: PRAC08Lazy,
                       },
                     ],
                   },

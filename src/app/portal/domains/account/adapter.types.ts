@@ -1,17 +1,29 @@
 import type {
+  AdminUserRecord,
   AppNotificationRecord,
   AsyncCaseDetailRecord,
   AsyncCaseRecord,
   AuditEvent,
+  BillingOverviewRecord,
+  CapabilityGrantRecord,
   CaregiverLink,
   CheckInSubmissionRecord,
   ClinicalDocumentRecord,
   ConsentRecord,
   EducationProgramDetailRecord,
   EducationProgramRecord,
+  EventDetailRecord,
+  EventRecord,
+  EventRegistrationRecord,
+  ExternalPractitionerApplicationRecord,
+  InterPractitionerCaseDetailRecord,
+  InterPractitionerCaseRecord,
+  InvoiceRecord,
+  KnowledgeArticleRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationPreference,
+  PaymentRecord,
   PreConsultSubmissionRecord,
   PreventionAlertRecord,
   PreventionCurrentRecord,
@@ -20,7 +32,9 @@ import type {
   PatientRecordEventType,
   PatientProfileRecord,
   ProfileRelationship,
+  QuoteRecord,
   ScreeningReminder,
+  SecurityPolicyRecord,
   SkinScoreRecord,
 } from "./types";
 
@@ -221,6 +235,175 @@ export interface CreateScreeningReminderInput {
   nextDueAt: string;
 }
 
+export interface CreateExternalPractitionerApplicationInput {
+  userId: string;
+  specialty?: string;
+  organization?: string;
+  licenseNumber?: string;
+  motivation?: string;
+}
+
+export interface ReviewExternalPractitionerApplicationInput {
+  actorUserId: string;
+  applicationId: string;
+  rejectionReason?: string;
+}
+
+export interface CreateInterPractitionerCaseInput {
+  actorUserId: string;
+  subject: string;
+  patientLabel?: string;
+  patientAgeLabel?: string;
+  clinicalContext: string;
+  question: string;
+  consentAttested: boolean;
+  mediaAssetIds: string[];
+}
+
+export interface CreateInterPractitionerReplyInput {
+  actorUserId: string;
+  caseId: string;
+  body: string;
+  mediaAssetIds: string[];
+}
+
+export interface UpdateUserRolesInput {
+  actorUserId: string;
+  userId: string;
+  roles: string[];
+}
+
+export interface UpdateUserCapabilitiesInput {
+  actorUserId: string;
+  userId: string;
+  capabilities: string[];
+}
+
+export interface CreateKnowledgeArticleInput {
+  actorUserId: string;
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
+  category?: string;
+}
+
+export interface UpdateKnowledgeArticleInput {
+  actorUserId: string;
+  articleId: string;
+  title?: string;
+  summary?: string;
+  body?: string;
+  category?: string;
+  reviewNotes?: string;
+}
+
+export interface UpdateSecurityPolicyInput {
+  actorUserId: string;
+  policyKey: string;
+  value: Record<string, unknown>;
+}
+
+export interface CreateEventInput {
+  actorUserId: string;
+  title: string;
+  summary: string;
+  description: string;
+  audience: "patient" | "practitioner" | "both";
+  format: "digital" | "physical";
+  startsAt: string;
+  endsAt: string;
+  locationLabel?: string;
+  capacity: number;
+  waitlistCapacity: number;
+  requiresPayment: boolean;
+  priceAmount: number;
+  currency: string;
+}
+
+export interface UpdateEventInput {
+  actorUserId: string;
+  eventId: string;
+  title?: string;
+  summary?: string;
+  description?: string;
+  audience?: "patient" | "practitioner" | "both";
+  format?: "digital" | "physical";
+  startsAt?: string;
+  endsAt?: string;
+  locationLabel?: string;
+  capacity?: number;
+  waitlistCapacity?: number;
+  requiresPayment?: boolean;
+  priceAmount?: number;
+  currency?: string;
+}
+
+export interface BillingLineItemInput {
+  label: string;
+  amount: number;
+  quantity: number;
+}
+
+export interface CreateQuoteInput {
+  actorUserId: string;
+  profileId: string;
+  sourceType: "appointment" | "telederm_case" | "event_registration";
+  sourceId: string;
+  title: string;
+  description?: string;
+  lineItems: BillingLineItemInput[];
+  totalAmount: number;
+  currency: string;
+  expiresAt?: string;
+}
+
+export interface UpdateQuoteInput {
+  actorUserId: string;
+  quoteId: string;
+  status?: "draft" | "issued" | "accepted" | "expired" | "rejected";
+  description?: string;
+  lineItems?: BillingLineItemInput[];
+  totalAmount?: number;
+  expiresAt?: string;
+}
+
+export interface CreateInvoiceInput {
+  actorUserId: string;
+  profileId: string;
+  sourceType: "appointment" | "telederm_case" | "event_registration";
+  sourceId: string;
+  title: string;
+  description?: string;
+  lineItems: BillingLineItemInput[];
+  totalAmount: number;
+  currency: string;
+  dueAt?: string;
+  quoteId?: string;
+}
+
+export interface UpdateInvoiceInput {
+  actorUserId: string;
+  invoiceId: string;
+  status?: "draft" | "issued" | "cancelled" | "paid" | "overdue";
+  description?: string;
+  lineItems?: BillingLineItemInput[];
+  totalAmount?: number;
+  dueAt?: string;
+}
+
+export interface CreatePaymentInput {
+  actorUserId: string;
+  profileId: string;
+  invoiceId?: string;
+  quoteId?: string;
+  eventRegistrationId?: string;
+  providerKey?: "naboopay" | "orange_money" | "wave" | "stripe";
+  method?: "orange_money" | "wave" | "card" | "bank_transfer";
+  amount: number;
+  currency: string;
+}
+
 export interface AccountAdapter {
   ensureSelfProfile(input: EnsureSelfProfileInput): Promise<PatientProfileRecord>;
   listProfiles(userId: string): Promise<PatientProfileRecord[]>;
@@ -367,6 +550,119 @@ export interface AccountAdapter {
     actorUserId: string,
     profileId: string,
   ): Promise<PreventionCurrentRecord>;
+  createExternalPractitionerApplication(
+    input: CreateExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord>;
+  listExternalPractitionerCases(
+    actorUserId: string,
+  ): Promise<InterPractitionerCaseRecord[]>;
+  createExternalPractitionerCase(
+    input: CreateInterPractitionerCaseInput,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  getExternalPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  replyToExternalPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  listPractitionerInterPractitionerCases(
+    actorUserId: string,
+    status?: string,
+  ): Promise<InterPractitionerCaseRecord[]>;
+  getPractitionerInterPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  claimInterPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord>;
+  requestMoreInfoForInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  respondToInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord>;
+  closeInterPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord>;
+  listEvents(actorUserId: string): Promise<EventRecord[]>;
+  getEvent(actorUserId: string, eventId: string): Promise<EventDetailRecord>;
+  registerForEvent(
+    actorUserId: string,
+    eventId: string,
+    profileId?: string,
+  ): Promise<EventDetailRecord>;
+  cancelEventRegistration(
+    actorUserId: string,
+    eventId: string,
+    profileId?: string,
+  ): Promise<EventDetailRecord>;
+  listMyEventRegistrations(actorUserId: string): Promise<EventRegistrationRecord[]>;
+  getBillingOverview(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<BillingOverviewRecord>;
+  listPatientInvoices(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<InvoiceRecord[]>;
+  getPatientInvoice(
+    actorUserId: string,
+    profileId: string,
+    invoiceId: string,
+  ): Promise<InvoiceRecord>;
+  listPatientQuotes(actorUserId: string, profileId: string): Promise<QuoteRecord[]>;
+  getPatientQuote(
+    actorUserId: string,
+    profileId: string,
+    quoteId: string,
+  ): Promise<QuoteRecord>;
+  createPayment(input: CreatePaymentInput): Promise<PaymentRecord>;
+  getPayment(actorUserId: string, paymentId: string): Promise<PaymentRecord>;
+  listAdminUsers(actorUserId: string): Promise<AdminUserRecord[]>;
+  getAdminUser(actorUserId: string, userId: string): Promise<AdminUserRecord>;
+  updateUserRoles(input: UpdateUserRolesInput): Promise<AdminUserRecord>;
+  updateUserCapabilities(input: UpdateUserCapabilitiesInput): Promise<CapabilityGrantRecord[]>;
+  listExternalPractitionerApplications(
+    actorUserId: string,
+  ): Promise<ExternalPractitionerApplicationRecord[]>;
+  approveExternalPractitionerApplication(
+    actorUserId: string,
+    applicationId: string,
+  ): Promise<ExternalPractitionerApplicationRecord>;
+  rejectExternalPractitionerApplication(
+    input: ReviewExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord>;
+  listKnowledgeArticles(actorUserId: string): Promise<KnowledgeArticleRecord[]>;
+  createKnowledgeArticle(input: CreateKnowledgeArticleInput): Promise<KnowledgeArticleRecord>;
+  updateKnowledgeArticle(input: UpdateKnowledgeArticleInput): Promise<KnowledgeArticleRecord>;
+  submitKnowledgeArticleForReview(
+    actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord>;
+  publishKnowledgeArticle(
+    actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord>;
+  listAdminAuditLogs(actorUserId: string): Promise<AuditEvent[]>;
+  exportAdminAuditLogsCsv(actorUserId: string): Promise<string>;
+  listSecurityPolicies(actorUserId: string): Promise<SecurityPolicyRecord[]>;
+  updateSecurityPolicy(input: UpdateSecurityPolicyInput): Promise<SecurityPolicyRecord>;
+  listAdminEvents(actorUserId: string): Promise<EventRecord[]>;
+  createEvent(input: CreateEventInput): Promise<EventRecord>;
+  updateEvent(input: UpdateEventInput): Promise<EventRecord>;
+  publishEvent(actorUserId: string, eventId: string): Promise<EventRecord>;
+  cancelEvent(actorUserId: string, eventId: string): Promise<EventRecord>;
+  listAdminInvoices(actorUserId: string): Promise<InvoiceRecord[]>;
+  createInvoice(input: CreateInvoiceInput): Promise<InvoiceRecord>;
+  updateInvoice(input: UpdateInvoiceInput): Promise<InvoiceRecord>;
+  listAdminQuotes(actorUserId: string): Promise<QuoteRecord[]>;
+  createQuote(input: CreateQuoteInput): Promise<QuoteRecord>;
+  updateQuote(input: UpdateQuoteInput): Promise<QuoteRecord>;
+  refundPayment(actorUserId: string, paymentId: string): Promise<PaymentRecord>;
 
   recordProfileSwitch(userId: string, profileId: string): Promise<void>;
   listAuditEvents(userId: string): Promise<AuditEvent[]>;

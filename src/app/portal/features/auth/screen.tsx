@@ -252,6 +252,7 @@ export default function AU01() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const requestedRole = searchParams.get("requestedRole");
 
   const locationState = (location.state ?? {}) as AuthLocationState;
 
@@ -754,11 +755,19 @@ export default function AU01() {
         const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
         const session = await auth.adapter.createAccount({
           tempToken: verification.tempToken,
-          fullName: fullName || "Nouveau patient",
+          fullName:
+            fullName ||
+            (requestedRole === "external_practitioner"
+              ? "Nouveau praticien externe"
+              : "Nouveau patient"),
           phoneE164: pending.phoneE164,
           countryCode: "+221",
           email: email.trim() || undefined,
           termsAccepted: acceptedTerms,
+          requestedRole:
+            requestedRole === "external_practitioner"
+              ? "external_practitioner"
+              : undefined,
         });
 
         await auth.login(session);

@@ -5,6 +5,7 @@ import type {
   OtpChallenge,
   OtpPurpose,
 } from "@portal/session/types";
+import type { UserRole } from "@portal/session/roles";
 
 export interface RequestOtpInput {
   phoneE164: string;
@@ -30,6 +31,7 @@ export interface CreateAccountInput {
   countryCode: AuthCountryCode;
   email?: string;
   termsAccepted: boolean;
+  requestedRole?: UserRole;
 }
 
 export interface SetPinInput {

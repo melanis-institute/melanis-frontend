@@ -143,7 +143,12 @@ export interface ClinicalMeasurement {
   recordedAt?: string;
 }
 
-export type ClinicalDocumentKind = "prescription" | "document" | "report";
+export type ClinicalDocumentKind =
+  | "prescription"
+  | "document"
+  | "report"
+  | "invoice"
+  | "quote";
 export type ClinicalDocumentStatus = "draft" | "published";
 
 export interface ClinicalDocumentRecord {
@@ -190,7 +195,13 @@ export type PatientRecordEventType =
   | "check_in_due"
   | "check_in_submitted"
   | "prevention_alert_triggered"
-  | "screening_reminder_due";
+  | "screening_reminder_due"
+  | "event_registration_confirmed"
+  | "event_waitlist_promoted"
+  | "invoice_issued"
+  | "quote_issued"
+  | "payment_succeeded"
+  | "payment_refunded";
 
 export interface PatientRecordEvent {
   id: string;
@@ -232,7 +243,16 @@ export type AppNotificationKind =
   | "check_in_due"
   | "check_in_submitted"
   | "prevention_alert_triggered"
-  | "screening_reminder_due";
+  | "screening_reminder_due"
+  | "inter_practitioner_case_submitted"
+  | "inter_practitioner_response_ready"
+  | "external_practitioner_approved"
+  | "event_registration_confirmed"
+  | "event_waitlist_promoted"
+  | "invoice_issued"
+  | "quote_issued"
+  | "payment_succeeded"
+  | "payment_refunded";
 
 export interface AppNotificationRecord {
   id: string;
@@ -471,4 +491,328 @@ export interface PreventionCurrentRecord {
   settings: PreventionSettingsRecord;
   snapshot: PreventionSnapshotRecord;
   alerts: PreventionAlertRecord[];
+}
+
+export type ExternalPractitionerApplicationStatus =
+  | "pending"
+  | "approved"
+  | "rejected";
+
+export interface ExternalPractitionerApplicationRecord {
+  id: string;
+  userId: string;
+  fullName: string;
+  phoneE164: string;
+  email?: string;
+  specialty?: string;
+  organization?: string;
+  licenseNumber?: string;
+  countryCode: string;
+  motivation?: string;
+  status: ExternalPractitionerApplicationStatus;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalPractitionerProfileRecord {
+  id: string;
+  userId: string;
+  displayName: string;
+  specialty?: string;
+  organization?: string;
+  licenseNumber?: string;
+  verificationStatus: ExternalPractitionerApplicationStatus;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapabilityGrantRecord {
+  id: string;
+  userId: string;
+  capability: string;
+  grantedByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  fullName: string;
+  phoneE164: string;
+  email?: string;
+  roles: string[];
+  practitionerId?: string;
+  capabilities: string[];
+  externalPractitionerStatus?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type KnowledgeArticleStatus =
+  | "draft"
+  | "in_review"
+  | "published"
+  | "archived";
+
+export interface KnowledgeArticleRecord {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
+  category: string;
+  status: KnowledgeArticleStatus;
+  currentVersion: number;
+  createdByUserId: string;
+  reviewedByUserId?: string;
+  reviewNotes?: string;
+  submittedAt?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SecurityPolicyRecord {
+  id: string;
+  key: string;
+  value: Record<string, unknown>;
+  updatedByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InterPractitionerCaseStatus =
+  | "draft"
+  | "submitted"
+  | "in_review"
+  | "waiting_for_external"
+  | "external_replied"
+  | "responded"
+  | "closed";
+
+export interface InterPractitionerMessageRecord {
+  id: string;
+  caseId: string;
+  actorUserId?: string;
+  authorRole: "external_practitioner" | "practitioner" | "system";
+  body: string;
+  mediaAssetIds: string[];
+  meta: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterPractitionerCaseRecord {
+  id: string;
+  externalPractitionerUserId: string;
+  externalPractitionerProfileId?: string;
+  assignedPractitionerId?: string;
+  claimedByUserId?: string;
+  status: InterPractitionerCaseStatus;
+  subject: string;
+  patientLabel?: string;
+  patientAgeLabel?: string;
+  clinicalContext: string;
+  question: string;
+  consentAttested: boolean;
+  mediaAssetIds: string[];
+  submittedAt?: string;
+  latestMessageAt: string;
+  respondedAt?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterPractitionerCaseDetailRecord {
+  case: InterPractitionerCaseRecord;
+  messages: InterPractitionerMessageRecord[];
+}
+
+export type EventAudience = "patient" | "practitioner" | "both";
+export type EventFormat = "digital" | "physical";
+export type EventStatus = "draft" | "published" | "cancelled";
+
+export interface EventRecord {
+  id: string;
+  title: string;
+  summary: string;
+  description: string;
+  audience: EventAudience;
+  format: EventFormat;
+  status: EventStatus;
+  ownerUserId: string;
+  startsAt: string;
+  endsAt: string;
+  locationLabel?: string;
+  capacity: number;
+  waitlistCapacity: number;
+  requiresPayment: boolean;
+  priceAmount: number;
+  currency: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EventRegistrationStatus =
+  | "registered"
+  | "waitlisted"
+  | "cancelled"
+  | "attended";
+
+export interface EventRegistrationRecord {
+  id: string;
+  eventId: string;
+  userId: string;
+  profileId?: string;
+  status: EventRegistrationStatus;
+  ticketId?: string;
+  paymentId?: string;
+  registeredAt: string;
+  cancelledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventTicketRecord {
+  id: string;
+  eventId: string;
+  registrationId: string;
+  code: string;
+  issuedAt: string;
+  checkedInAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventDetailRecord {
+  event: EventRecord;
+  myRegistration?: EventRegistrationRecord | null;
+  myTicket?: EventTicketRecord | null;
+  registrationCount: number;
+}
+
+export type BillingSourceType =
+  | "appointment"
+  | "telederm_case"
+  | "event_registration";
+
+export interface BillingLineItemRecord {
+  label: string;
+  amount: number;
+  quantity: number;
+}
+
+export type QuoteStatus =
+  | "draft"
+  | "issued"
+  | "accepted"
+  | "expired"
+  | "rejected";
+
+export interface QuoteRecord {
+  id: string;
+  profileId: string;
+  sourceType: BillingSourceType;
+  sourceId: string;
+  title: string;
+  description?: string;
+  lineItems: BillingLineItemRecord[];
+  totalAmount: number;
+  currency: string;
+  status: QuoteStatus;
+  issuedAt?: string;
+  expiresAt?: string;
+  acceptedAt?: string;
+  documentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InvoiceStatus =
+  | "draft"
+  | "issued"
+  | "cancelled"
+  | "paid"
+  | "overdue";
+
+export interface InvoiceRecord {
+  id: string;
+  profileId: string;
+  sourceType: BillingSourceType;
+  sourceId: string;
+  title: string;
+  description?: string;
+  lineItems: BillingLineItemRecord[];
+  totalAmount: number;
+  currency: string;
+  status: InvoiceStatus;
+  dueAt?: string;
+  issuedAt?: string;
+  paidAt?: string;
+  quoteId?: string;
+  documentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PaymentProviderKey =
+  | "naboopay"
+  | "orange_money"
+  | "wave"
+  | "stripe";
+export type PaymentMethod =
+  | "orange_money"
+  | "wave"
+  | "card"
+  | "bank_transfer";
+export type PaymentStatus =
+  | "initiated"
+  | "pending_provider"
+  | "paid"
+  | "failed"
+  | "cancelled"
+  | "refunded";
+
+export interface PaymentRecord {
+  id: string;
+  profileId: string;
+  invoiceId?: string;
+  quoteId?: string;
+  eventRegistrationId?: string;
+  providerKey: PaymentProviderKey;
+  method: PaymentMethod;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  checkoutUrl?: string;
+  externalReference?: string;
+  providerTransactionId?: string;
+  paidAt?: string;
+  refundedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentProviderConfigRecord {
+  id: string;
+  providerKey: string;
+  enabled: boolean;
+  isDefault: boolean;
+  publicConfig: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingOverviewRecord {
+  profileId: string;
+  invoices: InvoiceRecord[];
+  quotes: QuoteRecord[];
+  recentPayments: PaymentRecord[];
+  outstandingTotal: number;
 }

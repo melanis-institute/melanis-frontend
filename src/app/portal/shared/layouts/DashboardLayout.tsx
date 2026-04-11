@@ -7,6 +7,7 @@ import {
   Home,
   LogOut,
   MessagesSquare,
+  Receipt,
   ScanFace,
   Search,
   Shield,
@@ -26,6 +27,8 @@ const PATHS = {
   programs: "/patient-flow/auth/programs",
   prevention: "/patient-flow/auth/prevention",
   reminders: "/patient-flow/auth/reminders",
+  events: "/patient-flow/auth/events",
+  billing: "/patient-flow/auth/billing",
   profile: "/patient-flow/account",
   scan: "/patient-flow/auth/dashboard#scan",
 } as const;
@@ -202,6 +205,18 @@ export function DashboardLayout({
       path: PATHS.prevention,
       exact: false,
     },
+    {
+      icon: Calendar,
+      label: "Événements",
+      path: PATHS.events,
+      exact: false,
+    },
+    {
+      icon: Receipt,
+      label: "Facturation",
+      path: PATHS.billing,
+      exact: false,
+    },
     { icon: FileText, label: "Dossier", path: PATHS.records, exact: true },
     { icon: User, label: "Profil", path: PATHS.profile, exact: true },
   ];
@@ -215,11 +230,17 @@ export function DashboardLayout({
   const isPrograms = isPath(PATHS.programs, false);
   const isPrevention =
     isPath(PATHS.prevention, false) || isPath(PATHS.reminders, false);
+  const isEvents = isPath(PATHS.events, false);
+  const isBilling = isPath(PATHS.billing, false);
   const isScan = isPath(PATHS.scan, true);
   const pageTitle = location.pathname.startsWith(PATHS.documents)
     ? "Dossier patient"
     : location.pathname.startsWith(PATHS.programs)
       ? "Programmes"
+      : location.pathname.startsWith(PATHS.events)
+        ? "Événements"
+        : location.pathname.startsWith(PATHS.billing)
+          ? "Facturation"
       : location.pathname.startsWith(PATHS.prevention) ||
           location.pathname.startsWith(PATHS.reminders)
         ? "Prévention"
@@ -274,6 +295,10 @@ export function DashboardLayout({
                       ? isPrograms
                       : item.path === PATHS.prevention
                         ? isPrevention
+                        : item.path === PATHS.events
+                          ? isEvents
+                          : item.path === PATHS.billing
+                            ? isBilling
                     : item.path === PATHS.telederm
                       ? isTelederm
                     : isPath(item.path, item.exact)

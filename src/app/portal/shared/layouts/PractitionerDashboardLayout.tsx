@@ -8,6 +8,7 @@ import {
   MessagesSquare,
   PanelLeftOpen,
   PanelRightOpen,
+  SearchCheck,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const PRAC_PATHS = {
   appointments: "/patient-flow/practitioner/appointments",
   calendar: "/patient-flow/practitioner/calendar",
   telederm: "/patient-flow/practitioner/telederm",
+  collaboration: "/patient-flow/practitioner/inter-practitioner",
 } as const;
 
 const DEFAULT_PROFILE_AVATAR = "/default-avatar-profile.svg";
@@ -178,6 +180,12 @@ export function PractitionerDashboardLayout({
       icon: MessagesSquare,
       label: "Télé-derm",
       path: PRAC_PATHS.telederm,
+      exact: false,
+    },
+    {
+      icon: SearchCheck,
+      label: "Avis externes",
+      path: PRAC_PATHS.collaboration,
       exact: false,
     },
   ];

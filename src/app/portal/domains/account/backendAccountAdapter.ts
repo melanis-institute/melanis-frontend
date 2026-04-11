@@ -1,51 +1,81 @@
 import type { AccountAdapter } from "./adapter.types";
 import type {
   AssignEducationProgramInput,
+  AppendTimelineEventInput,
+  CompleteMediaUploadInput,
+  CreateEventInput,
+  CreateExternalPractitionerApplicationInput,
+  CreateInterPractitionerCaseInput,
+  CreateInterPractitionerReplyInput,
+  CreateInvoiceInput,
+  CreateKnowledgeArticleInput,
+  CreateMediaUploadIntentsInput,
+  CreateOrLinkDependentInput,
+  CreatePaymentInput,
   CreateAsyncCaseInput,
   CreateAsyncCaseUploadIntentsInput,
   CreateEducationThreadMessageInput,
-  AppendTimelineEventInput,
-  CompleteMediaUploadInput,
-  CreateMediaUploadIntentsInput,
-  CreateOrLinkDependentInput,
   CreatePreConsultSubmissionInput,
+  CreateQuoteInput,
   CreateScreeningReminderInput,
   EnsureSelfProfileInput,
   MarkEducationModuleProgressInput,
   ReplyAsyncCaseInput,
+  ReviewExternalPractitionerApplicationInput,
   RequestMoreInfoInput,
   RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
   SubmitCheckInInput,
   SubmitAsyncCaseInput,
+  UpdateEventInput,
+  UpdateInvoiceInput,
+  UpdateKnowledgeArticleInput,
   UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
   UpdatePreventionLocationInput,
   UpdateProfileInput,
+  UpdateQuoteInput,
+  UpdateSecurityPolicyInput,
   UpdateScreeningReminderInput,
+  UpdateUserCapabilitiesInput,
+  UpdateUserRolesInput,
 } from "./adapter.types";
 import type {
+  AdminUserRecord,
   AppNotificationRecord,
   AsyncCaseDetailRecord,
   AsyncCaseRecord,
   AuditEvent,
+  BillingOverviewRecord,
+  CapabilityGrantRecord,
   CaregiverLink,
   CheckInSubmissionRecord,
   ClinicalDocumentRecord,
   ConsentRecord,
   EducationProgramDetailRecord,
   EducationProgramRecord,
+  EventDetailRecord,
+  EventRecord,
+  EventRegistrationRecord,
+  ExternalPractitionerApplicationRecord,
+  InterPractitionerCaseDetailRecord,
+  InterPractitionerCaseRecord,
+  InvoiceRecord,
+  KnowledgeArticleRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationPreference,
+  PaymentRecord,
   PatientProfileRecord,
   PatientRecordEvent,
   PreventionAlertRecord,
   PreventionCurrentRecord,
   PreventionSettingsRecord,
   PreConsultSubmissionRecord,
+  QuoteRecord,
   ScreeningReminder,
+  SecurityPolicyRecord,
   SkinScoreRecord,
 } from "./types";
 import { createApiClient } from "../api/client";
@@ -566,6 +596,444 @@ export class BackendAccountAdapter implements AccountAdapter {
     return this.http.get<PreventionCurrentRecord>(
       `/api/v1/practitioner/patients/${profileId}/prevention/current`,
     );
+  }
+
+  async createExternalPractitionerApplication(
+    input: CreateExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    return this.http.post<ExternalPractitionerApplicationRecord>(
+      "/api/v1/external-practitioner/applications",
+      {
+        specialty: input.specialty,
+        organization: input.organization,
+        licenseNumber: input.licenseNumber,
+        motivation: input.motivation,
+      },
+    );
+  }
+
+  async listExternalPractitionerCases(
+    _actorUserId: string,
+  ): Promise<InterPractitionerCaseRecord[]> {
+    return this.http.get<InterPractitionerCaseRecord[]>("/api/v1/external-practitioner/cases");
+  }
+
+  async createExternalPractitionerCase(
+    input: CreateInterPractitionerCaseInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.post<InterPractitionerCaseDetailRecord>(
+      "/api/v1/external-practitioner/cases",
+      {
+        subject: input.subject,
+        patientLabel: input.patientLabel,
+        patientAgeLabel: input.patientAgeLabel,
+        clinicalContext: input.clinicalContext,
+        question: input.question,
+        consentAttested: input.consentAttested,
+        mediaAssetIds: input.mediaAssetIds,
+      },
+    );
+  }
+
+  async getExternalPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.get<InterPractitionerCaseDetailRecord>(
+      `/api/v1/external-practitioner/cases/${caseId}`,
+    );
+  }
+
+  async replyToExternalPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.post<InterPractitionerCaseDetailRecord>(
+      `/api/v1/external-practitioner/cases/${input.caseId}/reply`,
+      {
+        body: input.body,
+        mediaAssetIds: input.mediaAssetIds,
+      },
+    );
+  }
+
+  async listPractitionerInterPractitionerCases(
+    _actorUserId: string,
+    status?: string,
+  ): Promise<InterPractitionerCaseRecord[]> {
+    return this.http.get<InterPractitionerCaseRecord[]>(
+      "/api/v1/practitioner/inter-practitioner/cases",
+      { status },
+    );
+  }
+
+  async getPractitionerInterPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.get<InterPractitionerCaseDetailRecord>(
+      `/api/v1/practitioner/inter-practitioner/cases/${caseId}`,
+    );
+  }
+
+  async claimInterPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord> {
+    return this.http.post<InterPractitionerCaseRecord>(
+      `/api/v1/practitioner/inter-practitioner/cases/${caseId}/claim`,
+    );
+  }
+
+  async requestMoreInfoForInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.post<InterPractitionerCaseDetailRecord>(
+      `/api/v1/practitioner/inter-practitioner/cases/${input.caseId}/request-more-info`,
+      { body: input.body, mediaAssetIds: input.mediaAssetIds },
+    );
+  }
+
+  async respondToInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    return this.http.post<InterPractitionerCaseDetailRecord>(
+      `/api/v1/practitioner/inter-practitioner/cases/${input.caseId}/respond`,
+      { body: input.body, mediaAssetIds: input.mediaAssetIds },
+    );
+  }
+
+  async closeInterPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord> {
+    return this.http.post<InterPractitionerCaseRecord>(
+      `/api/v1/practitioner/inter-practitioner/cases/${caseId}/close`,
+    );
+  }
+
+  async listEvents(_actorUserId: string): Promise<EventRecord[]> {
+    return this.http.get<EventRecord[]>("/api/v1/events");
+  }
+
+  async getEvent(_actorUserId: string, eventId: string): Promise<EventDetailRecord> {
+    return this.http.get<EventDetailRecord>(`/api/v1/events/${eventId}`);
+  }
+
+  async registerForEvent(
+    _actorUserId: string,
+    eventId: string,
+    profileId?: string,
+  ): Promise<EventDetailRecord> {
+    return this.http.post<EventDetailRecord>(
+      `/api/v1/events/${eventId}/register`,
+      undefined,
+      { profileId },
+    );
+  }
+
+  async cancelEventRegistration(
+    _actorUserId: string,
+    eventId: string,
+    profileId?: string,
+  ): Promise<EventDetailRecord> {
+    return this.http.post<EventDetailRecord>(
+      `/api/v1/events/${eventId}/cancel-registration`,
+      undefined,
+      { profileId },
+    );
+  }
+
+  async listMyEventRegistrations(_actorUserId: string): Promise<EventRegistrationRecord[]> {
+    return this.http.get<EventRegistrationRecord[]>("/api/v1/events/my-registrations");
+  }
+
+  async getBillingOverview(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<BillingOverviewRecord> {
+    return this.http.get<BillingOverviewRecord>("/api/v1/patients/billing/overview", {
+      profileId,
+    });
+  }
+
+  async listPatientInvoices(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<InvoiceRecord[]> {
+    return this.http.get<InvoiceRecord[]>("/api/v1/patients/billing/invoices", { profileId });
+  }
+
+  async getPatientInvoice(
+    _actorUserId: string,
+    profileId: string,
+    invoiceId: string,
+  ): Promise<InvoiceRecord> {
+    return this.http.get<InvoiceRecord>(`/api/v1/patients/billing/invoices/${invoiceId}`, {
+      profileId,
+    });
+  }
+
+  async listPatientQuotes(_actorUserId: string, profileId: string): Promise<QuoteRecord[]> {
+    return this.http.get<QuoteRecord[]>("/api/v1/patients/billing/quotes", { profileId });
+  }
+
+  async getPatientQuote(
+    _actorUserId: string,
+    profileId: string,
+    quoteId: string,
+  ): Promise<QuoteRecord> {
+    return this.http.get<QuoteRecord>(`/api/v1/patients/billing/quotes/${quoteId}`, {
+      profileId,
+    });
+  }
+
+  async createPayment(input: CreatePaymentInput): Promise<PaymentRecord> {
+    return this.http.post<PaymentRecord>("/api/v1/patients/billing/payments", {
+      profileId: input.profileId,
+      invoiceId: input.invoiceId,
+      quoteId: input.quoteId,
+      eventRegistrationId: input.eventRegistrationId,
+      providerKey: input.providerKey,
+      method: input.method,
+      amount: input.amount,
+      currency: input.currency,
+    });
+  }
+
+  async getPayment(_actorUserId: string, paymentId: string): Promise<PaymentRecord> {
+    return this.http.get<PaymentRecord>(`/api/v1/patients/billing/payments/${paymentId}`);
+  }
+
+  async listAdminUsers(_actorUserId: string): Promise<AdminUserRecord[]> {
+    return this.http.get<AdminUserRecord[]>("/api/v1/admin/users");
+  }
+
+  async getAdminUser(_actorUserId: string, userId: string): Promise<AdminUserRecord> {
+    return this.http.get<AdminUserRecord>(`/api/v1/admin/users/${userId}`);
+  }
+
+  async updateUserRoles(input: UpdateUserRolesInput): Promise<AdminUserRecord> {
+    return this.http.patch<AdminUserRecord>(`/api/v1/admin/users/${input.userId}/roles`, {
+      roles: input.roles,
+    });
+  }
+
+  async updateUserCapabilities(
+    input: UpdateUserCapabilitiesInput,
+  ): Promise<CapabilityGrantRecord[]> {
+    return this.http.patch<CapabilityGrantRecord[]>(
+      `/api/v1/admin/users/${input.userId}/capabilities`,
+      { capabilities: input.capabilities },
+    );
+  }
+
+  async listExternalPractitionerApplications(
+    _actorUserId: string,
+  ): Promise<ExternalPractitionerApplicationRecord[]> {
+    return this.http.get<ExternalPractitionerApplicationRecord[]>(
+      "/api/v1/admin/external-practitioner-applications",
+    );
+  }
+
+  async approveExternalPractitionerApplication(
+    _actorUserId: string,
+    applicationId: string,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    return this.http.post<ExternalPractitionerApplicationRecord>(
+      `/api/v1/admin/external-practitioner-applications/${applicationId}/approve`,
+    );
+  }
+
+  async rejectExternalPractitionerApplication(
+    input: ReviewExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    return this.http.post<ExternalPractitionerApplicationRecord>(
+      `/api/v1/admin/external-practitioner-applications/${input.applicationId}/reject`,
+      { rejectionReason: input.rejectionReason },
+    );
+  }
+
+  async listKnowledgeArticles(_actorUserId: string): Promise<KnowledgeArticleRecord[]> {
+    return this.http.get<KnowledgeArticleRecord[]>("/api/v1/admin/knowledge-articles");
+  }
+
+  async createKnowledgeArticle(
+    input: CreateKnowledgeArticleInput,
+  ): Promise<KnowledgeArticleRecord> {
+    return this.http.post<KnowledgeArticleRecord>("/api/v1/admin/knowledge-articles", {
+      slug: input.slug,
+      title: input.title,
+      summary: input.summary,
+      body: input.body,
+      category: input.category,
+    });
+  }
+
+  async updateKnowledgeArticle(
+    input: UpdateKnowledgeArticleInput,
+  ): Promise<KnowledgeArticleRecord> {
+    return this.http.patch<KnowledgeArticleRecord>(
+      `/api/v1/admin/knowledge-articles/${input.articleId}`,
+      {
+        title: input.title,
+        summary: input.summary,
+        body: input.body,
+        category: input.category,
+        reviewNotes: input.reviewNotes,
+      },
+    );
+  }
+
+  async submitKnowledgeArticleForReview(
+    _actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord> {
+    return this.http.post<KnowledgeArticleRecord>(
+      `/api/v1/admin/knowledge-articles/${articleId}/submit-review`,
+    );
+  }
+
+  async publishKnowledgeArticle(
+    _actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord> {
+    return this.http.post<KnowledgeArticleRecord>(
+      `/api/v1/admin/knowledge-articles/${articleId}/publish`,
+    );
+  }
+
+  async listAdminAuditLogs(_actorUserId: string): Promise<AuditEvent[]> {
+    return this.http.get<AuditEvent[]>("/api/v1/admin/audit-logs");
+  }
+
+  async exportAdminAuditLogsCsv(_actorUserId: string): Promise<string> {
+    const result = await this.http.get<{ content: string }>("/api/v1/admin/audit-logs/export");
+    return result.content;
+  }
+
+  async listSecurityPolicies(_actorUserId: string): Promise<SecurityPolicyRecord[]> {
+    return this.http.get<SecurityPolicyRecord[]>("/api/v1/admin/security-policies");
+  }
+
+  async updateSecurityPolicy(
+    input: UpdateSecurityPolicyInput,
+  ): Promise<SecurityPolicyRecord> {
+    return this.http.patch<SecurityPolicyRecord>(
+      `/api/v1/admin/security-policies/${input.policyKey}`,
+      { value: input.value },
+    );
+  }
+
+  async listAdminEvents(_actorUserId: string): Promise<EventRecord[]> {
+    return this.http.get<EventRecord[]>("/api/v1/admin/events");
+  }
+
+  async createEvent(input: CreateEventInput): Promise<EventRecord> {
+    return this.http.post<EventRecord>("/api/v1/admin/events", {
+      title: input.title,
+      summary: input.summary,
+      description: input.description,
+      audience: input.audience,
+      format: input.format,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      locationLabel: input.locationLabel,
+      capacity: input.capacity,
+      waitlistCapacity: input.waitlistCapacity,
+      requiresPayment: input.requiresPayment,
+      priceAmount: input.priceAmount,
+      currency: input.currency,
+    });
+  }
+
+  async updateEvent(input: UpdateEventInput): Promise<EventRecord> {
+    return this.http.patch<EventRecord>(`/api/v1/admin/events/${input.eventId}`, {
+      title: input.title,
+      summary: input.summary,
+      description: input.description,
+      audience: input.audience,
+      format: input.format,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      locationLabel: input.locationLabel,
+      capacity: input.capacity,
+      waitlistCapacity: input.waitlistCapacity,
+      requiresPayment: input.requiresPayment,
+      priceAmount: input.priceAmount,
+      currency: input.currency,
+    });
+  }
+
+  async publishEvent(_actorUserId: string, eventId: string): Promise<EventRecord> {
+    return this.http.post<EventRecord>(`/api/v1/admin/events/${eventId}/publish`);
+  }
+
+  async cancelEvent(_actorUserId: string, eventId: string): Promise<EventRecord> {
+    return this.http.post<EventRecord>(`/api/v1/admin/events/${eventId}/cancel`);
+  }
+
+  async listAdminInvoices(_actorUserId: string): Promise<InvoiceRecord[]> {
+    return this.http.get<InvoiceRecord[]>("/api/v1/admin/billing/invoices");
+  }
+
+  async createInvoice(input: CreateInvoiceInput): Promise<InvoiceRecord> {
+    return this.http.post<InvoiceRecord>("/api/v1/admin/billing/invoices", {
+      profileId: input.profileId,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      title: input.title,
+      description: input.description,
+      lineItems: input.lineItems,
+      totalAmount: input.totalAmount,
+      currency: input.currency,
+      dueAt: input.dueAt,
+      quoteId: input.quoteId,
+    });
+  }
+
+  async updateInvoice(input: UpdateInvoiceInput): Promise<InvoiceRecord> {
+    return this.http.patch<InvoiceRecord>(
+      `/api/v1/admin/billing/invoices/${input.invoiceId}`,
+      {
+        status: input.status,
+        description: input.description,
+        lineItems: input.lineItems,
+        totalAmount: input.totalAmount,
+        dueAt: input.dueAt,
+      },
+    );
+  }
+
+  async listAdminQuotes(_actorUserId: string): Promise<QuoteRecord[]> {
+    return this.http.get<QuoteRecord[]>("/api/v1/admin/billing/quotes");
+  }
+
+  async createQuote(input: CreateQuoteInput): Promise<QuoteRecord> {
+    return this.http.post<QuoteRecord>("/api/v1/admin/billing/quotes", {
+      profileId: input.profileId,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      title: input.title,
+      description: input.description,
+      lineItems: input.lineItems,
+      totalAmount: input.totalAmount,
+      currency: input.currency,
+      expiresAt: input.expiresAt,
+    });
+  }
+
+  async updateQuote(input: UpdateQuoteInput): Promise<QuoteRecord> {
+    return this.http.patch<QuoteRecord>(`/api/v1/admin/billing/quotes/${input.quoteId}`, {
+      status: input.status,
+      description: input.description,
+      lineItems: input.lineItems,
+      totalAmount: input.totalAmount,
+      expiresAt: input.expiresAt,
+    });
+  }
+
+  async refundPayment(_actorUserId: string, paymentId: string): Promise<PaymentRecord> {
+    return this.http.post<PaymentRecord>(`/api/v1/admin/billing/payments/${paymentId}/refund`);
   }
 
   async recordProfileSwitch(_userId: string, profileId: string): Promise<void> {

@@ -6,31 +6,51 @@ import type {
   CreateEducationThreadMessageInput,
   AppendTimelineEventInput,
   CompleteMediaUploadInput,
+  CreateEventInput,
+  CreateExternalPractitionerApplicationInput,
+  CreateInterPractitionerCaseInput,
+  CreateInterPractitionerReplyInput,
+  CreateInvoiceInput,
+  CreateKnowledgeArticleInput,
   CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
+  CreatePaymentInput,
   CreatePreConsultSubmissionInput,
+  CreateQuoteInput,
   CreateScreeningReminderInput,
   EnsureSelfProfileInput,
   MarkEducationModuleProgressInput,
   ReplyAsyncCaseInput,
+  ReviewExternalPractitionerApplicationInput,
   RequestMoreInfoInput,
   RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
   SubmitCheckInInput,
   SubmitAsyncCaseInput,
+  UpdateEventInput,
+  UpdateInvoiceInput,
+  UpdateKnowledgeArticleInput,
   UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
   UpdatePreventionLocationInput,
   UpdateProfileInput,
+  UpdateQuoteInput,
+  UpdateSecurityPolicyInput,
   UpdateScreeningReminderInput,
+  UpdateUserCapabilitiesInput,
+  UpdateUserRolesInput,
 } from "./adapter.types";
 import type {
+  AdminUserRecord,
   AppNotificationRecord,
   AsyncCaseDetailRecord,
   AsyncCaseMessageRecord,
   AsyncCaseRecord,
   AuditEvent,
+  BillingOverviewRecord,
+  BillingLineItemRecord,
+  CapabilityGrantRecord,
   CaregiverLink,
   CheckInSubmissionRecord,
   ClinicalDocumentRecord,
@@ -41,10 +61,22 @@ import type {
   EducationProgramEnrollmentRecord,
   EducationProgramRecord,
   EducationThreadMessageRecord,
+  EventDetailRecord,
+  EventRecord,
+  EventRegistrationRecord,
+  EventTicketRecord,
+  ExternalPractitionerApplicationRecord,
+  InterPractitionerCaseDetailRecord,
+  InterPractitionerCaseRecord,
+  InterPractitionerMessageRecord,
+  InvoiceRecord,
+  KnowledgeArticleRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationChannelPreference,
   NotificationPreference,
+  PaymentRecord,
+  PaymentStatus,
   PatientRecordEvent,
   PatientRecordEventType,
   PatientProfileRecord,
@@ -53,8 +85,10 @@ import type {
   PreventionSettingsRecord,
   PreventionSnapshotRecord,
   PreConsultSubmissionRecord,
+  QuoteRecord,
   ScreeningCadence,
   ScreeningReminder,
+  SecurityPolicyRecord,
   SkinScoreRecord,
 } from "./types";
 export { relationshipToLabel } from "./labels";
@@ -81,6 +115,18 @@ const CHECKINS_KEY = "melanis_account_checkins_v1";
 const PREVENTION_SETTINGS_KEY = "melanis_account_prevention_settings_v1";
 const PREVENTION_SNAPSHOTS_KEY = "melanis_account_prevention_snapshots_v1";
 const PREVENTION_ALERTS_KEY = "melanis_account_prevention_alerts_v1";
+const EXTERNAL_APPLICATIONS_KEY = "melanis_account_external_practitioner_applications_v1";
+const INTER_PRACTITIONER_CASES_KEY = "melanis_account_inter_practitioner_cases_v1";
+const INTER_PRACTITIONER_MESSAGES_KEY = "melanis_account_inter_practitioner_messages_v1";
+const ADMIN_CAPABILITIES_KEY = "melanis_account_admin_capabilities_v1";
+const KNOWLEDGE_ARTICLES_KEY = "melanis_account_knowledge_articles_v1";
+const SECURITY_POLICIES_KEY = "melanis_account_security_policies_v1";
+const EVENTS_KEY = "melanis_account_events_v1";
+const EVENT_REGISTRATIONS_KEY = "melanis_account_event_registrations_v1";
+const EVENT_TICKETS_KEY = "melanis_account_event_tickets_v1";
+const QUOTES_KEY = "melanis_account_quotes_v1";
+const INVOICES_KEY = "melanis_account_invoices_v1";
+const PAYMENTS_KEY = "melanis_account_payments_v1";
 
 const DAKAR_LOCATION = {
   latitude: 14.6928,
@@ -414,6 +460,102 @@ function readPreventionAlerts() {
 
 function writePreventionAlerts(items: PreventionAlertRecord[]) {
   safeWrite(PREVENTION_ALERTS_KEY, items.slice(-2000));
+}
+
+function readExternalApplications() {
+  return safeRead<ExternalPractitionerApplicationRecord[]>(EXTERNAL_APPLICATIONS_KEY, []);
+}
+
+function writeExternalApplications(items: ExternalPractitionerApplicationRecord[]) {
+  safeWrite(EXTERNAL_APPLICATIONS_KEY, items.slice(-500));
+}
+
+function readInterPractitionerCases() {
+  return safeRead<InterPractitionerCaseRecord[]>(INTER_PRACTITIONER_CASES_KEY, []);
+}
+
+function writeInterPractitionerCases(items: InterPractitionerCaseRecord[]) {
+  safeWrite(INTER_PRACTITIONER_CASES_KEY, items.slice(-500));
+}
+
+function readInterPractitionerMessages() {
+  return safeRead<InterPractitionerMessageRecord[]>(INTER_PRACTITIONER_MESSAGES_KEY, []);
+}
+
+function writeInterPractitionerMessages(items: InterPractitionerMessageRecord[]) {
+  safeWrite(INTER_PRACTITIONER_MESSAGES_KEY, items.slice(-2000));
+}
+
+function readCapabilityGrants() {
+  return safeRead<CapabilityGrantRecord[]>(ADMIN_CAPABILITIES_KEY, []);
+}
+
+function writeCapabilityGrants(items: CapabilityGrantRecord[]) {
+  safeWrite(ADMIN_CAPABILITIES_KEY, items.slice(-1000));
+}
+
+function readKnowledgeArticles() {
+  return safeRead<KnowledgeArticleRecord[]>(KNOWLEDGE_ARTICLES_KEY, []);
+}
+
+function writeKnowledgeArticles(items: KnowledgeArticleRecord[]) {
+  safeWrite(KNOWLEDGE_ARTICLES_KEY, items.slice(-1000));
+}
+
+function readSecurityPolicies() {
+  return safeRead<SecurityPolicyRecord[]>(SECURITY_POLICIES_KEY, []);
+}
+
+function writeSecurityPolicies(items: SecurityPolicyRecord[]) {
+  safeWrite(SECURITY_POLICIES_KEY, items.slice(-200));
+}
+
+function readEvents() {
+  return safeRead<EventRecord[]>(EVENTS_KEY, []);
+}
+
+function writeEvents(items: EventRecord[]) {
+  safeWrite(EVENTS_KEY, items.slice(-1000));
+}
+
+function readEventRegistrations() {
+  return safeRead<EventRegistrationRecord[]>(EVENT_REGISTRATIONS_KEY, []);
+}
+
+function writeEventRegistrations(items: EventRegistrationRecord[]) {
+  safeWrite(EVENT_REGISTRATIONS_KEY, items.slice(-2000));
+}
+
+function readEventTickets() {
+  return safeRead<EventTicketRecord[]>(EVENT_TICKETS_KEY, []);
+}
+
+function writeEventTickets(items: EventTicketRecord[]) {
+  safeWrite(EVENT_TICKETS_KEY, items.slice(-2000));
+}
+
+function readQuotes() {
+  return safeRead<QuoteRecord[]>(QUOTES_KEY, []);
+}
+
+function writeQuotes(items: QuoteRecord[]) {
+  safeWrite(QUOTES_KEY, items.slice(-2000));
+}
+
+function readInvoices() {
+  return safeRead<InvoiceRecord[]>(INVOICES_KEY, []);
+}
+
+function writeInvoices(items: InvoiceRecord[]) {
+  safeWrite(INVOICES_KEY, items.slice(-2000));
+}
+
+function readPayments() {
+  return safeRead<PaymentRecord[]>(PAYMENTS_KEY, []);
+}
+
+function writePayments(items: PaymentRecord[]) {
+  safeWrite(PAYMENTS_KEY, items.slice(-2000));
 }
 
 function createAuditEvent(
@@ -2565,6 +2707,813 @@ export class MockAccountAdapter implements AccountAdapter {
       snapshot,
       alerts,
     };
+  }
+
+  async createExternalPractitionerApplication(
+    input: CreateExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    const profiles = readProfiles();
+    const ownerProfile = profiles.find((item) => item.ownerUserId === input.userId);
+    const applications = readExternalApplications();
+    const existing = applications.find((item) => item.userId === input.userId);
+    const next: ExternalPractitionerApplicationRecord = {
+      id: existing?.id ?? randomId("ext_app"),
+      userId: input.userId,
+      fullName: ownerProfile
+        ? `${ownerProfile.firstName} ${ownerProfile.lastName}`.trim()
+        : "Praticien externe",
+      phoneE164: "+221000000000",
+      email: undefined,
+      specialty: input.specialty,
+      organization: input.organization,
+      licenseNumber: input.licenseNumber,
+      countryCode: "SN",
+      motivation: input.motivation,
+      status: existing?.status ?? "pending",
+      reviewedByUserId: existing?.reviewedByUserId,
+      reviewedAt: existing?.reviewedAt,
+      rejectionReason: existing?.rejectionReason,
+      createdAt: existing?.createdAt ?? nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeExternalApplications(
+      existing
+        ? applications.map((item) => (item.id === existing.id ? next : item))
+        : [...applications, next],
+    );
+    return next;
+  }
+
+  async listExternalPractitionerCases(
+    actorUserId: string,
+  ): Promise<InterPractitionerCaseRecord[]> {
+    return readInterPractitionerCases()
+      .filter((item) => item.externalPractitionerUserId === actorUserId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async createExternalPractitionerCase(
+    input: CreateInterPractitionerCaseInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const cases = readInterPractitionerCases();
+    const now = nowIso();
+    const item: InterPractitionerCaseRecord = {
+      id: randomId("ipc"),
+      externalPractitionerUserId: input.actorUserId,
+      status: "submitted",
+      subject: input.subject,
+      patientLabel: input.patientLabel,
+      patientAgeLabel: input.patientAgeLabel,
+      clinicalContext: input.clinicalContext,
+      question: input.question,
+      consentAttested: input.consentAttested,
+      mediaAssetIds: input.mediaAssetIds,
+      submittedAt: now,
+      latestMessageAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerCases([...cases, item]);
+    const messages = readInterPractitionerMessages();
+    const seedMessage: InterPractitionerMessageRecord = {
+      id: randomId("ipc_msg"),
+      caseId: item.id,
+      actorUserId: input.actorUserId,
+      authorRole: "external_practitioner",
+      body: input.question,
+      mediaAssetIds: input.mediaAssetIds,
+      meta: { subject: input.subject },
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerMessages([...messages, seedMessage]);
+    createNotification({
+      recipientUserId: "practitioner-pool",
+      kind: "inter_practitioner_case_submitted",
+      title: "Nouvelle demande d'avis externe",
+      body: input.subject,
+      entityType: "inter_practitioner_case",
+      entityId: item.id,
+    });
+    return {
+      case: item,
+      messages: [seedMessage],
+    };
+  }
+
+  async getExternalPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const item = readInterPractitionerCases().find(
+      (entry) => entry.id === caseId && entry.externalPractitionerUserId === actorUserId,
+    );
+    if (!item) throw new Error("Demande d'avis introuvable");
+    return {
+      case: item,
+      messages: readInterPractitionerMessages().filter((entry) => entry.caseId === caseId),
+    };
+  }
+
+  async replyToExternalPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const cases = readInterPractitionerCases();
+    const existing = cases.find((item) => item.id === input.caseId);
+    if (!existing) throw new Error("Demande d'avis introuvable");
+    const now = nowIso();
+    const nextCase: InterPractitionerCaseRecord = {
+      ...existing,
+      status: "external_replied",
+      latestMessageAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerCases(cases.map((item) => (item.id === existing.id ? nextCase : item)));
+    const messages = readInterPractitionerMessages();
+    const message: InterPractitionerMessageRecord = {
+      id: randomId("ipc_msg"),
+      caseId: input.caseId,
+      actorUserId: input.actorUserId,
+      authorRole: "external_practitioner",
+      body: input.body,
+      mediaAssetIds: input.mediaAssetIds,
+      meta: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerMessages([...messages, message]);
+    return {
+      case: nextCase,
+      messages: [...messages.filter((item) => item.caseId === input.caseId), message],
+    };
+  }
+
+  async listPractitionerInterPractitionerCases(
+    _actorUserId: string,
+    status?: string,
+  ): Promise<InterPractitionerCaseRecord[]> {
+    return readInterPractitionerCases()
+      .filter((item) => (status ? item.status === status : item.status !== "draft"))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async getPractitionerInterPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const item = readInterPractitionerCases().find((entry) => entry.id === caseId);
+    if (!item) throw new Error("Demande d'avis introuvable");
+    return {
+      case: item,
+      messages: readInterPractitionerMessages().filter((entry) => entry.caseId === caseId),
+    };
+  }
+
+  async claimInterPractitionerCase(
+    actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord> {
+    const cases = readInterPractitionerCases();
+    const existing = cases.find((item) => item.id === caseId);
+    if (!existing) throw new Error("Demande d'avis introuvable");
+    const next: InterPractitionerCaseRecord = {
+      ...existing,
+      claimedByUserId: actorUserId,
+      status: "in_review",
+      updatedAt: nowIso(),
+    };
+    writeInterPractitionerCases(cases.map((item) => (item.id === caseId ? next : item)));
+    return next;
+  }
+
+  async requestMoreInfoForInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const detail = await this.getPractitionerInterPractitionerCase(input.actorUserId, input.caseId);
+    const now = nowIso();
+    const nextCase = {
+      ...detail.case,
+      status: "waiting_for_external" as const,
+      latestMessageAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerCases(
+      readInterPractitionerCases().map((item) => (item.id === input.caseId ? nextCase : item)),
+    );
+    const nextMessage: InterPractitionerMessageRecord = {
+      id: randomId("ipc_msg"),
+      caseId: input.caseId,
+      actorUserId: input.actorUserId,
+      authorRole: "practitioner",
+      body: input.body,
+      mediaAssetIds: input.mediaAssetIds,
+      meta: { requestMoreInfo: true },
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerMessages([...readInterPractitionerMessages(), nextMessage]);
+    return {
+      case: nextCase,
+      messages: [...detail.messages, nextMessage],
+    };
+  }
+
+  async respondToInterPractitionerCase(
+    input: CreateInterPractitionerReplyInput,
+  ): Promise<InterPractitionerCaseDetailRecord> {
+    const detail = await this.getPractitionerInterPractitionerCase(input.actorUserId, input.caseId);
+    const now = nowIso();
+    const nextCase = {
+      ...detail.case,
+      status: "responded" as const,
+      respondedAt: now,
+      latestMessageAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerCases(
+      readInterPractitionerCases().map((item) => (item.id === input.caseId ? nextCase : item)),
+    );
+    const nextMessage: InterPractitionerMessageRecord = {
+      id: randomId("ipc_msg"),
+      caseId: input.caseId,
+      actorUserId: input.actorUserId,
+      authorRole: "practitioner",
+      body: input.body,
+      mediaAssetIds: input.mediaAssetIds,
+      meta: { responseReady: true },
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeInterPractitionerMessages([...readInterPractitionerMessages(), nextMessage]);
+    return {
+      case: nextCase,
+      messages: [...detail.messages, nextMessage],
+    };
+  }
+
+  async closeInterPractitionerCase(
+    _actorUserId: string,
+    caseId: string,
+  ): Promise<InterPractitionerCaseRecord> {
+    const cases = readInterPractitionerCases();
+    const existing = cases.find((item) => item.id === caseId);
+    if (!existing) throw new Error("Demande d'avis introuvable");
+    const next: InterPractitionerCaseRecord = {
+      ...existing,
+      status: "closed",
+      closedAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeInterPractitionerCases(cases.map((item) => (item.id === caseId ? next : item)));
+    return next;
+  }
+
+  async listEvents(actorUserId: string): Promise<EventRecord[]> {
+    const profile = readProfiles().find((item) => item.ownerUserId === actorUserId);
+    const audience = profile ? "patient" : "practitioner";
+    return readEvents()
+      .filter(
+        (item) =>
+          item.status === "published" &&
+          (item.audience === "both" || item.audience === audience),
+      )
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }
+
+  async getEvent(actorUserId: string, eventId: string): Promise<EventDetailRecord> {
+    const event = readEvents().find((item) => item.id === eventId);
+    if (!event) throw new Error("Événement introuvable");
+    const registration = readEventRegistrations().find(
+      (item) => item.eventId === eventId && item.userId === actorUserId && item.status !== "cancelled",
+    );
+    const ticket = registration?.ticketId
+      ? readEventTickets().find((item) => item.id === registration.ticketId) ?? null
+      : null;
+    return {
+      event,
+      myRegistration: registration ?? null,
+      myTicket: ticket,
+      registrationCount: readEventRegistrations().filter((item) => item.eventId === eventId).length,
+    };
+  }
+
+  async registerForEvent(
+    actorUserId: string,
+    eventId: string,
+    profileId?: string,
+  ): Promise<EventDetailRecord> {
+    const event = readEvents().find((item) => item.id === eventId);
+    if (!event) throw new Error("Événement introuvable");
+    const registrations = readEventRegistrations();
+    const activeCount = registrations.filter(
+      (item) => item.eventId === eventId && item.status === "registered",
+    ).length;
+    const status = activeCount >= event.capacity ? "waitlisted" : "registered";
+    const now = nowIso();
+    const registration: EventRegistrationRecord = {
+      id: randomId("event_reg"),
+      eventId,
+      userId: actorUserId,
+      profileId,
+      status,
+      registeredAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    let ticket: EventTicketRecord | null = null;
+    if (status === "registered") {
+      ticket = {
+        id: randomId("ticket"),
+        eventId,
+        registrationId: registration.id,
+        code: `EVT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        issuedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+      registration.ticketId = ticket.id;
+      writeEventTickets([...readEventTickets(), ticket]);
+    }
+    if (event.requiresPayment && status === "registered") {
+      const payment = await this.createPayment({
+        actorUserId,
+        profileId: profileId ?? readProfiles().find((item) => item.ownerUserId === actorUserId)?.id ?? "",
+        eventRegistrationId: registration.id,
+        providerKey: "naboopay",
+        method: "card",
+        amount: event.priceAmount,
+        currency: event.currency,
+      });
+      registration.paymentId = payment.id;
+    }
+    writeEventRegistrations([...registrations, registration]);
+    return this.getEvent(actorUserId, eventId);
+  }
+
+  async cancelEventRegistration(
+    actorUserId: string,
+    eventId: string,
+    _profileId?: string,
+  ): Promise<EventDetailRecord> {
+    const registrations = readEventRegistrations();
+    const existing = registrations.find(
+      (item) => item.eventId === eventId && item.userId === actorUserId && item.status !== "cancelled",
+    );
+    if (!existing) return this.getEvent(actorUserId, eventId);
+    const next = { ...existing, status: "cancelled" as const, cancelledAt: nowIso(), updatedAt: nowIso() };
+    writeEventRegistrations(registrations.map((item) => (item.id === existing.id ? next : item)));
+    return this.getEvent(actorUserId, eventId);
+  }
+
+  async listMyEventRegistrations(actorUserId: string): Promise<EventRegistrationRecord[]> {
+    return readEventRegistrations().filter((item) => item.userId === actorUserId);
+  }
+
+  async getBillingOverview(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<BillingOverviewRecord> {
+    const invoices = readInvoices().filter((item) => item.profileId === profileId);
+    const quotes = readQuotes().filter((item) => item.profileId === profileId);
+    const recentPayments = readPayments().filter((item) => item.profileId === profileId);
+    const outstandingTotal = invoices
+      .filter((item) => item.status === "issued" || item.status === "overdue")
+      .reduce((sum, item) => sum + item.totalAmount, 0);
+    return { profileId, invoices, quotes, recentPayments, outstandingTotal };
+  }
+
+  async listPatientInvoices(_actorUserId: string, profileId: string): Promise<InvoiceRecord[]> {
+    return readInvoices().filter((item) => item.profileId === profileId);
+  }
+
+  async getPatientInvoice(
+    _actorUserId: string,
+    profileId: string,
+    invoiceId: string,
+  ): Promise<InvoiceRecord> {
+    const invoice = readInvoices().find(
+      (item) => item.profileId === profileId && item.id === invoiceId,
+    );
+    if (!invoice) throw new Error("Facture introuvable");
+    return invoice;
+  }
+
+  async listPatientQuotes(_actorUserId: string, profileId: string): Promise<QuoteRecord[]> {
+    return readQuotes().filter((item) => item.profileId === profileId);
+  }
+
+  async getPatientQuote(
+    _actorUserId: string,
+    profileId: string,
+    quoteId: string,
+  ): Promise<QuoteRecord> {
+    const quote = readQuotes().find(
+      (item) => item.profileId === profileId && item.id === quoteId,
+    );
+    if (!quote) throw new Error("Devis introuvable");
+    return quote;
+  }
+
+  async createPayment(input: CreatePaymentInput): Promise<PaymentRecord> {
+    const payments = readPayments();
+    const now = nowIso();
+    const payment: PaymentRecord = {
+      id: randomId("payment"),
+      profileId: input.profileId,
+      invoiceId: input.invoiceId,
+      quoteId: input.quoteId,
+      eventRegistrationId: input.eventRegistrationId,
+      providerKey: input.providerKey ?? "naboopay",
+      method: input.method ?? "card",
+      amount: input.amount,
+      currency: input.currency,
+      status: "pending_provider",
+      checkoutUrl: `https://www.naboopay.com/checkout/${randomId("ref")}`,
+      externalReference: randomId("ext"),
+      createdAt: now,
+      updatedAt: now,
+    };
+    writePayments([...payments, payment]);
+    return payment;
+  }
+
+  async getPayment(_actorUserId: string, paymentId: string): Promise<PaymentRecord> {
+    const payment = readPayments().find((item) => item.id === paymentId);
+    if (!payment) throw new Error("Paiement introuvable");
+    return payment;
+  }
+
+  async listAdminUsers(_actorUserId: string): Promise<AdminUserRecord[]> {
+    const capabilityGrants = readCapabilityGrants();
+    return readProfiles()
+      .map((profile) => ({
+        id: profile.ownerUserId,
+        fullName: `${profile.firstName} ${profile.lastName}`.trim(),
+        phoneE164: "+221000000000",
+        email: undefined,
+        roles: profile.relationship === "moi" ? ["patient"] : ["caregiver"],
+        practitionerId: undefined,
+        capabilities: capabilityGrants
+          .filter((item) => item.userId === profile.ownerUserId)
+          .map((item) => item.capability),
+        externalPractitionerStatus: readExternalApplications().find((item) => item.userId === profile.ownerUserId)?.status,
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt,
+      }))
+      .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index);
+  }
+
+  async getAdminUser(actorUserId: string, userId: string): Promise<AdminUserRecord> {
+    const users = await this.listAdminUsers(actorUserId);
+    const user = users.find((item) => item.id === userId);
+    if (!user) throw new Error("Utilisateur introuvable");
+    return user;
+  }
+
+  async updateUserRoles(input: UpdateUserRolesInput): Promise<AdminUserRecord> {
+    const user = await this.getAdminUser(input.actorUserId, input.userId);
+    return { ...user, roles: input.roles, updatedAt: nowIso() };
+  }
+
+  async updateUserCapabilities(
+    input: UpdateUserCapabilitiesInput,
+  ): Promise<CapabilityGrantRecord[]> {
+    const existing = readCapabilityGrants().filter((item) => item.userId !== input.userId);
+    const next = input.capabilities.map((capability) => ({
+      id: randomId("cap"),
+      userId: input.userId,
+      capability,
+      grantedByUserId: input.actorUserId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }));
+    writeCapabilityGrants([...existing, ...next]);
+    return next;
+  }
+
+  async listExternalPractitionerApplications(
+    _actorUserId: string,
+  ): Promise<ExternalPractitionerApplicationRecord[]> {
+    return readExternalApplications();
+  }
+
+  async approveExternalPractitionerApplication(
+    actorUserId: string,
+    applicationId: string,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    const applications = readExternalApplications();
+    const existing = applications.find((item) => item.id === applicationId);
+    if (!existing) throw new Error("Demande introuvable");
+    const next = {
+      ...existing,
+      status: "approved" as const,
+      reviewedByUserId: actorUserId,
+      reviewedAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeExternalApplications(applications.map((item) => (item.id === applicationId ? next : item)));
+    return next;
+  }
+
+  async rejectExternalPractitionerApplication(
+    input: ReviewExternalPractitionerApplicationInput,
+  ): Promise<ExternalPractitionerApplicationRecord> {
+    const applications = readExternalApplications();
+    const existing = applications.find((item) => item.id === input.applicationId);
+    if (!existing) throw new Error("Demande introuvable");
+    const next = {
+      ...existing,
+      status: "rejected" as const,
+      reviewedByUserId: input.actorUserId,
+      reviewedAt: nowIso(),
+      rejectionReason: input.rejectionReason,
+      updatedAt: nowIso(),
+    };
+    writeExternalApplications(
+      applications.map((item) => (item.id === input.applicationId ? next : item)),
+    );
+    return next;
+  }
+
+  async listKnowledgeArticles(_actorUserId: string): Promise<KnowledgeArticleRecord[]> {
+    return readKnowledgeArticles();
+  }
+
+  async createKnowledgeArticle(input: CreateKnowledgeArticleInput): Promise<KnowledgeArticleRecord> {
+    const articles = readKnowledgeArticles();
+    const article: KnowledgeArticleRecord = {
+      id: randomId("article"),
+      slug: input.slug,
+      title: input.title,
+      summary: input.summary,
+      body: input.body,
+      category: input.category ?? "general",
+      status: "draft",
+      currentVersion: 1,
+      createdByUserId: input.actorUserId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeKnowledgeArticles([...articles, article]);
+    return article;
+  }
+
+  async updateKnowledgeArticle(input: UpdateKnowledgeArticleInput): Promise<KnowledgeArticleRecord> {
+    const articles = readKnowledgeArticles();
+    const existing = articles.find((item) => item.id === input.articleId);
+    if (!existing) throw new Error("Article introuvable");
+    const next = {
+      ...existing,
+      title: input.title ?? existing.title,
+      summary: input.summary ?? existing.summary,
+      body: input.body ?? existing.body,
+      category: input.category ?? existing.category,
+      reviewNotes: input.reviewNotes ?? existing.reviewNotes,
+      updatedAt: nowIso(),
+    };
+    writeKnowledgeArticles(articles.map((item) => (item.id === input.articleId ? next : item)));
+    return next;
+  }
+
+  async submitKnowledgeArticleForReview(
+    _actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord> {
+    return this.updateKnowledgeArticle({ actorUserId: "", articleId, reviewNotes: undefined });
+  }
+
+  async publishKnowledgeArticle(
+    _actorUserId: string,
+    articleId: string,
+  ): Promise<KnowledgeArticleRecord> {
+    const article = await this.updateKnowledgeArticle({ actorUserId: "", articleId });
+    const articles = readKnowledgeArticles();
+    const next = {
+      ...article,
+      status: "published" as const,
+      publishedAt: nowIso(),
+      currentVersion: article.currentVersion + 1,
+      updatedAt: nowIso(),
+    };
+    writeKnowledgeArticles(articles.map((item) => (item.id === articleId ? next : item)));
+    return next;
+  }
+
+  async listAdminAuditLogs(_actorUserId: string): Promise<AuditEvent[]> {
+    return readAudit().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async exportAdminAuditLogsCsv(_actorUserId: string): Promise<string> {
+    const rows = ["id,actorUserId,action,entityType,entityId,createdAt"];
+    for (const item of readAudit()) {
+      rows.push([
+        item.id,
+        item.actorUserId,
+        item.action,
+        item.entityType,
+        item.entityId ?? "",
+        item.createdAt,
+      ].join(","));
+    }
+    return rows.join("\n");
+  }
+
+  async listSecurityPolicies(_actorUserId: string): Promise<SecurityPolicyRecord[]> {
+    const items = readSecurityPolicies();
+    if (items.length > 0) return items;
+    const seeded: SecurityPolicyRecord[] = [
+      {
+        id: randomId("policy"),
+        key: "external_practitioner_approval_required",
+        value: { enabled: true },
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      },
+      {
+        id: randomId("policy"),
+        key: "payment_provider_default",
+        value: { providerKey: "naboopay" },
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      },
+    ];
+    writeSecurityPolicies(seeded);
+    return seeded;
+  }
+
+  async updateSecurityPolicy(input: UpdateSecurityPolicyInput): Promise<SecurityPolicyRecord> {
+    const items = await this.listSecurityPolicies(input.actorUserId);
+    const existing = items.find((item) => item.key === input.policyKey);
+    if (!existing) throw new Error("Politique introuvable");
+    const next = {
+      ...existing,
+      value: input.value,
+      updatedAt: nowIso(),
+    };
+    writeSecurityPolicies(items.map((item) => (item.key === input.policyKey ? next : item)));
+    return next;
+  }
+
+  async listAdminEvents(_actorUserId: string): Promise<EventRecord[]> {
+    return readEvents().sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }
+
+  async createEvent(input: CreateEventInput): Promise<EventRecord> {
+    const events = readEvents();
+    const event: EventRecord = {
+      id: randomId("event"),
+      title: input.title,
+      summary: input.summary,
+      description: input.description,
+      audience: input.audience,
+      format: input.format,
+      status: "draft",
+      ownerUserId: input.actorUserId,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      locationLabel: input.locationLabel,
+      capacity: input.capacity,
+      waitlistCapacity: input.waitlistCapacity,
+      requiresPayment: input.requiresPayment,
+      priceAmount: input.priceAmount,
+      currency: input.currency,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeEvents([...events, event]);
+    return event;
+  }
+
+  async updateEvent(input: UpdateEventInput): Promise<EventRecord> {
+    const events = readEvents();
+    const existing = events.find((item) => item.id === input.eventId);
+    if (!existing) throw new Error("Événement introuvable");
+    const next = {
+      ...existing,
+      ...input,
+      updatedAt: nowIso(),
+    };
+    delete (next as Partial<UpdateEventInput & EventRecord>).actorUserId;
+    delete (next as Partial<UpdateEventInput & EventRecord>).eventId;
+    writeEvents(events.map((item) => (item.id === input.eventId ? next : item)));
+    return next;
+  }
+
+  async publishEvent(_actorUserId: string, eventId: string): Promise<EventRecord> {
+    const event = await this.updateEvent({ actorUserId: "", eventId });
+    const next = { ...event, status: "published" as const, updatedAt: nowIso() };
+    writeEvents(readEvents().map((item) => (item.id === eventId ? next : item)));
+    return next;
+  }
+
+  async cancelEvent(_actorUserId: string, eventId: string): Promise<EventRecord> {
+    const event = await this.updateEvent({ actorUserId: "", eventId });
+    const next = { ...event, status: "cancelled" as const, updatedAt: nowIso() };
+    writeEvents(readEvents().map((item) => (item.id === eventId ? next : item)));
+    return next;
+  }
+
+  async listAdminInvoices(_actorUserId: string): Promise<InvoiceRecord[]> {
+    return readInvoices();
+  }
+
+  async createInvoice(input: CreateInvoiceInput): Promise<InvoiceRecord> {
+    const invoices = readInvoices();
+    const invoice: InvoiceRecord = {
+      id: randomId("invoice"),
+      profileId: input.profileId,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      title: input.title,
+      description: input.description,
+      lineItems: input.lineItems as BillingLineItemRecord[],
+      totalAmount: input.totalAmount,
+      currency: input.currency,
+      status: "issued",
+      dueAt: input.dueAt,
+      issuedAt: nowIso(),
+      quoteId: input.quoteId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeInvoices([...invoices, invoice]);
+    return invoice;
+  }
+
+  async updateInvoice(input: UpdateInvoiceInput): Promise<InvoiceRecord> {
+    const invoices = readInvoices();
+    const existing = invoices.find((item) => item.id === input.invoiceId);
+    if (!existing) throw new Error("Facture introuvable");
+    const next = {
+      ...existing,
+      status: input.status ?? existing.status,
+      description: input.description ?? existing.description,
+      lineItems: (input.lineItems as BillingLineItemRecord[] | undefined) ?? existing.lineItems,
+      totalAmount: input.totalAmount ?? existing.totalAmount,
+      dueAt: input.dueAt ?? existing.dueAt,
+      paidAt: input.status === "paid" ? nowIso() : existing.paidAt,
+      updatedAt: nowIso(),
+    };
+    writeInvoices(invoices.map((item) => (item.id === input.invoiceId ? next : item)));
+    return next;
+  }
+
+  async listAdminQuotes(_actorUserId: string): Promise<QuoteRecord[]> {
+    return readQuotes();
+  }
+
+  async createQuote(input: CreateQuoteInput): Promise<QuoteRecord> {
+    const quotes = readQuotes();
+    const quote: QuoteRecord = {
+      id: randomId("quote"),
+      profileId: input.profileId,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      title: input.title,
+      description: input.description,
+      lineItems: input.lineItems as BillingLineItemRecord[],
+      totalAmount: input.totalAmount,
+      currency: input.currency,
+      status: "issued",
+      issuedAt: nowIso(),
+      expiresAt: input.expiresAt,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writeQuotes([...quotes, quote]);
+    return quote;
+  }
+
+  async updateQuote(input: UpdateQuoteInput): Promise<QuoteRecord> {
+    const quotes = readQuotes();
+    const existing = quotes.find((item) => item.id === input.quoteId);
+    if (!existing) throw new Error("Devis introuvable");
+    const next = {
+      ...existing,
+      status: input.status ?? existing.status,
+      description: input.description ?? existing.description,
+      lineItems: (input.lineItems as BillingLineItemRecord[] | undefined) ?? existing.lineItems,
+      totalAmount: input.totalAmount ?? existing.totalAmount,
+      expiresAt: input.expiresAt ?? existing.expiresAt,
+      acceptedAt: input.status === "accepted" ? nowIso() : existing.acceptedAt,
+      updatedAt: nowIso(),
+    };
+    writeQuotes(quotes.map((item) => (item.id === input.quoteId ? next : item)));
+    return next;
+  }
+
+  async refundPayment(_actorUserId: string, paymentId: string): Promise<PaymentRecord> {
+    const payments = readPayments();
+    const existing = payments.find((item) => item.id === paymentId);
+    if (!existing) throw new Error("Paiement introuvable");
+    const next: PaymentRecord = {
+      ...existing,
+      status: "refunded" as PaymentStatus,
+      refundedAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    writePayments(payments.map((item) => (item.id === paymentId ? next : item)));
+    return next;
   }
 
   async recordProfileSwitch(userId: string, profileId: string): Promise<void> {

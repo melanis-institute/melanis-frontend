@@ -100,6 +100,7 @@ export class BackendAuthAdapter implements AuthAdapter {
         countryCode: input.countryCode,
         email: input.email,
         termsAccepted: input.termsAccepted,
+        requestedRole: input.requestedRole,
       });
       writeSession(session);
       return session;
