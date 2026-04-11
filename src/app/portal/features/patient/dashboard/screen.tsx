@@ -1,6 +1,8 @@
 import type {
   ClinicalDocumentRecord,
+  EducationProgramRecord,
   PatientRecordEvent,
+  PreventionCurrentRecord,
   ScreeningCadence,
   ScreeningReminder,
   ScreeningReminderStatus,
@@ -22,6 +24,7 @@ import {
   FileText,
   Pill,
   Plus,
+  Shield,
   ScanFace,
   Sparkles,
   TrendingUp,
@@ -48,6 +51,9 @@ const PATHS = {
   profile: PROFILE_PATH,
   scan: `${DASHBOARD_PATH}#scan`,
   telederm: "/patient-flow/auth/telederm",
+  programs: "/patient-flow/auth/programs",
+  prevention: "/patient-flow/auth/prevention",
+  reminders: "/patient-flow/auth/reminders",
   photos: `${DASHBOARD_PATH}#photos`,
   cases: BOOKING_PATH,
   booking: BOOKING_PATH,
@@ -91,6 +97,10 @@ interface DashboardHomeProps {
   skinScores: SkinScoreRecord[];
   skinScoresLoading: boolean;
   skinScoresError: string | null;
+  educationPrograms: EducationProgramRecord[];
+  preventionCurrent: PreventionCurrentRecord | null;
+  preventionLoading: boolean;
+  preventionError: string | null;
 }
 
 function getGreeting() {
@@ -383,8 +393,9 @@ function QuickActions() {
   const actions = [
     { Icon: Calendar, label: "Réserver un RDV", to: PATHS.booking },
     { Icon: ScanFace, label: "Télé-derm", to: PATHS.telederm },
-    { Icon: FileText, label: "Mon dossier", to: PATHS.records },
-    { Icon: Bell, label: "Rappels", to: PATHS.records },
+    { Icon: FileText, label: "Programmes", to: PATHS.programs },
+    { Icon: Shield, label: "Prévention", to: PATHS.prevention },
+    { Icon: Bell, label: "Rappels", to: PATHS.reminders },
     { Icon: User, label: "Mon profil", to: PROFILE_PATH },
   ] as const;
 
@@ -416,6 +427,80 @@ function QuickActions() {
           </Link>
         ))}
       </div>
+    </section>
+  );
+}
+
+function PatientEngagementStrip({
+  hasActingProfile,
+  educationPrograms,
+  preventionCurrent,
+  preventionLoading,
+  preventionError,
+}: {
+  hasActingProfile: boolean;
+  educationPrograms: EducationProgramRecord[];
+  preventionCurrent: PreventionCurrentRecord | null;
+  preventionLoading: boolean;
+  preventionError: string | null;
+}) {
+  if (!hasActingProfile) return null;
+  const activeAlerts = preventionCurrent?.alerts ?? [];
+  const nextCheckIn = educationPrograms
+    .map((item) => item.enrollment?.nextCheckInDueAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()[0];
+
+  return (
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Link
+        to={PATHS.programs}
+        className="block rounded-[2rem] border border-white/70 bg-white/82 p-5 shadow-[0_8px_28px_rgba(17,18,20,0.05)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
+              Parcours éducatif
+            </p>
+            <h3 className="mt-2 font-serif text-[1.4rem] text-[#111214]">
+              {educationPrograms.length} programme{educationPrograms.length > 1 ? "s" : ""}
+            </h3>
+            <p className="mt-2 text-sm text-[#111214]/56">
+              {nextCheckIn
+                ? `Prochain check-in : ${formatDate(nextCheckIn)}`
+                : "Aucun check-in planifié pour le moment."}
+            </p>
+          </div>
+          <ArrowUpRight size={18} className="text-[#5B1112]" />
+        </div>
+      </Link>
+
+      <Link
+        to={PATHS.prevention}
+        className="block rounded-[2rem] border border-white/70 bg-white/82 p-5 shadow-[0_8px_28px_rgba(17,18,20,0.05)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#111214]/35">
+              Prévention
+            </p>
+            <h3 className="mt-2 font-serif text-[1.4rem] text-[#111214]">
+              {preventionLoading
+                ? "Chargement..."
+                : preventionError
+                  ? "Indisponible"
+                  : `${activeAlerts.length} alerte${activeAlerts.length > 1 ? "s" : ""}`}
+            </h3>
+            <p className="mt-2 text-sm text-[#111214]/56">
+              {preventionError
+                ? preventionError
+                : activeAlerts[0]?.title ??
+                  "Pas de signal critique détecté actuellement."}
+            </p>
+          </div>
+          <Shield size={18} className="text-[#5B1112]" />
+        </div>
+      </Link>
     </section>
   );
 }
@@ -1969,6 +2054,10 @@ export function DashboardHome({
   skinScores,
   skinScoresLoading,
   skinScoresError,
+  educationPrograms = [],
+  preventionCurrent = null,
+  preventionLoading = false,
+  preventionError = null,
 }: DashboardHomeProps) {
   const greeting = getGreeting();
 
@@ -2018,6 +2107,14 @@ export function DashboardHome({
         />
 
         <QuickActions />
+
+        <PatientEngagementStrip
+          hasActingProfile={hasActingProfile}
+          educationPrograms={educationPrograms}
+          preventionCurrent={preventionCurrent}
+          preventionLoading={preventionLoading}
+          preventionError={preventionError}
+        />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div id="appointments" className="scroll-mt-28">
@@ -2085,6 +2182,11 @@ export default function AU06() {
   const [recentDocumentsError, setRecentDocumentsError] = useState<
     string | null
   >(null);
+  const [educationPrograms, setEducationPrograms] = useState<EducationProgramRecord[]>([]);
+  const [preventionCurrent, setPreventionCurrent] =
+    useState<PreventionCurrentRecord | null>(null);
+  const [preventionLoading, setPreventionLoading] = useState(false);
+  const [preventionError, setPreventionError] = useState<string | null>(null);
   const hasActingProfile = Boolean(userId && actingProfileId);
 
   useEffect(() => {
@@ -2107,6 +2209,10 @@ export default function AU06() {
         setRecentDocuments([]);
         setRecentDocumentsLoading(false);
         setRecentDocumentsError(null);
+        setEducationPrograms([]);
+        setPreventionCurrent(null);
+        setPreventionLoading(false);
+        setPreventionError(null);
         return;
       }
 
@@ -2116,6 +2222,8 @@ export default function AU06() {
       setSkinScoresError(null);
       setRecentDocumentsLoading(true);
       setRecentDocumentsError(null);
+      setPreventionLoading(true);
+      setPreventionError(null);
 
       void auth.appointmentAdapter
         .listAppointmentsForProfile(actingProfileId)
@@ -2183,6 +2291,46 @@ export default function AU06() {
           if (cancelled) return;
           setRecentDocumentsLoading(false);
         });
+
+      if (typeof auth.accountAdapter.listEducationPrograms === "function") {
+        void auth.accountAdapter
+          .listEducationPrograms(userId, actingProfileId)
+          .then((records) => {
+            if (cancelled) return;
+            setEducationPrograms(records);
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setEducationPrograms([]);
+          });
+      } else {
+        setEducationPrograms([]);
+      }
+
+      if (typeof auth.accountAdapter.getPreventionCurrent === "function") {
+        void auth.accountAdapter
+          .getPreventionCurrent(userId, actingProfileId)
+          .then((record) => {
+            if (cancelled) return;
+            setPreventionCurrent(record);
+          })
+          .catch((adapterError) => {
+            if (cancelled) return;
+            setPreventionCurrent(null);
+            setPreventionError(
+              adapterError instanceof Error
+                ? adapterError.message
+                : "Impossible de charger la prévention.",
+            );
+          })
+          .finally(() => {
+            if (cancelled) return;
+            setPreventionLoading(false);
+          });
+      } else {
+        setPreventionCurrent(null);
+        setPreventionLoading(false);
+      }
     };
 
     void load();
@@ -2231,6 +2379,10 @@ export default function AU06() {
         skinScores={hasActingProfile ? skinScores : []}
         skinScoresLoading={hasActingProfile ? skinScoresLoading : false}
         skinScoresError={hasActingProfile ? skinScoresError : null}
+        educationPrograms={hasActingProfile ? educationPrograms : []}
+        preventionCurrent={hasActingProfile ? preventionCurrent : null}
+        preventionLoading={hasActingProfile ? preventionLoading : false}
+        preventionError={hasActingProfile ? preventionError : null}
       />
     </DashboardLayout>
   );

@@ -1,21 +1,27 @@
 import type { AccountAdapter } from "./adapter.types";
 import type {
+  AssignEducationProgramInput,
   CreateAsyncCaseInput,
   CreateAsyncCaseUploadIntentsInput,
+  CreateEducationThreadMessageInput,
   AppendTimelineEventInput,
   CompleteMediaUploadInput,
   CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
   CreatePreConsultSubmissionInput,
+  CreateScreeningReminderInput,
   EnsureSelfProfileInput,
+  MarkEducationModuleProgressInput,
   ReplyAsyncCaseInput,
   RequestMoreInfoInput,
   RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
+  SubmitCheckInInput,
   SubmitAsyncCaseInput,
   UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
+  UpdatePreventionLocationInput,
   UpdateProfileInput,
   UpdateScreeningReminderInput,
 } from "./adapter.types";
@@ -25,13 +31,19 @@ import type {
   AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
+  CheckInSubmissionRecord,
   ClinicalDocumentRecord,
   ConsentRecord,
+  EducationProgramDetailRecord,
+  EducationProgramRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationPreference,
   PatientProfileRecord,
   PatientRecordEvent,
+  PreventionAlertRecord,
+  PreventionCurrentRecord,
+  PreventionSettingsRecord,
   PreConsultSubmissionRecord,
   ScreeningReminder,
   SkinScoreRecord,
@@ -353,6 +365,207 @@ export class BackendAccountAdapter implements AccountAdapter {
 
   async closeAsyncCase(_actorUserId: string, caseId: string): Promise<AsyncCaseRecord> {
     return this.http.post<AsyncCaseRecord>(`/api/v1/practitioner/telederm/cases/${caseId}/close`);
+  }
+
+  async listEducationPrograms(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]> {
+    return this.http.get<EducationProgramRecord[]>("/api/v1/patients/education/programs", {
+      profileId,
+    });
+  }
+
+  async getEducationProgram(
+    _actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.get<EducationProgramDetailRecord>(
+      `/api/v1/patients/education/programs/${programId}`,
+      { profileId },
+    );
+  }
+
+  async createEducationThreadMessage(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.post<EducationProgramDetailRecord>(
+      `/api/v1/patients/education/programs/${input.programId}/messages`,
+      {
+        body: input.body,
+        requestAppointment: input.requestAppointment ?? false,
+      },
+      { profileId: input.profileId },
+    );
+  }
+
+  async markEducationModuleProgress(
+    input: MarkEducationModuleProgressInput,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.post<EducationProgramDetailRecord>(
+      `/api/v1/patients/education/modules/${input.moduleId}/progress`,
+      { status: input.status },
+      { profileId: input.profileId },
+    );
+  }
+
+  async listCheckIns(
+    _actorUserId: string,
+    profileId: string,
+    enrollmentId?: string,
+  ): Promise<CheckInSubmissionRecord[]> {
+    return this.http.get<CheckInSubmissionRecord[]>("/api/v1/patients/check-ins", {
+      profileId,
+      enrollmentId,
+    });
+  }
+
+  async submitCheckIn(input: SubmitCheckInInput): Promise<CheckInSubmissionRecord> {
+    return this.http.post<CheckInSubmissionRecord>(
+      "/api/v1/patients/check-ins",
+      {
+        enrollmentId: input.enrollmentId,
+        templateId: input.templateId,
+        questionnaireData: input.questionnaireData,
+        measurements: input.measurements,
+        mediaAssetIds: input.mediaAssetIds,
+      },
+      { profileId: input.profileId },
+    );
+  }
+
+  async getPreventionCurrent(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord> {
+    return this.http.get<PreventionCurrentRecord>("/api/v1/patients/prevention/current", {
+      profileId,
+    });
+  }
+
+  async listPreventionAlerts(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionAlertRecord[]> {
+    return this.http.get<PreventionAlertRecord[]>("/api/v1/patients/prevention/alerts", {
+      profileId,
+    });
+  }
+
+  async getPreventionLocation(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionSettingsRecord> {
+    return this.http.get<PreventionSettingsRecord>("/api/v1/patients/prevention/location", {
+      profileId,
+    });
+  }
+
+  async updatePreventionLocation(
+    input: UpdatePreventionLocationInput,
+  ): Promise<PreventionSettingsRecord> {
+    return this.http.post<PreventionSettingsRecord>(
+      "/api/v1/patients/prevention/location",
+      {
+        latitude: input.latitude,
+        longitude: input.longitude,
+        locationLabel: input.locationLabel,
+        source: input.source ?? "device",
+      },
+      { profileId: input.profileId },
+    );
+  }
+
+  async listPractitionerEducationPrograms(
+    _actorUserId: string,
+  ): Promise<EducationProgramRecord[]> {
+    return this.http.get<EducationProgramRecord[]>("/api/v1/practitioner/education/programs");
+  }
+
+  async listScreeningRemindersForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<ScreeningReminder[]> {
+    return this.http.get<ScreeningReminder[]>(
+      `/api/v1/practitioner/patients/${profileId}/screening-reminders`,
+    );
+  }
+
+  async updateScreeningReminderForPractitioner(
+    input: UpdateScreeningReminderInput,
+  ): Promise<ScreeningReminder> {
+    return this.http.patch<ScreeningReminder>(
+      `/api/v1/practitioner/patients/${input.profileId}/screening-reminders/${input.reminderId}`,
+      input.patch,
+    );
+  }
+
+  async getEducationProgramForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.get<EducationProgramDetailRecord>(
+      `/api/v1/practitioner/patients/${profileId}/education/programs/${programId}`,
+    );
+  }
+
+  async createEducationThreadMessageForPractitioner(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.post<EducationProgramDetailRecord>(
+      `/api/v1/practitioner/patients/${input.profileId}/education/programs/${input.programId}/messages`,
+      {
+        body: input.body,
+        requestAppointment: input.requestAppointment ?? false,
+      },
+    );
+  }
+
+  async listProfileEducationProgramsForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]> {
+    return this.http.get<EducationProgramRecord[]>(
+      `/api/v1/practitioner/patients/${profileId}/education/programs`,
+    );
+  }
+
+  async assignEducationProgram(
+    input: AssignEducationProgramInput,
+  ): Promise<EducationProgramDetailRecord> {
+    return this.http.post<EducationProgramDetailRecord>(
+      "/api/v1/practitioner/education/program-assignments",
+      {
+        profileId: input.profileId,
+        programId: input.programId,
+        checkInCadence: input.checkInCadence,
+        nextCheckInDueAt: input.nextCheckInDueAt,
+      },
+    );
+  }
+
+  async createScreeningReminderForPractitioner(
+    input: CreateScreeningReminderInput,
+  ): Promise<ScreeningReminder> {
+    return this.http.post<ScreeningReminder>(
+      `/api/v1/practitioner/patients/${input.profileId}/screening-reminders`,
+      {
+        screeningType: input.screeningType,
+        cadence: input.cadence,
+        nextDueAt: input.nextDueAt,
+      },
+    );
+  }
+
+  async getProfilePreventionCurrentForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord> {
+    return this.http.get<PreventionCurrentRecord>(
+      `/api/v1/practitioner/patients/${profileId}/prevention/current`,
+    );
   }
 
   async recordProfileSwitch(_userId: string, profileId: string): Promise<void> {

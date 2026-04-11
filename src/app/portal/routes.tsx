@@ -44,6 +44,24 @@ const PatientTeledermComposeScreen = lazy(
 const PatientTeledermCaseDetailScreen = lazy(
   () => import("@portal/features/patient/telederm/case-detail-screen"),
 );
+const PatientEducationProgramsScreen = lazy(
+  () => import("@portal/features/patient/education/programs-screen"),
+);
+const PatientEducationProgramDetailScreen = lazy(
+  () => import("@portal/features/patient/education/program-detail-screen"),
+);
+const PatientCheckInsScreen = lazy(
+  () => import("@portal/features/patient/checkins/screen"),
+);
+const PatientPreventionScreen = lazy(
+  () => import("@portal/features/patient/prevention/screen"),
+);
+const PatientPreventionAlertDetailScreen = lazy(
+  () => import("@portal/features/patient/prevention/alert-detail-screen"),
+);
+const PatientRemindersScreen = lazy(
+  () => import("@portal/features/patient/reminders/screen"),
+);
 const PatientDashboardScreen = lazy(
   () => import("@portal/features/patient/dashboard/screen"),
 );
@@ -191,6 +209,54 @@ function TD03Lazy() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientTeledermCaseDetailScreen />
+    </Suspense>
+  );
+}
+
+function P401Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientEducationProgramsScreen />
+    </Suspense>
+  );
+}
+
+function P402Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientEducationProgramDetailScreen />
+    </Suspense>
+  );
+}
+
+function P403Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientCheckInsScreen />
+    </Suspense>
+  );
+}
+
+function P404Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientPreventionScreen />
+    </Suspense>
+  );
+}
+
+function P405Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientPreventionAlertDetailScreen />
+    </Suspense>
+  );
+}
+
+function P406Lazy() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <PatientRemindersScreen />
     </Suspense>
   );
 }
@@ -409,6 +475,30 @@ export const portalRoutes: RouteObject[] = [
                       {
                         path: "auth/telederm/cases/:caseId",
                         Component: TD03Lazy,
+                      },
+                      {
+                        path: "auth/programs",
+                        Component: P401Lazy,
+                      },
+                      {
+                        path: "auth/programs/:programId",
+                        Component: P402Lazy,
+                      },
+                      {
+                        path: "auth/check-ins",
+                        Component: P403Lazy,
+                      },
+                      {
+                        path: "auth/prevention",
+                        Component: P404Lazy,
+                      },
+                      {
+                        path: "auth/prevention/alerts/:alertId",
+                        Component: P405Lazy,
+                      },
+                      {
+                        path: "auth/reminders",
+                        Component: P406Lazy,
                       },
                     ],
                   },

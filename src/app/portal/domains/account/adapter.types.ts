@@ -4,12 +4,18 @@ import type {
   AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
+  CheckInSubmissionRecord,
   ClinicalDocumentRecord,
   ConsentRecord,
+  EducationProgramDetailRecord,
+  EducationProgramRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationPreference,
   PreConsultSubmissionRecord,
+  PreventionAlertRecord,
+  PreventionCurrentRecord,
+  PreventionSettingsRecord,
   PatientRecordEvent,
   PatientRecordEventType,
   PatientProfileRecord,
@@ -165,6 +171,56 @@ export interface RespondAsyncCaseInput {
   }>;
 }
 
+export interface MarkEducationModuleProgressInput {
+  actorUserId: string;
+  profileId: string;
+  moduleId: string;
+  status: "not_started" | "in_progress" | "completed";
+}
+
+export interface SubmitCheckInInput {
+  actorUserId: string;
+  profileId: string;
+  enrollmentId: string;
+  templateId?: string;
+  questionnaireData: Record<string, unknown>;
+  measurements: Array<Record<string, string>>;
+  mediaAssetIds: string[];
+}
+
+export interface UpdatePreventionLocationInput {
+  actorUserId: string;
+  profileId: string;
+  latitude: number;
+  longitude: number;
+  locationLabel: string;
+  source?: string;
+}
+
+export interface AssignEducationProgramInput {
+  actorUserId: string;
+  profileId: string;
+  programId: string;
+  checkInCadence?: string;
+  nextCheckInDueAt?: string;
+}
+
+export interface CreateEducationThreadMessageInput {
+  actorUserId: string;
+  profileId: string;
+  programId: string;
+  body: string;
+  requestAppointment?: boolean;
+}
+
+export interface CreateScreeningReminderInput {
+  actorUserId: string;
+  profileId: string;
+  screeningType: string;
+  cadence: ScreeningReminder["cadence"];
+  nextDueAt: string;
+}
+
 export interface AccountAdapter {
   ensureSelfProfile(input: EnsureSelfProfileInput): Promise<PatientProfileRecord>;
   listProfiles(userId: string): Promise<PatientProfileRecord[]>;
@@ -243,6 +299,74 @@ export interface AccountAdapter {
   requestMoreInfo(input: RequestMoreInfoInput): Promise<void>;
   respondToAsyncCase(input: RespondAsyncCaseInput): Promise<AsyncCaseDetailRecord>;
   closeAsyncCase(actorUserId: string, caseId: string): Promise<AsyncCaseRecord>;
+  listEducationPrograms(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]>;
+  getEducationProgram(
+    actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord>;
+  createEducationThreadMessage(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord>;
+  markEducationModuleProgress(
+    input: MarkEducationModuleProgressInput,
+  ): Promise<EducationProgramDetailRecord>;
+  listCheckIns(
+    actorUserId: string,
+    profileId: string,
+    enrollmentId?: string,
+  ): Promise<CheckInSubmissionRecord[]>;
+  submitCheckIn(input: SubmitCheckInInput): Promise<CheckInSubmissionRecord>;
+  getPreventionCurrent(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord>;
+  listPreventionAlerts(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionAlertRecord[]>;
+  getPreventionLocation(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionSettingsRecord>;
+  updatePreventionLocation(
+    input: UpdatePreventionLocationInput,
+  ): Promise<PreventionSettingsRecord>;
+  listPractitionerEducationPrograms(
+    actorUserId: string,
+  ): Promise<EducationProgramRecord[]>;
+  listScreeningRemindersForPractitioner(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<ScreeningReminder[]>;
+  updateScreeningReminderForPractitioner(
+    input: UpdateScreeningReminderInput,
+  ): Promise<ScreeningReminder>;
+  getEducationProgramForPractitioner(
+    actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord>;
+  createEducationThreadMessageForPractitioner(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord>;
+  listProfileEducationProgramsForPractitioner(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]>;
+  assignEducationProgram(
+    input: AssignEducationProgramInput,
+  ): Promise<EducationProgramDetailRecord>;
+  createScreeningReminderForPractitioner(
+    input: CreateScreeningReminderInput,
+  ): Promise<ScreeningReminder>;
+  getProfilePreventionCurrentForPractitioner(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord>;
 
   recordProfileSwitch(userId: string, profileId: string): Promise<void>;
   listAuditEvents(userId: string): Promise<AuditEvent[]>;

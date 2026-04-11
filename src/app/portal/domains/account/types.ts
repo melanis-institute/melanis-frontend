@@ -184,7 +184,13 @@ export type PatientRecordEventType =
   | "telederm_more_info_requested"
   | "telederm_patient_replied"
   | "telederm_response_published"
-  | "telederm_case_closed";
+  | "telederm_case_closed"
+  | "education_program_assigned"
+  | "education_module_completed"
+  | "check_in_due"
+  | "check_in_submitted"
+  | "prevention_alert_triggered"
+  | "screening_reminder_due";
 
 export interface PatientRecordEvent {
   id: string;
@@ -218,7 +224,15 @@ export type AppNotificationKind =
   | "telederm_more_info_requested"
   | "telederm_response_ready"
   | "telederm_case_claimed"
-  | "telederm_patient_replied";
+  | "telederm_patient_replied"
+  | "education_program_assigned"
+  | "education_module_completed"
+  | "education_question_posted"
+  | "education_answer_posted"
+  | "check_in_due"
+  | "check_in_submitted"
+  | "prevention_alert_triggered"
+  | "screening_reminder_due";
 
 export interface AppNotificationRecord {
   id: string;
@@ -301,3 +315,160 @@ export interface AsyncCaseDetailRecord {
 }
 
 export type ConsentSnapshot = Partial<Record<ConsentType, ConsentRecord>>;
+
+export type EducationModuleType = "article" | "checklist" | "routine" | "what_if";
+export type EducationProgramStatus = "draft" | "published" | "archived";
+export type EducationEnrollmentStatus = "active" | "completed" | "paused";
+export type EducationModuleProgressStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed";
+
+export interface EducationModuleRecord {
+  id: string;
+  programId: string;
+  title: string;
+  summary: string;
+  moduleType: EducationModuleType;
+  orderIndex: number;
+  estimatedMinutes: number;
+  body: string;
+  checklistItems: string[];
+  routineMoments: string[];
+  tags: string[];
+  extra: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EducationModuleProgressRecord {
+  id: string;
+  profileId: string;
+  enrollmentId: string;
+  programId: string;
+  moduleId: string;
+  status: EducationModuleProgressStatus;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EducationProgramEnrollmentRecord {
+  id: string;
+  profileId: string;
+  programId: string;
+  conditionKey: string;
+  assignedByUserId: string;
+  assignedByPractitionerId?: string;
+  status: EducationEnrollmentStatus;
+  startedAt: string;
+  completedAt?: string;
+  nextCheckInDueAt?: string;
+  checkInCadence?: string;
+  progressPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EducationProgramRecord {
+  id: string;
+  conditionKey: string;
+  title: string;
+  description: string;
+  audience: string[];
+  status: EducationProgramStatus;
+  version: number;
+  estimatedMinutes: number;
+  coverTone?: string;
+  createdAt: string;
+  updatedAt: string;
+  enrollment?: EducationProgramEnrollmentRecord;
+  modulesCount: number;
+}
+
+export interface EducationThreadMessageRecord {
+  id: string;
+  profileId: string;
+  enrollmentId: string;
+  programId: string;
+  actorUserId?: string;
+  authorRole: "patient" | "caregiver" | "practitioner" | "system";
+  body: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CheckInSubmissionRecord {
+  id: string;
+  profileId: string;
+  enrollmentId: string;
+  programId: string;
+  templateId?: string;
+  submittedByUserId: string;
+  questionnaireData: Record<string, unknown>;
+  measurements: Array<{ [key: string]: string }>;
+  mediaAssetIds: string[];
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EducationProgramDetailRecord {
+  program: EducationProgramRecord;
+  modules: EducationModuleRecord[];
+  progress: EducationModuleProgressRecord[];
+  recentCheckIns: CheckInSubmissionRecord[];
+  messages: EducationThreadMessageRecord[];
+}
+
+export interface PreventionSettingsRecord {
+  id: string;
+  profileId: string;
+  latitude: number;
+  longitude: number;
+  locationLabel: string;
+  source: string;
+  resolvedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PreventionSeverity = "info" | "attention" | "high";
+export type PreventionAlertStatus = "active" | "dismissed" | "expired";
+
+export interface PreventionAlertRecord {
+  id: string;
+  profileId: string;
+  ruleId: string;
+  snapshotId: string;
+  title: string;
+  body: string;
+  severity: PreventionSeverity;
+  status: PreventionAlertStatus;
+  startsAt: string;
+  expiresAt?: string;
+  meta: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PreventionSnapshotRecord {
+  id: string;
+  profileId: string;
+  latitude: number;
+  longitude: number;
+  locationLabel: string;
+  source: string;
+  observedAt: string;
+  inputs: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PreventionCurrentRecord {
+  settings: PreventionSettingsRecord;
+  snapshot: PreventionSnapshotRecord;
+  alerts: PreventionAlertRecord[];
+}

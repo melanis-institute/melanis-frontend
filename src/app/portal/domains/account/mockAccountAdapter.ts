@@ -1,21 +1,27 @@
 import type {
   AccountAdapter,
+  AssignEducationProgramInput,
   CreateAsyncCaseInput,
   CreateAsyncCaseUploadIntentsInput,
+  CreateEducationThreadMessageInput,
   AppendTimelineEventInput,
   CompleteMediaUploadInput,
   CreateMediaUploadIntentsInput,
   CreateOrLinkDependentInput,
   CreatePreConsultSubmissionInput,
+  CreateScreeningReminderInput,
   EnsureSelfProfileInput,
+  MarkEducationModuleProgressInput,
   ReplyAsyncCaseInput,
   RequestMoreInfoInput,
   RespondAsyncCaseInput,
   RevokeConsentInput,
   SignConsentInput,
+  SubmitCheckInInput,
   SubmitAsyncCaseInput,
   UpdateAsyncCaseInput,
   UpdateNotificationPreferencesInput,
+  UpdatePreventionLocationInput,
   UpdateProfileInput,
   UpdateScreeningReminderInput,
 } from "./adapter.types";
@@ -26,9 +32,15 @@ import type {
   AsyncCaseRecord,
   AuditEvent,
   CaregiverLink,
+  CheckInSubmissionRecord,
   ClinicalDocumentRecord,
   ConsentRecord,
   ConsentType,
+  EducationModuleProgressRecord,
+  EducationProgramDetailRecord,
+  EducationProgramEnrollmentRecord,
+  EducationProgramRecord,
+  EducationThreadMessageRecord,
   MediaAssetRecord,
   MediaUploadIntent,
   NotificationChannelPreference,
@@ -36,6 +48,10 @@ import type {
   PatientRecordEvent,
   PatientRecordEventType,
   PatientProfileRecord,
+  PreventionAlertRecord,
+  PreventionCurrentRecord,
+  PreventionSettingsRecord,
+  PreventionSnapshotRecord,
   PreConsultSubmissionRecord,
   ScreeningCadence,
   ScreeningReminder,
@@ -57,6 +73,146 @@ const PRECONSULT_SUBMISSIONS_KEY = "melanis_account_preconsult_submissions_v1";
 const APP_NOTIFICATIONS_KEY = "melanis_account_app_notifications_v1";
 const ASYNC_CASES_KEY = "melanis_account_async_cases_v1";
 const ASYNC_CASE_MESSAGES_KEY = "melanis_account_async_case_messages_v1";
+const EDUCATION_PROGRAMS_KEY = "melanis_account_education_programs_v1";
+const EDUCATION_ENROLLMENTS_KEY = "melanis_account_education_enrollments_v1";
+const EDUCATION_PROGRESS_KEY = "melanis_account_education_progress_v1";
+const EDUCATION_MESSAGES_KEY = "melanis_account_education_messages_v1";
+const CHECKINS_KEY = "melanis_account_checkins_v1";
+const PREVENTION_SETTINGS_KEY = "melanis_account_prevention_settings_v1";
+const PREVENTION_SNAPSHOTS_KEY = "melanis_account_prevention_snapshots_v1";
+const PREVENTION_ALERTS_KEY = "melanis_account_prevention_alerts_v1";
+
+const DAKAR_LOCATION = {
+  latitude: 14.6928,
+  longitude: -17.4467,
+  locationLabel: "Dakar",
+};
+
+const EDUCATION_PROGRAM_SEEDS: Array<{
+  conditionKey: string;
+  title: string;
+  description: string;
+  coverTone: string;
+  estimatedMinutes: number;
+  modules: Array<{
+    title: string;
+    summary: string;
+    moduleType: "article" | "checklist" | "routine" | "what_if";
+    estimatedMinutes: number;
+    body: string;
+    checklistItems?: string[];
+    routineMoments?: string[];
+  }>;
+}> = [
+  {
+    conditionKey: "eczema",
+    title: "Ecole de l'atopie",
+    description: "Apprendre à calmer les poussées et garder une routine protectrice.",
+    coverTone: "apaisant",
+    estimatedMinutes: 16,
+    modules: [
+      {
+        title: "Comprendre la poussée",
+        summary: "Identifier les déclencheurs fréquents.",
+        moduleType: "article",
+        estimatedMinutes: 4,
+        body: "Repérez chaleur, poussière, savons agressifs et frottements.",
+      },
+      {
+        title: "Routine anti-rechute",
+        summary: "Les gestes matin et soir.",
+        moduleType: "routine",
+        estimatedMinutes: 4,
+        body: "Hydrater vite après la toilette et privilégier les nettoyants doux.",
+        routineMoments: ["Matin", "Après la douche", "Soir"],
+      },
+      {
+        title: "Checklist maison",
+        summary: "Les irritants faciles à réduire.",
+        moduleType: "checklist",
+        estimatedMinutes: 3,
+        body: "Réduisez les parfums et le frottement.",
+        checklistItems: [
+          "Émollient 2 fois par jour",
+          "Savon sans parfum",
+          "Éviter l'eau très chaude",
+        ],
+      },
+    ],
+  },
+  {
+    conditionKey: "melasma",
+    title: "Programme taches & melasma",
+    description: "Photo-protection, constance et prévention des rechutes pigmentaires.",
+    coverTone: "solaire",
+    estimatedMinutes: 14,
+    modules: [
+      {
+        title: "Le soleil au quotidien",
+        summary: "Pourquoi les UV comptent même les jours ordinaires.",
+        moduleType: "article",
+        estimatedMinutes: 3,
+        body: "Même sans soleil direct, les UV entretiennent les taches.",
+      },
+      {
+        title: "Routine anti-taches",
+        summary: "Une séquence simple matin et soir.",
+        moduleType: "routine",
+        estimatedMinutes: 4,
+        body: "Nettoyer, protéger le matin, traiter le soir.",
+        routineMoments: ["Matin", "Midi si exposition", "Soir"],
+      },
+      {
+        title: "Checklist photoprotection",
+        summary: "Les réflexes de la saison chaude.",
+        moduleType: "checklist",
+        estimatedMinutes: 3,
+        body: "Le meilleur traitement reste la régularité photoprotectrice.",
+        checklistItems: [
+          "SPF 50+ chaque matin",
+          "Réappliquer en extérieur",
+          "Ajouter une protection textile",
+        ],
+      },
+    ],
+  },
+  {
+    conditionKey: "acne",
+    title: "Acne : bases durables",
+    description: "Construire une routine courte et suivre l'évolution sans surtraiter.",
+    coverTone: "clarte",
+    estimatedMinutes: 13,
+    modules: [
+      {
+        title: "Lire ses boutons",
+        summary: "Différencier inflammation et irritation.",
+        moduleType: "article",
+        estimatedMinutes: 3,
+        body: "Tous les boutons ne demandent pas la même réaction.",
+      },
+      {
+        title: "Routine simple",
+        summary: "Moins de produits, plus de régularité.",
+        moduleType: "routine",
+        estimatedMinutes: 4,
+        body: "Nettoyant doux, actif du soir, hydratant et SPF.",
+        routineMoments: ["Matin", "Soir"],
+      },
+      {
+        title: "Checklist anti-irritation",
+        summary: "Les erreurs les plus fréquentes.",
+        moduleType: "checklist",
+        estimatedMinutes: 3,
+        body: "Évitez de superposer des actifs irritants.",
+        checklistItems: [
+          "Ne pas percer les lésions",
+          "Introduire les actifs progressivement",
+          "Limiter les produits occlusifs",
+        ],
+      },
+    ],
+  },
+];
 
 const CONSENT_TEMPLATES: Array<{ type: ConsentType; title: string }> = [
   { type: "medical_record", title: "Accès au dossier médical" },
@@ -196,6 +352,70 @@ function writeAsyncCaseMessages(messages: AsyncCaseMessageRecord[]) {
   safeWrite(ASYNC_CASE_MESSAGES_KEY, messages.slice(-2000));
 }
 
+function readEducationPrograms() {
+  return safeRead<EducationProgramRecord[]>(EDUCATION_PROGRAMS_KEY, []);
+}
+
+function writeEducationPrograms(programs: EducationProgramRecord[]) {
+  safeWrite(EDUCATION_PROGRAMS_KEY, programs.slice(-200));
+}
+
+function readEducationEnrollments() {
+  return safeRead<EducationProgramEnrollmentRecord[]>(EDUCATION_ENROLLMENTS_KEY, []);
+}
+
+function writeEducationEnrollments(enrollments: EducationProgramEnrollmentRecord[]) {
+  safeWrite(EDUCATION_ENROLLMENTS_KEY, enrollments.slice(-1000));
+}
+
+function readEducationProgress() {
+  return safeRead<EducationModuleProgressRecord[]>(EDUCATION_PROGRESS_KEY, []);
+}
+
+function writeEducationProgress(progress: EducationModuleProgressRecord[]) {
+  safeWrite(EDUCATION_PROGRESS_KEY, progress.slice(-2000));
+}
+
+function readEducationMessages() {
+  return safeRead<EducationThreadMessageRecord[]>(EDUCATION_MESSAGES_KEY, []);
+}
+
+function writeEducationMessages(messages: EducationThreadMessageRecord[]) {
+  safeWrite(EDUCATION_MESSAGES_KEY, messages.slice(-2000));
+}
+
+function readCheckIns() {
+  return safeRead<CheckInSubmissionRecord[]>(CHECKINS_KEY, []);
+}
+
+function writeCheckIns(items: CheckInSubmissionRecord[]) {
+  safeWrite(CHECKINS_KEY, items.slice(-2000));
+}
+
+function readPreventionSettings() {
+  return safeRead<PreventionSettingsRecord[]>(PREVENTION_SETTINGS_KEY, []);
+}
+
+function writePreventionSettings(items: PreventionSettingsRecord[]) {
+  safeWrite(PREVENTION_SETTINGS_KEY, items.slice(-2000));
+}
+
+function readPreventionSnapshots() {
+  return safeRead<PreventionSnapshotRecord[]>(PREVENTION_SNAPSHOTS_KEY, []);
+}
+
+function writePreventionSnapshots(items: PreventionSnapshotRecord[]) {
+  safeWrite(PREVENTION_SNAPSHOTS_KEY, items.slice(-2000));
+}
+
+function readPreventionAlerts() {
+  return safeRead<PreventionAlertRecord[]>(PREVENTION_ALERTS_KEY, []);
+}
+
+function writePreventionAlerts(items: PreventionAlertRecord[]) {
+  safeWrite(PREVENTION_ALERTS_KEY, items.slice(-2000));
+}
+
 function createAuditEvent(
   actorUserId: string,
   action: string,
@@ -272,6 +492,264 @@ function ensureScreeningRemindersForProfile(profileId: string) {
   writeScreeningReminders([...reminders, ...createDefaultScreeningReminders(profileId)]);
 }
 
+function moduleIdFor(programId: string, index: number) {
+  return `${programId}_module_${index + 1}`;
+}
+
+function ensureEducationProgramsSeeded() {
+  const existing = readEducationPrograms();
+  if (existing.length > 0) return;
+
+  const createdAt = nowIso();
+  const programs: EducationProgramRecord[] = [];
+  for (const seed of EDUCATION_PROGRAM_SEEDS) {
+    const programId = randomId(`program_${seed.conditionKey}`);
+    programs.push({
+      id: programId,
+      conditionKey: seed.conditionKey,
+      title: seed.title,
+      description: seed.description,
+      audience: ["patient", "caregiver"],
+      status: "published",
+      version: 1,
+      estimatedMinutes: seed.estimatedMinutes,
+      coverTone: seed.coverTone,
+      createdAt,
+      updatedAt: createdAt,
+      modulesCount: seed.modules.length,
+    });
+  }
+  writeEducationPrograms(programs);
+}
+
+function getProgramModules(programId: string) {
+  ensureEducationProgramsSeeded();
+  const program = readEducationPrograms().find((item) => item.id === programId);
+  if (!program) return [];
+  const seed = EDUCATION_PROGRAM_SEEDS.find((item) => item.conditionKey === program.conditionKey);
+  if (!seed) return [];
+  return seed.modules.map((module, index) => ({
+    id: moduleIdFor(programId, index),
+    programId,
+    title: module.title,
+    summary: module.summary,
+    moduleType: module.moduleType,
+    orderIndex: index + 1,
+    estimatedMinutes: module.estimatedMinutes,
+    body: module.body,
+    checklistItems: module.checklistItems ?? [],
+    routineMoments: module.routineMoments ?? [],
+    tags: [program.conditionKey],
+    extra: {},
+    createdAt: program.createdAt,
+    updatedAt: program.updatedAt,
+  }));
+}
+
+function ensureProgressSkeleton(enrollment: EducationProgramEnrollmentRecord) {
+  const progress = readEducationProgress();
+  const modules = getProgramModules(enrollment.programId);
+  let changed = false;
+  for (const module of modules) {
+    if (
+      progress.some(
+        (item) =>
+          item.enrollmentId === enrollment.id &&
+          item.moduleId === module.id &&
+          item.profileId === enrollment.profileId,
+      )
+    ) {
+      continue;
+    }
+    changed = true;
+    progress.push({
+      id: randomId("progress"),
+      profileId: enrollment.profileId,
+      enrollmentId: enrollment.id,
+      programId: enrollment.programId,
+      moduleId: module.id,
+      status: "not_started",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  }
+  if (changed) writeEducationProgress(progress);
+}
+
+function computeEnrollmentProgress(enrollment: EducationProgramEnrollmentRecord) {
+  const modules = getProgramModules(enrollment.programId);
+  const progress = readEducationProgress().filter(
+    (item) => item.enrollmentId === enrollment.id,
+  );
+  const completed = progress.filter((item) => item.status === "completed").length;
+  if (modules.length === 0) return 0;
+  return Math.round((completed / modules.length) * 100);
+}
+
+function hydrateEnrollment(enrollment: EducationProgramEnrollmentRecord) {
+  ensureProgressSkeleton(enrollment);
+  const progressPercent = computeEnrollmentProgress(enrollment);
+  const next: EducationProgramEnrollmentRecord = {
+    ...enrollment,
+    progressPercent,
+    status: progressPercent >= 100 ? "completed" : enrollment.status,
+    completedAt: progressPercent >= 100 ? enrollment.completedAt ?? nowIso() : undefined,
+  };
+  return next;
+}
+
+function getEducationMessagesForEnrollment(enrollmentId: string) {
+  return readEducationMessages()
+    .filter((item) => item.enrollmentId === enrollmentId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function ensurePreventionSettings(profileId: string) {
+  const items = readPreventionSettings();
+  const existing = items.find((item) => item.profileId === profileId);
+  if (existing) return existing;
+  const created: PreventionSettingsRecord = {
+    id: randomId("prevention_settings"),
+    profileId,
+    latitude: DAKAR_LOCATION.latitude,
+    longitude: DAKAR_LOCATION.longitude,
+    locationLabel: DAKAR_LOCATION.locationLabel,
+    source: "fallback",
+    resolvedAt: nowIso(),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  items.push(created);
+  writePreventionSettings(items);
+  return created;
+}
+
+function activeConditionKeys(profileId: string) {
+  return Array.from(
+    new Set(
+      readEducationEnrollments()
+        .filter((item) => item.profileId === profileId && item.status !== "paused")
+        .map((item) => item.conditionKey)
+        .concat("general"),
+    ),
+  );
+}
+
+function createPreventionSnapshot(profileId: string): PreventionSnapshotRecord {
+  const settings = ensurePreventionSettings(profileId);
+  const hour = new Date().getHours();
+  const uv = hour >= 11 && hour <= 15 ? 8.8 : hour >= 9 && hour < 11 ? 6.3 : 3.2;
+  const snapshot: PreventionSnapshotRecord = {
+    id: randomId("prevention_snapshot"),
+    profileId,
+    latitude: settings.latitude,
+    longitude: settings.longitude,
+    locationLabel: settings.locationLabel,
+    source: "mock_live",
+    observedAt: nowIso(),
+    inputs: {
+      uv_index: uv,
+      temperature: 31,
+      humidity: 68,
+      wind_speed: 21,
+      aqi: 64,
+      dust: 43,
+      pm10: 36,
+      pm2_5: 18,
+    },
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  const snapshots = readPreventionSnapshots().filter((item) => item.profileId !== profileId);
+  snapshots.push(snapshot);
+  writePreventionSnapshots(snapshots);
+  return snapshot;
+}
+
+function computePreventionAlerts(profileId: string, snapshot: PreventionSnapshotRecord) {
+  const conditions = activeConditionKeys(profileId);
+  const inputs = snapshot.inputs as Record<string, number>;
+  const alerts: PreventionAlertRecord[] = [];
+  const now = nowIso();
+
+  if ((inputs.uv_index ?? 0) >= 7) {
+    alerts.push({
+      id: randomId("prevention_alert"),
+      profileId,
+      ruleId: "general_uv",
+      snapshotId: snapshot.id,
+      title: "UV élevé aujourd'hui",
+      body: "Limitez l'exposition directe et renouvelez la photoprotection.",
+      severity: "attention",
+      status: "active",
+      startsAt: now,
+      expiresAt: addDays(now, 1),
+      meta: { category: "uv", inputs },
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  if (conditions.includes("melasma") && (inputs.uv_index ?? 0) >= 6) {
+    alerts.push({
+      id: randomId("prevention_alert"),
+      profileId,
+      ruleId: "melasma_uv",
+      snapshotId: snapshot.id,
+      title: "Fenêtre à risque pigmentaire",
+      body: "Renforcez la photoprotection et limitez l'exposition extérieure.",
+      severity: "high",
+      status: "active",
+      startsAt: now,
+      expiresAt: addDays(now, 1),
+      meta: { category: "pigmentation", inputs },
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  if (conditions.includes("eczema") && (inputs.wind_speed ?? 0) >= 20) {
+    alerts.push({
+      id: randomId("prevention_alert"),
+      profileId,
+      ruleId: "eczema_wind",
+      snapshotId: snapshot.id,
+      title: "Conditions irritantes pour la peau atopique",
+      body: "Renforcez l'hydratation aujourd'hui et limitez les frottements.",
+      severity: "attention",
+      status: "active",
+      startsAt: now,
+      expiresAt: addDays(now, 1),
+      meta: { category: "barrier", inputs },
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  if (
+    conditions.includes("acne") &&
+    (inputs.temperature ?? 0) >= 30 &&
+    (inputs.humidity ?? 0) >= 65
+  ) {
+    alerts.push({
+      id: randomId("prevention_alert"),
+      profileId,
+      ruleId: "acne_heat",
+      snapshotId: snapshot.id,
+      title: "Chaleur et humidité élevées",
+      body: "Gardez une routine simple, légère et non occlusive aujourd'hui.",
+      severity: "info",
+      status: "active",
+      startsAt: now,
+      expiresAt: addDays(now, 1),
+      meta: { category: "acne", inputs },
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const existing = readPreventionAlerts().filter((item) => item.profileId !== profileId);
+  writePreventionAlerts([...existing, ...alerts]);
+  return alerts;
+}
+
 function appendTimelineEventInternal(input: AppendTimelineEventInput): PatientRecordEvent {
   const events = readTimelineEvents();
 
@@ -320,6 +798,12 @@ function timelineTitleFromType(type: PatientRecordEventType) {
   if (type === "telederm_patient_replied") return "Réponse patient reçue";
   if (type === "telederm_response_published") return "Réponse dermatologue disponible";
   if (type === "telederm_case_closed") return "Cas télé-derm clos";
+  if (type === "education_program_assigned") return "Programme d'éducation assigné";
+  if (type === "education_module_completed") return "Module éducatif complété";
+  if (type === "check_in_due") return "Check-in à compléter";
+  if (type === "check_in_submitted") return "Check-in patient soumis";
+  if (type === "prevention_alert_triggered") return "Alerte prévention déclenchée";
+  if (type === "screening_reminder_due") return "Rappel de dépistage";
   return "Profil dépendant dissocié";
 }
 
@@ -1619,6 +2103,468 @@ export class MockAccountAdapter implements AccountAdapter {
     asyncCase.updatedAt = asyncCase.closedAt;
     writeAsyncCases(cases);
     return asyncCase;
+  }
+
+  async listEducationPrograms(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]> {
+    assertProfileAccessible(actorUserId, profileId);
+    ensureEducationProgramsSeeded();
+    const enrollments = readEducationEnrollments()
+      .filter((item) => item.profileId === profileId)
+      .map((item) => hydrateEnrollment(item));
+    const programs = readEducationPrograms();
+    const assigned = enrollments
+      .map((enrollment) => {
+        const program = programs.find((item) => item.id === enrollment.programId);
+        if (!program) return null;
+        return {
+          ...program,
+          enrollment,
+          modulesCount: getProgramModules(program.id).length,
+        };
+      })
+      .filter((item) => item !== null);
+    return assigned
+      .sort((a, b) => a.enrollment.updatedAt.localeCompare(b.enrollment.updatedAt))
+      .reverse();
+  }
+
+  async getEducationProgram(
+    actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord> {
+    assertProfileAccessible(actorUserId, profileId);
+    ensureEducationProgramsSeeded();
+    const program = readEducationPrograms().find((item) => item.id === programId);
+    if (!program) throw new Error("Programme introuvable");
+    const enrollment = readEducationEnrollments().find(
+      (item) => item.profileId === profileId && item.programId === programId,
+    );
+    if (!enrollment) throw new Error("Programme non assigné");
+    const hydratedEnrollment = hydrateEnrollment(enrollment);
+    const modules = getProgramModules(programId);
+    const progress = readEducationProgress().filter(
+      (item) => item.enrollmentId === enrollment.id,
+    );
+    const recentCheckIns = readCheckIns()
+      .filter((item) => item.enrollmentId === enrollment.id)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+      .slice(0, 5);
+    return {
+      program: {
+        ...program,
+        enrollment: hydratedEnrollment,
+        modulesCount: modules.length,
+      },
+      modules,
+      progress,
+      recentCheckIns,
+      messages: getEducationMessagesForEnrollment(enrollment.id),
+    };
+  }
+
+  async createEducationThreadMessage(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    const profile = readProfiles().find((item) => item.id === input.profileId);
+    if (!profile) throw new Error("Profil introuvable");
+    const enrollment = readEducationEnrollments().find(
+      (item) => item.profileId === input.profileId && item.programId === input.programId,
+    );
+    if (!enrollment) throw new Error("Programme non assigné");
+    const messages = readEducationMessages();
+    const created: EducationThreadMessageRecord = {
+      id: randomId("education_message"),
+      profileId: input.profileId,
+      enrollmentId: enrollment.id,
+      programId: input.programId,
+      actorUserId: input.actorUserId,
+      authorRole: profile.ownerUserId === input.actorUserId ? "patient" : "caregiver",
+      body: input.body.trim(),
+      meta: { requestAppointment: input.requestAppointment ?? false },
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    messages.push(created);
+    writeEducationMessages(messages);
+    createNotification({
+      recipientUserId: enrollment.assignedByUserId,
+      profileId: input.profileId,
+      kind: "education_question_posted",
+      title: "Nouvelle question de programme",
+      body: "Un patient a envoyé une question depuis son programme éducatif.",
+      entityType: "education_thread_message",
+      entityId: created.id,
+    });
+    return this.getEducationProgram(input.actorUserId, input.profileId, input.programId);
+  }
+
+  async markEducationModuleProgress(
+    input: MarkEducationModuleProgressInput,
+  ): Promise<EducationProgramDetailRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    const programId = input.moduleId.split("_module_")[0] ?? "";
+    const enrollment = readEducationEnrollments().find(
+      (item) => item.profileId === input.profileId && item.programId === programId,
+    );
+    if (!enrollment) throw new Error("Programme non assigné");
+    const progress = readEducationProgress();
+    const target = progress.find(
+      (item) => item.enrollmentId === enrollment.id && item.moduleId === input.moduleId,
+    );
+    if (!target) throw new Error("Module introuvable");
+    target.status = input.status;
+    if (input.status !== "not_started" && !target.startedAt) {
+      target.startedAt = nowIso();
+    }
+    target.completedAt = input.status === "completed" ? nowIso() : undefined;
+    target.updatedAt = nowIso();
+    writeEducationProgress(progress);
+
+    if (input.status === "completed") {
+      appendTimelineEventInternal({
+        actorUserId: input.actorUserId,
+        profileId: input.profileId,
+        type: "education_module_completed",
+        title: timelineTitleFromType("education_module_completed"),
+        description: "Un module de votre programme a été terminé.",
+        source: "education_program",
+        sourceRef: target.id,
+      });
+      createNotification({
+        recipientUserId: input.actorUserId,
+        profileId: input.profileId,
+        kind: "education_module_completed",
+        title: "Module terminé",
+        body: "Votre progression de programme a été mise à jour.",
+        entityType: "education_module",
+        entityId: input.moduleId,
+      });
+    }
+    return this.getEducationProgram(input.actorUserId, input.profileId, programId);
+  }
+
+  async listCheckIns(
+    actorUserId: string,
+    profileId: string,
+    enrollmentId?: string,
+  ): Promise<CheckInSubmissionRecord[]> {
+    assertProfileAccessible(actorUserId, profileId);
+    return readCheckIns()
+      .filter((item) => item.profileId === profileId)
+      .filter((item) => (enrollmentId ? item.enrollmentId === enrollmentId : true))
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  }
+
+  async submitCheckIn(input: SubmitCheckInInput): Promise<CheckInSubmissionRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    const enrollment = readEducationEnrollments().find(
+      (item) => item.id === input.enrollmentId && item.profileId === input.profileId,
+    );
+    if (!enrollment) throw new Error("Programme introuvable pour ce check-in");
+    const submission: CheckInSubmissionRecord = {
+      id: randomId("checkin"),
+      profileId: input.profileId,
+      enrollmentId: input.enrollmentId,
+      programId: enrollment.programId,
+      templateId: input.templateId,
+      submittedByUserId: input.actorUserId,
+      questionnaireData: input.questionnaireData,
+      measurements: input.measurements,
+      mediaAssetIds: input.mediaAssetIds,
+      submittedAt: nowIso(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    const checkIns = readCheckIns();
+    checkIns.push(submission);
+    writeCheckIns(checkIns);
+
+    enrollment.nextCheckInDueAt = addDays(nowIso(), 30);
+    enrollment.updatedAt = nowIso();
+    const enrollments = readEducationEnrollments().map((item) =>
+      item.id === enrollment.id ? enrollment : item,
+    );
+    writeEducationEnrollments(enrollments);
+
+    appendTimelineEventInternal({
+      actorUserId: input.actorUserId,
+      profileId: input.profileId,
+      type: "check_in_submitted",
+      title: timelineTitleFromType("check_in_submitted"),
+      description: "Un nouveau check-in a été enregistré.",
+      source: "check_in",
+      sourceRef: submission.id,
+    });
+    createNotification({
+      recipientUserId: input.actorUserId,
+      profileId: input.profileId,
+      kind: "check_in_submitted",
+      title: "Check-in enregistré",
+      body: "Votre suivi patient a bien été enregistré.",
+      entityType: "checkin_submission",
+      entityId: submission.id,
+    });
+    return submission;
+  }
+
+  async getPreventionCurrent(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord> {
+    assertProfileAccessible(actorUserId, profileId);
+    const settings = ensurePreventionSettings(profileId);
+    const snapshot = createPreventionSnapshot(profileId);
+    const alerts = computePreventionAlerts(profileId, snapshot);
+    return {
+      settings,
+      snapshot,
+      alerts,
+    };
+  }
+
+  async listPreventionAlerts(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionAlertRecord[]> {
+    assertProfileAccessible(actorUserId, profileId);
+    await this.getPreventionCurrent(actorUserId, profileId);
+    return readPreventionAlerts()
+      .filter((item) => item.profileId === profileId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getPreventionLocation(
+    actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionSettingsRecord> {
+    assertProfileAccessible(actorUserId, profileId);
+    return ensurePreventionSettings(profileId);
+  }
+
+  async updatePreventionLocation(
+    input: UpdatePreventionLocationInput,
+  ): Promise<PreventionSettingsRecord> {
+    assertProfileAccessible(input.actorUserId, input.profileId);
+    const settings = ensurePreventionSettings(input.profileId);
+    const updated: PreventionSettingsRecord = {
+      ...settings,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      locationLabel: input.locationLabel,
+      source: input.source ?? "device",
+      resolvedAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    const items = readPreventionSettings().map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+    writePreventionSettings(items);
+    return updated;
+  }
+
+  async listPractitionerEducationPrograms(
+    _actorUserId: string,
+  ): Promise<EducationProgramRecord[]> {
+    ensureEducationProgramsSeeded();
+    return readEducationPrograms().sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async listScreeningRemindersForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<ScreeningReminder[]> {
+    ensureScreeningRemindersForProfile(profileId);
+    return readScreeningReminders()
+      .filter((item) => item.profileId === profileId)
+      .sort((a, b) => a.nextDueAt.localeCompare(b.nextDueAt));
+  }
+
+  async updateScreeningReminderForPractitioner(
+    input: UpdateScreeningReminderInput,
+  ): Promise<ScreeningReminder> {
+    return this.updateScreeningReminder(input);
+  }
+
+  async getEducationProgramForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+    programId: string,
+  ): Promise<EducationProgramDetailRecord> {
+    const profile = readProfiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error("Profil patient introuvable");
+    return this.getEducationProgram(profile.ownerUserId, profileId, programId);
+  }
+
+  async createEducationThreadMessageForPractitioner(
+    input: CreateEducationThreadMessageInput,
+  ): Promise<EducationProgramDetailRecord> {
+    const enrollment = readEducationEnrollments().find(
+      (item) => item.profileId === input.profileId && item.programId === input.programId,
+    );
+    if (!enrollment) throw new Error("Programme non assigné");
+    const profile = readProfiles().find((item) => item.id === input.profileId);
+    if (!profile) throw new Error("Profil patient introuvable");
+    const messages = readEducationMessages();
+    const created: EducationThreadMessageRecord = {
+      id: randomId("education_message"),
+      profileId: input.profileId,
+      enrollmentId: enrollment.id,
+      programId: input.programId,
+      actorUserId: input.actorUserId,
+      authorRole: "practitioner",
+      body: input.body.trim(),
+      meta: { requestAppointment: input.requestAppointment ?? false },
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    messages.push(created);
+    writeEducationMessages(messages);
+    createNotification({
+      recipientUserId: profile.ownerUserId,
+      profileId: input.profileId,
+      kind: "education_answer_posted",
+      title: "Réponse sur votre programme",
+      body: "Votre praticien a répondu dans votre programme éducatif.",
+      entityType: "education_thread_message",
+      entityId: created.id,
+    });
+    return this.getEducationProgram(profile.ownerUserId, input.profileId, input.programId);
+  }
+
+  async listProfileEducationProgramsForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<EducationProgramRecord[]> {
+    ensureEducationProgramsSeeded();
+    const enrollments = readEducationEnrollments()
+      .filter((item) => item.profileId === profileId)
+      .map((item) => hydrateEnrollment(item));
+    return enrollments
+      .map((enrollment) => {
+        const program = readEducationPrograms().find((item) => item.id === enrollment.programId);
+        if (!program) return null;
+        return {
+          ...program,
+          enrollment,
+          modulesCount: getProgramModules(program.id).length,
+        };
+      })
+      .filter((item) => item !== null);
+  }
+
+  async assignEducationProgram(
+    input: AssignEducationProgramInput,
+  ): Promise<EducationProgramDetailRecord> {
+    const profile = readProfiles().find((item) => item.id === input.profileId);
+    if (!profile) throw new Error("Profil patient introuvable");
+    ensureEducationProgramsSeeded();
+    const program = readEducationPrograms().find((item) => item.id === input.programId);
+    if (!program) throw new Error("Programme introuvable");
+    const enrollments = readEducationEnrollments();
+    const existing = enrollments.find(
+      (item) => item.profileId === input.profileId && item.programId === input.programId,
+    );
+    const enrollment: EducationProgramEnrollmentRecord =
+      existing ?? {
+        id: randomId("enrollment"),
+        profileId: input.profileId,
+        programId: input.programId,
+        conditionKey: program.conditionKey,
+        assignedByUserId: input.actorUserId,
+        assignedByPractitionerId: "practitioner_demo",
+        status: "active",
+        startedAt: nowIso(),
+        nextCheckInDueAt: input.nextCheckInDueAt,
+        checkInCadence: input.checkInCadence,
+        progressPercent: 0,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+
+    const nextEnrollment = {
+      ...enrollment,
+      assignedByUserId: input.actorUserId,
+      assignedByPractitionerId: "practitioner_demo",
+      checkInCadence: input.checkInCadence,
+      nextCheckInDueAt: input.nextCheckInDueAt,
+      updatedAt: nowIso(),
+    };
+    const nextEnrollments = existing
+      ? enrollments.map((item) => (item.id === existing.id ? nextEnrollment : item))
+      : [...enrollments, nextEnrollment];
+    writeEducationEnrollments(nextEnrollments);
+    ensureProgressSkeleton(nextEnrollment);
+
+    appendTimelineEventInternal({
+      actorUserId: input.actorUserId,
+      profileId: input.profileId,
+      type: "education_program_assigned",
+      title: timelineTitleFromType("education_program_assigned"),
+      description: `Programme « ${program.title} » assigné.`,
+      source: "education_program",
+      sourceRef: nextEnrollment.id,
+    });
+    createNotification({
+      recipientUserId: profile.ownerUserId,
+      profileId: input.profileId,
+      kind: "education_program_assigned",
+      title: "Nouveau programme de suivi",
+      body: `Votre praticien a assigné le programme « ${program.title} ».`,
+      entityType: "education_program",
+      entityId: program.id,
+    });
+    return this.getEducationProgram(profile.ownerUserId, input.profileId, input.programId);
+  }
+
+  async createScreeningReminderForPractitioner(
+    input: CreateScreeningReminderInput,
+  ): Promise<ScreeningReminder> {
+    const reminders = readScreeningReminders();
+    const existing = reminders.find(
+      (item) =>
+        item.profileId === input.profileId &&
+        item.screeningType.toLowerCase() === input.screeningType.toLowerCase(),
+    );
+    const nextReminder: ScreeningReminder =
+      existing ?? {
+        id: randomId("screening"),
+        profileId: input.profileId,
+        screeningType: input.screeningType,
+        cadence: input.cadence,
+        status: "active",
+        nextDueAt: input.nextDueAt,
+        channels: getDefaultChannels(true),
+        updatedAt: nowIso(),
+      };
+    nextReminder.cadence = input.cadence;
+    nextReminder.status = "active";
+    nextReminder.nextDueAt = input.nextDueAt;
+    nextReminder.updatedAt = nowIso();
+    writeScreeningReminders(
+      existing
+        ? reminders.map((item) => (item.id === existing.id ? nextReminder : item))
+        : [...reminders, nextReminder],
+    );
+    return nextReminder;
+  }
+
+  async getProfilePreventionCurrentForPractitioner(
+    _actorUserId: string,
+    profileId: string,
+  ): Promise<PreventionCurrentRecord> {
+    const settings = ensurePreventionSettings(profileId);
+    const snapshot = createPreventionSnapshot(profileId);
+    const alerts = computePreventionAlerts(profileId, snapshot);
+    return {
+      settings,
+      snapshot,
+      alerts,
+    };
   }
 
   async recordProfileSwitch(userId: string, profileId: string): Promise<void> {

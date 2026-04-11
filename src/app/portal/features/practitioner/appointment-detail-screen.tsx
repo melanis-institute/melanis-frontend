@@ -1,8 +1,12 @@
 import type {
   ClinicalDocumentRecord,
+  EducationProgramDetailRecord,
+  EducationProgramRecord,
+  PreventionCurrentRecord,
   PreConsultSubmissionRecord,
   PrescriptionItem,
   ScreeningCadence,
+  ScreeningReminder,
 } from "@portal/domains/account/types";
 import {
   NEXT_STATUS_BY_CURRENT,
@@ -26,6 +30,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BellRing,
   CalendarCheck2,
   CheckCircle2,
   Clock3,
@@ -33,9 +38,11 @@ import {
   FileText,
   Loader2,
   MapPin,
+  MessageSquareText,
   Pill,
   Plus,
   Printer,
+  Send,
   Sparkles,
   Star,
   Stethoscope,
@@ -64,6 +71,11 @@ interface ConsultationDraft {
   followUpCadence: ScreeningCadence | "";
   followUpDueAt: string;
   updatedAt: number;
+}
+
+interface DraftSnapshot {
+  signature: string;
+  storage: "present" | "cleared";
 }
 
 interface FavoritePrescriptionItem {
@@ -555,6 +567,37 @@ function clearDraft(appointmentId: string) {
   removeStorageValue(getDraftStorageKey(appointmentId));
 }
 
+function buildDraftPayload(params: {
+  diagnosis: string;
+  clinicalSummary: string;
+  prescriptionRows: PrescriptionDraftRow[];
+  measurementText: string;
+  followUpCadence: ScreeningCadence | "";
+  followUpDueAt: string;
+  updatedAt?: number;
+}): ConsultationDraft {
+  return {
+    diagnosis: params.diagnosis,
+    clinicalSummary: params.clinicalSummary,
+    prescriptionRows: params.prescriptionRows,
+    measurementText: params.measurementText,
+    followUpCadence: params.followUpCadence,
+    followUpDueAt: params.followUpDueAt,
+    updatedAt: params.updatedAt ?? Date.now(),
+  };
+}
+
+function getDraftSignature(draft: ConsultationDraft) {
+  return JSON.stringify({
+    diagnosis: draft.diagnosis,
+    clinicalSummary: draft.clinicalSummary,
+    prescriptionRows: draft.prescriptionRows,
+    measurementText: draft.measurementText,
+    followUpCadence: draft.followUpCadence,
+    followUpDueAt: draft.followUpDueAt,
+  });
+}
+
 function loadFavorites(practitionerId: string) {
   return readStorageJson<FavoritePrescriptionItem[]>(
     getFavoritesStorageKey(practitionerId),
@@ -649,6 +692,28 @@ export default function PRAC03AppointmentDetail() {
   const [followUpDueAt, setFollowUpDueAt] = useState("");
   const [favorites, setFavorites] = useState<FavoritePrescriptionItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [draftSnapshot, setDraftSnapshot] = useState<DraftSnapshot | null>(null);
+  const [availablePrograms, setAvailablePrograms] = useState<EducationProgramRecord[]>([]);
+  const [assignedPrograms, setAssignedPrograms] = useState<EducationProgramRecord[]>([]);
+  const [preventionCurrent, setPreventionCurrent] =
+    useState<PreventionCurrentRecord | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState("");
+  const [programCadence, setProgramCadence] = useState<ScreeningCadence | "">("");
+  const [programDueAt, setProgramDueAt] = useState("");
+  const [isAssigningProgram, setIsAssigningProgram] = useState(false);
+  const [selectedProgramDetail, setSelectedProgramDetail] =
+    useState<EducationProgramDetailRecord | null>(null);
+  const [screeningReminders, setScreeningReminders] = useState<ScreeningReminder[]>([]);
+  const [educationReplyBody, setEducationReplyBody] = useState("");
+  const [educationReplyNeedsAppointment, setEducationReplyNeedsAppointment] =
+    useState(false);
+  const [isSendingEducationReply, setIsSendingEducationReply] = useState(false);
+  const [screeningType, setScreeningType] = useState("Suivi dermatologique");
+  const [screeningCadence, setScreeningCadence] =
+    useState<ScreeningCadence>("annual");
+  const [screeningDueAt, setScreeningDueAt] = useState("");
+  const [isSavingScreeningReminder, setIsSavingScreeningReminder] =
+    useState(false);
 
   const appointmentId = params.appointmentId ?? "";
   const practitionerId = auth.user?.practitionerId ?? "";
@@ -703,7 +768,13 @@ export default function PRAC03AppointmentDetail() {
           return;
         }
 
-        const [foundSubmission, foundDocuments] = auth.user
+        const [
+          foundSubmission,
+          foundDocuments,
+          availableProgramItems,
+          assignedProgramItems,
+          preventionPayload,
+        ] = auth.user
           ? await Promise.all([
               found.preConsultSubmission
                 ? Promise.resolve(found.preConsultSubmission)
@@ -716,8 +787,26 @@ export default function PRAC03AppointmentDetail() {
                 found.profileId,
                 appointmentId,
               ),
+              typeof auth.accountAdapter.listPractitionerEducationPrograms ===
+              "function"
+                ? auth.accountAdapter.listPractitionerEducationPrograms(auth.user.id)
+                : Promise.resolve([]),
+              typeof auth.accountAdapter.listProfileEducationProgramsForPractitioner ===
+              "function"
+                ? auth.accountAdapter.listProfileEducationProgramsForPractitioner(
+                    auth.user.id,
+                    found.profileId,
+                  )
+                : Promise.resolve([]),
+              typeof auth.accountAdapter.getProfilePreventionCurrentForPractitioner ===
+              "function"
+                ? auth.accountAdapter.getProfilePreventionCurrentForPractitioner(
+                    auth.user.id,
+                    found.profileId,
+                  )
+                : Promise.resolve(null),
             ])
-          : [null, []];
+          : [null, [], [], [], null];
 
         if (!cancelled) {
           const latestPrescription = foundDocuments.find(
@@ -728,31 +817,74 @@ export default function PRAC03AppointmentDetail() {
           setAppointment(found);
           setSubmission(foundSubmission);
           setDocuments(foundDocuments);
+          setAvailablePrograms(availableProgramItems);
+          setAssignedPrograms(assignedProgramItems);
+          setPreventionCurrent(preventionPayload);
+          setSelectedProgramId(
+            assignedProgramItems[0]?.id ??
+              availableProgramItems[0]?.id ??
+              "",
+          );
+          setProgramCadence(
+            (assignedProgramItems[0]?.enrollment?.checkInCadence as ScreeningCadence | "") ??
+              "",
+          );
+          setProgramDueAt(
+            toDateInputValue(assignedProgramItems[0]?.enrollment?.nextCheckInDueAt),
+          );
           setError(null);
 
           if (restoredDraft) {
-            setDiagnosis(restoredDraft.diagnosis);
-            setClinicalSummary(restoredDraft.clinicalSummary);
-            setPrescriptionRows(
+            const normalizedRows =
               normalizeDraftRows(restoredDraft.prescriptionRows).length > 0
                 ? normalizeDraftRows(restoredDraft.prescriptionRows)
-                : [createDraftRow()],
-            );
+                : [createDraftRow()];
+            const restoredPayload = buildDraftPayload({
+              diagnosis: restoredDraft.diagnosis,
+              clinicalSummary: restoredDraft.clinicalSummary,
+              prescriptionRows: normalizedRows,
+              measurementText: restoredDraft.measurementText,
+              followUpCadence: restoredDraft.followUpCadence,
+              followUpDueAt: restoredDraft.followUpDueAt,
+              updatedAt: restoredDraft.updatedAt,
+            });
+            setDiagnosis(restoredDraft.diagnosis);
+            setClinicalSummary(restoredDraft.clinicalSummary);
+            setPrescriptionRows(normalizedRows);
             setMeasurementText(restoredDraft.measurementText);
             setFollowUpCadence(restoredDraft.followUpCadence);
             setFollowUpDueAt(restoredDraft.followUpDueAt);
+            setDraftSnapshot({
+              signature: getDraftSignature(restoredPayload),
+              storage: "present",
+            });
             setDraftStatus("restored");
           } else {
-            setDiagnosis(found.diagnosis ?? "");
-            setClinicalSummary(found.clinicalSummary ?? "");
-            setPrescriptionRows(
+            const nextPrescriptionRows =
               toDraftRowsFromDocument(latestPrescription).length > 0
                 ? toDraftRowsFromDocument(latestPrescription)
-                : [createDraftRow()],
-            );
-            setMeasurementText(toMeasurementText(found));
-            setFollowUpCadence(found.followUpCadence ?? "");
-            setFollowUpDueAt(toDateInputValue(found.followUpDueAt));
+                : [createDraftRow()];
+            const nextMeasurementText = toMeasurementText(found);
+            const nextFollowUpCadence = found.followUpCadence ?? "";
+            const nextFollowUpDueAt = toDateInputValue(found.followUpDueAt);
+            const baselinePayload = buildDraftPayload({
+              diagnosis: found.diagnosis ?? "",
+              clinicalSummary: found.clinicalSummary ?? "",
+              prescriptionRows: nextPrescriptionRows,
+              measurementText: nextMeasurementText,
+              followUpCadence: nextFollowUpCadence,
+              followUpDueAt: nextFollowUpDueAt,
+            });
+            setDiagnosis(found.diagnosis ?? "");
+            setClinicalSummary(found.clinicalSummary ?? "");
+            setPrescriptionRows(nextPrescriptionRows);
+            setMeasurementText(nextMeasurementText);
+            setFollowUpCadence(nextFollowUpCadence);
+            setFollowUpDueAt(nextFollowUpDueAt);
+            setDraftSnapshot({
+              signature: getDraftSignature(baselinePayload),
+              storage: "cleared",
+            });
           }
 
           setIsHydrated(true);
@@ -789,17 +921,83 @@ export default function PRAC03AppointmentDetail() {
   ]);
 
   useEffect(() => {
+    const currentUser = auth.user;
+    const profileId = appointment?.profileId;
+    if (!currentUser || !profileId) return;
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const [programDetail, reminders] = await Promise.all([
+          selectedProgramId &&
+          typeof auth.accountAdapter.getEducationProgramForPractitioner ===
+            "function"
+            ? auth.accountAdapter.getEducationProgramForPractitioner(
+                currentUser.id,
+                profileId,
+                selectedProgramId,
+              )
+            : Promise.resolve(null),
+          typeof auth.accountAdapter.listScreeningRemindersForPractitioner ===
+            "function"
+            ? auth.accountAdapter.listScreeningRemindersForPractitioner(
+                currentUser.id,
+                profileId,
+              )
+            : Promise.resolve([]),
+        ]);
+
+        if (cancelled) return;
+        setSelectedProgramDetail(programDetail);
+        setScreeningReminders(reminders);
+        if (!screeningDueAt && reminders[0]) {
+          setScreeningType(reminders[0].screeningType);
+          setScreeningCadence(reminders[0].cadence);
+          setScreeningDueAt(toDateInputValue(reminders[0].nextDueAt));
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectedProgramDetail(null);
+          setScreeningReminders([]);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    appointment?.profileId,
+    auth.accountAdapter,
+    auth.user,
+    screeningDueAt,
+    selectedProgramId,
+  ]);
+
+  useEffect(() => {
     if (!appointmentId || !isHydrated) return;
 
     const timer = window.setTimeout(() => {
-      saveDraft(appointmentId, {
+      const payload = buildDraftPayload({
         diagnosis,
         clinicalSummary,
         prescriptionRows,
         measurementText,
         followUpCadence,
         followUpDueAt,
+      });
+      const signature = getDraftSignature(payload);
+      if (draftSnapshot?.signature === signature) {
+        return;
+      }
+      saveDraft(appointmentId, {
+        ...payload,
         updatedAt: Date.now(),
+      });
+      setDraftSnapshot({
+        signature,
+        storage: "present",
       });
       setDraftStatus("saved");
     }, 450);
@@ -814,6 +1012,7 @@ export default function PRAC03AppointmentDetail() {
     isHydrated,
     measurementText,
     prescriptionRows,
+    draftSnapshot,
   ]);
 
   const handleLogout = async () => {
@@ -978,17 +1177,34 @@ export default function PRAC03AppointmentDetail() {
     const latestPrescription = previousDocuments.find(
       (document) => document.kind === "prescription",
     );
-    setDiagnosis(appointment.diagnosis ?? "");
-    setClinicalSummary(appointment.clinicalSummary ?? "");
-    setPrescriptionRows(
+    const nextDiagnosis = appointment.diagnosis ?? "";
+    const nextClinicalSummary = appointment.clinicalSummary ?? "";
+    const nextPrescriptionRows =
       toDraftRowsFromDocument(latestPrescription).length > 0
         ? toDraftRowsFromDocument(latestPrescription)
-        : [createDraftRow()],
-    );
-    setMeasurementText(toMeasurementText(appointment));
-    setFollowUpCadence(appointment.followUpCadence ?? "");
-    setFollowUpDueAt(toDateInputValue(appointment.followUpDueAt));
+        : [createDraftRow()];
+    const nextMeasurementText = toMeasurementText(appointment);
+    const nextFollowUpCadence = appointment.followUpCadence ?? "";
+    const nextFollowUpDueAt = toDateInputValue(appointment.followUpDueAt);
+    const clearedPayload = buildDraftPayload({
+      diagnosis: nextDiagnosis,
+      clinicalSummary: nextClinicalSummary,
+      prescriptionRows: nextPrescriptionRows,
+      measurementText: nextMeasurementText,
+      followUpCadence: nextFollowUpCadence,
+      followUpDueAt: nextFollowUpDueAt,
+    });
+    setDiagnosis(nextDiagnosis);
+    setClinicalSummary(nextClinicalSummary);
+    setPrescriptionRows(nextPrescriptionRows);
+    setMeasurementText(nextMeasurementText);
+    setFollowUpCadence(nextFollowUpCadence);
+    setFollowUpDueAt(nextFollowUpDueAt);
     clearDraft(appointmentId);
+    setDraftSnapshot({
+      signature: getDraftSignature(clearedPayload),
+      storage: "cleared",
+    });
     setFeedback("Brouillon local effacé.");
   };
 
@@ -1075,6 +1291,19 @@ export default function PRAC03AppointmentDetail() {
       setFollowUpDueAt(toDateInputValue(result.appointment.followUpDueAt));
       setMeasurementText(toMeasurementText(result.appointment));
       clearDraft(appointment.id);
+      setDraftSnapshot({
+        signature: getDraftSignature(
+          buildDraftPayload({
+            diagnosis,
+            clinicalSummary,
+            prescriptionRows,
+            measurementText: toMeasurementText(result.appointment),
+            followUpCadence: result.appointment.followUpCadence ?? "",
+            followUpDueAt: toDateInputValue(result.appointment.followUpDueAt),
+          }),
+        ),
+        storage: "cleared",
+      });
       setDraftStatus("published");
       setFeedback("Compte-rendu clinique publié et visible côté patient.");
     } catch (adapterError) {
@@ -1085,6 +1314,146 @@ export default function PRAC03AppointmentDetail() {
       );
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleAssignProgram = async () => {
+    if (!appointment || !auth.user || !selectedProgramId) return;
+    try {
+      setIsAssigningProgram(true);
+      const detail = await auth.accountAdapter.assignEducationProgram({
+        actorUserId: auth.user.id,
+        profileId: appointment.profileId,
+        programId: selectedProgramId,
+        checkInCadence: programCadence || undefined,
+        nextCheckInDueAt: programDueAt || undefined,
+      });
+      const refreshedAssigned =
+        typeof auth.accountAdapter.listProfileEducationProgramsForPractitioner ===
+        "function"
+          ? await auth.accountAdapter.listProfileEducationProgramsForPractitioner(
+              auth.user.id,
+              appointment.profileId,
+            )
+          : [];
+      setAssignedPrograms(refreshedAssigned);
+      setSelectedProgramId(detail.program.id);
+      setFeedback(`Programme assigné : ${detail.program.title}.`);
+    } catch (adapterError) {
+      setFeedback(
+        adapterError instanceof Error
+          ? adapterError.message
+          : "Impossible d'assigner le programme.",
+      );
+    } finally {
+      setIsAssigningProgram(false);
+    }
+  };
+
+  const handleSendEducationReply = async () => {
+    if (!appointment || !auth.user || !selectedProgramId || !educationReplyBody.trim()) {
+      return;
+    }
+    if (
+      typeof auth.accountAdapter.createEducationThreadMessageForPractitioner !==
+      "function"
+    ) {
+      setFeedback("Messagerie éducative indisponible.");
+      return;
+    }
+    try {
+      setIsSendingEducationReply(true);
+      const next = await auth.accountAdapter.createEducationThreadMessageForPractitioner({
+        actorUserId: auth.user.id,
+        profileId: appointment.profileId,
+        programId: selectedProgramId,
+        body: educationReplyBody.trim(),
+        requestAppointment: educationReplyNeedsAppointment,
+      });
+      setSelectedProgramDetail(next);
+      setEducationReplyBody("");
+      setEducationReplyNeedsAppointment(false);
+      setFeedback("Réponse envoyée dans le programme patient.");
+    } catch (adapterError) {
+      setFeedback(
+        adapterError instanceof Error
+          ? adapterError.message
+          : "Impossible d'envoyer la réponse programme.",
+      );
+    } finally {
+      setIsSendingEducationReply(false);
+    }
+  };
+
+  const handleSaveScreeningReminder = async () => {
+    if (!appointment || !auth.user || !screeningType.trim() || !screeningDueAt) {
+      return;
+    }
+    if (
+      typeof auth.accountAdapter.createScreeningReminderForPractitioner !==
+      "function"
+    ) {
+      setFeedback("Création de rappel indisponible.");
+      return;
+    }
+    try {
+      setIsSavingScreeningReminder(true);
+      const reminder = await auth.accountAdapter.createScreeningReminderForPractitioner({
+        actorUserId: auth.user.id,
+        profileId: appointment.profileId,
+        screeningType: screeningType.trim(),
+        cadence: screeningCadence,
+        nextDueAt: screeningDueAt,
+      });
+      setScreeningReminders((prev) => {
+        const exists = prev.some((item) => item.id === reminder.id);
+        const next = exists
+          ? prev.map((item) => (item.id === reminder.id ? reminder : item))
+          : [...prev, reminder];
+        return next.sort((first, second) =>
+          first.nextDueAt.localeCompare(second.nextDueAt),
+        );
+      });
+      setFeedback("Rappel de dépistage enregistré.");
+    } catch (adapterError) {
+      setFeedback(
+        adapterError instanceof Error
+          ? adapterError.message
+          : "Impossible d'enregistrer le rappel.",
+      );
+    } finally {
+      setIsSavingScreeningReminder(false);
+    }
+  };
+
+  const updateExistingReminder = async (
+    reminder: ScreeningReminder,
+    patch: Partial<Pick<ScreeningReminder, "status" | "cadence" | "nextDueAt">>,
+  ) => {
+    if (!appointment || !auth.user) return;
+    if (
+      typeof auth.accountAdapter.updateScreeningReminderForPractitioner !==
+      "function"
+    ) {
+      setFeedback("Modification de rappel indisponible.");
+      return;
+    }
+    try {
+      const updated = await auth.accountAdapter.updateScreeningReminderForPractitioner({
+        actorUserId: auth.user.id,
+        profileId: appointment.profileId,
+        reminderId: reminder.id,
+        patch,
+      });
+      setScreeningReminders((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (adapterError) {
+      setFeedback(
+        adapterError instanceof Error
+          ? adapterError.message
+          : "Impossible de modifier le rappel.",
+      );
     }
   };
 
@@ -1652,6 +2021,318 @@ export default function PRAC03AppointmentDetail() {
               </div>
 
               <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+                <section className="rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_6px_36px_rgba(0,0,0,0.04)] backdrop-blur-xl">
+                  <SectionHeader
+                    overline="P4 suivi"
+                    title="Programme & prévention"
+                    description="Reliez l'éducation thérapeutique et les signaux environnementaux au plan de soin."
+                  />
+
+                  <div className="mt-5 space-y-4">
+                    <div className="rounded-2xl border border-[rgba(17,18,20,0.07)] bg-white/70 p-4">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/35">
+                        Programmes actifs
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {assignedPrograms.length === 0 ? (
+                          <span className="text-sm text-[#111214]/52">
+                            Aucun programme assigné.
+                          </span>
+                        ) : (
+                          assignedPrograms.map((program) => (
+                            <span
+                              key={program.id}
+                              className="rounded-full bg-[#FEF0D5] px-3 py-1.5 text-[11px] font-medium text-[#111214]/70"
+                            >
+                              {program.title} · {program.enrollment?.progressPercent ?? 0}%
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[rgba(17,18,20,0.07)] bg-white/70 p-4">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/35">
+                        Assigner un programme
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        <select
+                          value={selectedProgramId}
+                          onChange={(event) => setSelectedProgramId(event.currentTarget.value)}
+                          className="w-full rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                        >
+                          <option value="">Sélectionner un programme</option>
+                          {availablePrograms.map((program) => (
+                            <option key={program.id} value={program.id}>
+                              {program.title}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <select
+                            value={programCadence}
+                            onChange={(event) =>
+                              setProgramCadence(
+                                event.currentTarget.value as ScreeningCadence | "",
+                              )
+                            }
+                            className="rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                          >
+                            <option value="">Cadence check-in</option>
+                            {CADENCE_OPTIONS.map((cadence) => (
+                              <option key={cadence} value={cadence}>
+                                {CADENCE_LABELS[cadence]}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={programDueAt}
+                            onChange={(event) => setProgramDueAt(event.currentTarget.value)}
+                            className="rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleAssignProgram()}
+                          disabled={!selectedProgramId || isAssigningProgram}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-[#5B1112]/15 bg-[#5B1112] px-4 py-3 text-sm font-semibold text-white disabled:opacity-55"
+                        >
+                          {isAssigningProgram ? "Assignation..." : "Assigner au patient"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[rgba(17,18,20,0.07)] bg-white/70 p-4">
+                      <div className="flex items-center gap-2">
+                        <MessageSquareText size={16} className="text-[#5B1112]" />
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/35">
+                          Questions liées au programme
+                        </p>
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-[#111214]">
+                        {selectedProgramDetail?.program.title ?? "Sélectionnez un programme assigné"}
+                      </p>
+                      <p className="mt-1 text-xs text-[#111214]/54">
+                        Répondez ici aux questions d'application du programme. Si nécessaire,
+                        signalez qu'un rendez-vous est préférable.
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        {selectedProgramDetail?.messages.length ? (
+                          selectedProgramDetail.messages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={`rounded-[1rem] px-3 py-3 text-sm ${
+                                message.authorRole === "practitioner"
+                                  ? "bg-[#111214] text-white"
+                                  : "border border-[rgba(17,18,20,0.07)] bg-white"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p
+                                  className={`text-[11px] font-semibold ${
+                                    message.authorRole === "practitioner"
+                                      ? "text-white/82"
+                                      : "text-[#111214]"
+                                  }`}
+                                >
+                                  {message.authorRole === "practitioner"
+                                    ? "Praticien"
+                                    : "Patient / accompagnant"}
+                                </p>
+                                <p
+                                  className={`text-[10px] ${
+                                    message.authorRole === "practitioner"
+                                      ? "text-white/55"
+                                      : "text-[#111214]/38"
+                                  }`}
+                                >
+                                  {new Date(message.createdAt).toLocaleString("fr-FR")}
+                                </p>
+                              </div>
+                              <p
+                                className={`mt-2 leading-6 ${
+                                  message.authorRole === "practitioner"
+                                    ? "text-white/76"
+                                    : "text-[#111214]/66"
+                                }`}
+                              >
+                                {message.body}
+                              </p>
+                              {message.meta.requestAppointment ? (
+                                <p
+                                  className={`mt-2 text-[11px] ${
+                                    message.authorRole === "practitioner"
+                                      ? "text-white/60"
+                                      : "text-[#5B1112]"
+                                  }`}
+                                >
+                                  Escalade rendez-vous suggérée.
+                                </p>
+                              ) : null}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-[1rem] border border-dashed border-[rgba(17,18,20,0.10)] px-3 py-4 text-sm text-[#111214]/54">
+                            Aucun échange pour ce programme pour le moment.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 rounded-[1rem] border border-[rgba(17,18,20,0.08)] bg-white p-3">
+                        <textarea
+                          value={educationReplyBody}
+                          onChange={(event) => setEducationReplyBody(event.currentTarget.value)}
+                          rows={3}
+                          placeholder="Clarifiez la routine, les déclencheurs ou conseillez un rendez-vous si le cadre du programme ne suffit plus."
+                          className="w-full rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                        />
+                        <label className="mt-3 flex items-center gap-2 text-xs text-[#111214]/58">
+                          <input
+                            type="checkbox"
+                            checked={educationReplyNeedsAppointment}
+                            onChange={(event) =>
+                              setEducationReplyNeedsAppointment(event.currentTarget.checked)
+                            }
+                          />
+                          Suggérer explicitement un rendez-vous.
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void handleSendEducationReply()}
+                          disabled={!selectedProgramId || !educationReplyBody.trim() || isSendingEducationReply}
+                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1rem] bg-[#5B1112] px-4 py-3 text-sm font-semibold text-white disabled:opacity-55"
+                        >
+                          <Send size={14} />
+                          {isSendingEducationReply ? "Envoi..." : "Répondre dans le programme"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[rgba(17,18,20,0.07)] bg-white/70 p-4">
+                      <div className="flex items-center gap-2">
+                        <BellRing size={16} className="text-[#5B1112]" />
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/35">
+                          Rappels de dépistage
+                        </p>
+                      </div>
+                      <p className="mt-2 text-sm text-[#111214]/60">
+                        Planifiez, ajustez ou clôturez les rappels de suivi préventif pour ce patient.
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        {screeningReminders.length === 0 ? (
+                          <div className="rounded-[1rem] border border-dashed border-[rgba(17,18,20,0.10)] px-3 py-4 text-sm text-[#111214]/54">
+                            Aucun rappel configuré pour le moment.
+                          </div>
+                        ) : (
+                          screeningReminders.map((reminder) => (
+                            <div
+                              key={reminder.id}
+                              className="rounded-[1rem] border border-[rgba(17,18,20,0.07)] bg-white px-3 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-[#111214]">
+                                    {reminder.screeningType}
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#111214]/48">
+                                    Échéance : {new Date(reminder.nextDueAt).toLocaleDateString("fr-FR")}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void updateExistingReminder(reminder, {
+                                      status:
+                                        reminder.status === "completed" ? "active" : "completed",
+                                    })
+                                  }
+                                  className="rounded-full border border-[rgba(17,18,20,0.10)] px-3 py-1.5 text-[11px] font-medium text-[#111214]/64"
+                                >
+                                  {reminder.status === "completed" ? "Réactiver" : "Marquer fait"}
+                                </button>
+                              </div>
+                              <select
+                                value={reminder.cadence}
+                                onChange={(event) =>
+                                  void updateExistingReminder(reminder, {
+                                    cadence: event.currentTarget.value as ScreeningCadence,
+                                  })
+                                }
+                                className="mt-3 w-full rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2 text-sm text-[#111214]"
+                              >
+                                {CADENCE_OPTIONS.map((cadence) => (
+                                  <option key={cadence} value={cadence}>
+                                    {CADENCE_LABELS[cadence]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="mt-4 rounded-[1rem] border border-[rgba(17,18,20,0.08)] bg-white p-3">
+                        <input
+                          value={screeningType}
+                          onChange={(event) => setScreeningType(event.currentTarget.value)}
+                          placeholder="Type de dépistage"
+                          className="w-full rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                        />
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <select
+                            value={screeningCadence}
+                            onChange={(event) =>
+                              setScreeningCadence(
+                                event.currentTarget.value as ScreeningCadence,
+                              )
+                            }
+                            className="rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                          >
+                            {CADENCE_OPTIONS.map((cadence) => (
+                              <option key={cadence} value={cadence}>
+                                {CADENCE_LABELS[cadence]}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={screeningDueAt}
+                            onChange={(event) => setScreeningDueAt(event.currentTarget.value)}
+                            className="rounded-xl border border-[rgba(17,18,20,0.10)] bg-white/80 px-3 py-2.5 text-sm text-[#111214]"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveScreeningReminder()}
+                          disabled={!screeningType.trim() || !screeningDueAt || isSavingScreeningReminder}
+                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1rem] bg-[#111214] px-4 py-3 text-sm font-semibold text-white disabled:opacity-55"
+                        >
+                          {isSavingScreeningReminder ? "Enregistrement..." : "Créer ou mettre à jour le rappel"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[rgba(17,18,20,0.07)] bg-white/70 p-4">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#111214]/35">
+                        Prévention active
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-[#111214]">
+                        {preventionCurrent?.settings.locationLabel ?? "Dakar"}
+                      </p>
+                      <p className="mt-1 text-sm text-[#111214]/58">
+                        {(preventionCurrent?.alerts.length ?? 0) > 0
+                          ? preventionCurrent?.alerts[0]?.title
+                          : "Aucune alerte active pour le moment."}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
                 <section className="rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_6px_36px_rgba(0,0,0,0.04)] backdrop-blur-xl">
                   <SectionHeader
                     overline="Actions rapides"

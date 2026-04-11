@@ -1,6 +1,7 @@
 import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
 import { NotificationCenter } from "@portal/shared/components/NotificationCenter";
 import {
+  BookOpenText,
   Calendar,
   FileText,
   Home,
@@ -8,6 +9,7 @@ import {
   MessagesSquare,
   ScanFace,
   Search,
+  Shield,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +23,9 @@ const PATHS = {
   records: "/patient-flow/auth/dashboard#records",
   documents: "/patient-flow/auth/dashboard/documents",
   telederm: "/patient-flow/auth/telederm",
+  programs: "/patient-flow/auth/programs",
+  prevention: "/patient-flow/auth/prevention",
+  reminders: "/patient-flow/auth/reminders",
   profile: "/patient-flow/account",
   scan: "/patient-flow/auth/dashboard#scan",
 } as const;
@@ -185,6 +190,18 @@ export function DashboardLayout({
       path: PATHS.telederm,
       exact: false,
     },
+    {
+      icon: BookOpenText,
+      label: "Programmes",
+      path: PATHS.programs,
+      exact: false,
+    },
+    {
+      icon: Shield,
+      label: "Prévention",
+      path: PATHS.prevention,
+      exact: false,
+    },
     { icon: FileText, label: "Dossier", path: PATHS.records, exact: true },
     { icon: User, label: "Profil", path: PATHS.profile, exact: true },
   ];
@@ -195,9 +212,17 @@ export function DashboardLayout({
   const isRecords =
     isPath(PATHS.records, true) || location.pathname.startsWith(PATHS.documents);
   const isTelederm = isPath(PATHS.telederm, false);
+  const isPrograms = isPath(PATHS.programs, false);
+  const isPrevention =
+    isPath(PATHS.prevention, false) || isPath(PATHS.reminders, false);
   const isScan = isPath(PATHS.scan, true);
   const pageTitle = location.pathname.startsWith(PATHS.documents)
     ? "Dossier patient"
+    : location.pathname.startsWith(PATHS.programs)
+      ? "Programmes"
+      : location.pathname.startsWith(PATHS.prevention) ||
+          location.pathname.startsWith(PATHS.reminders)
+        ? "Prévention"
     : location.pathname.startsWith(PATHS.telederm)
       ? "Télé-derm"
       : "Tableau de bord";
@@ -245,6 +270,10 @@ export function DashboardLayout({
                 isActive={
                   item.path === PATHS.records
                     ? isRecords
+                    : item.path === PATHS.programs
+                      ? isPrograms
+                      : item.path === PATHS.prevention
+                        ? isPrevention
                     : item.path === PATHS.telederm
                       ? isTelederm
                     : isPath(item.path, item.exact)
@@ -377,19 +406,18 @@ export function DashboardLayout({
                 isActive={isPath(PATHS.appointments, true)}
               />
 
-              <ScanCenterButton isActive={isScan} />
-
               <BottomNavItem
-                icon={FileText}
-                label="Dossier"
-                path={PATHS.records}
-                isActive={isRecords}
+                icon={BookOpenText}
+                label="Prog."
+                path={PATHS.programs}
+                isActive={isPrograms}
               />
+              <ScanCenterButton isActive={isScan} />
               <BottomNavItem
-                icon={User}
-                label="Profil"
-                path={PATHS.profile}
-                isActive={isPath(PATHS.profile, true)}
+                icon={Shield}
+                label="Prévent."
+                path={PATHS.prevention}
+                isActive={isPrevention}
               />
             </div>
           </div>
