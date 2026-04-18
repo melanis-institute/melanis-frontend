@@ -3,23 +3,34 @@ import {
   type AppointmentRecord,
   type AppointmentStatus,
 } from "@portal/domains/appointments/types";
+import type {
+  EducationProgramRecord,
+  InterPractitionerCaseRecord,
+} from "@portal/domains/account/types";
 import { useAuth } from "@portal/session/useAuth";
 import { PractitionerDashboardLayout } from "@portal/shared/layouts/PractitionerDashboardLayout";
 import {
   AlertTriangle,
   ArrowRight,
-  CalendarCheck2,
-  CheckCircle2,
+  BookOpen,
+  ChevronRight,
   Clock3,
+  ExternalLink,
   FileText,
   Loader2,
   MapPin,
+  MessageSquare,
+  Mic,
+  Minus,
+  MoreHorizontal,
+  Play,
+  Plus,
   Search,
-  Stethoscope,
+  TrendingDown,
+  TrendingUp,
   Users,
   Video,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
@@ -37,15 +48,6 @@ function getGreeting(): string {
 function getDrName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   return parts[parts.length - 1] ?? parts[0] ?? "Praticien";
-}
-
-function formatTodayFull(): string {
-  return new Date().toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 function formatTime(iso: string): string {
@@ -102,6 +104,52 @@ function getAvatarPalette(name: string) {
   for (let i = 0; i < name.length; i++)
     hash = (hash * 31 + name.charCodeAt(i)) & 0xfffffff;
   return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
+}
+
+const AVATAR_COLORS = [
+  "#2D5A27", "#1B4F6A", "#5C3928", "#3D2B1F", "#5C3317",
+  "#7B2D3E", "#1B5E4A", "#4A3B7C", "#6B3A1F", "#2D4B5A",
+] as const;
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++)
+    hash = (hash * 31 + name.charCodeAt(i)) & 0xfffffff;
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `il y a ${mins}min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `il y a ${days}j`;
+}
+
+interface DossierItem {
+  id: string;
+  name: string;
+  condition: string;
+  score: number | null;
+  trend: "up" | "flat" | "down";
+  fitz: string | null;
+  isUrgent: boolean;
+}
+
+function parseDossierFromAppointment(appt: AppointmentRecord): DossierItem {
+  const pcd = appt.preConsultData as Record<string, unknown> | null | undefined;
+  const trend = pcd?.ai_trend;
+  return {
+    id: appt.id,
+    name: appt.patientLabel,
+    condition: typeof pcd?.diagnosis === "string" ? pcd.diagnosis : "Consultation",
+    score: typeof pcd?.ai_score === "number" ? pcd.ai_score : null,
+    trend: trend === "up" || trend === "down" ? trend : "flat",
+    fitz: typeof pcd?.fitz_type === "string" ? pcd.fitz_type : null,
+    isUrgent: appt.status === "checked_in" || appt.status === "in_consultation",
+  };
 }
 
 // ── Appointment grouping ──────────────────────────────────────────────────────
@@ -212,218 +260,6 @@ function actionClass(status: AppointmentStatus): string {
   if (status === "completed")
     return "border border-[rgba(17,18,20,0.12)] text-[rgba(17,18,20,0.55)] hover:bg-[#FEF0D5]";
   return "bg-[#111214] text-white hover:bg-[#111214]/85";
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  accent = false,
-  delay = 0,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  accent?: boolean;
-  delay?: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay }}
-      className={`flex flex-col rounded-2xl border p-4 ${
-        accent
-          ? "border-[#5B1112]/15 bg-[#5B1112]/[0.05]"
-          : "border-[rgba(17,18,20,0.08)] bg-white/70 backdrop-blur-sm"
-      }`}
-    >
-      <Icon
-        size={18}
-        className={accent ? "text-[#5B1112]" : "text-[rgba(17,18,20,0.40)]"}
-        strokeWidth={1.8}
-      />
-      <p className="mt-3 text-2xl font-bold text-[#111214]">{value}</p>
-      <p className="mt-0.5 text-xs text-[rgba(17,18,20,0.52)]">{label}</p>
-    </motion.div>
-  );
-}
-
-function NextPatientCard({ appointment }: { appointment: AppointmentRecord }) {
-  const isInProgress =
-    appointment.status === "in_consultation" ||
-    appointment.status === "checked_in";
-  const hasPreConsult = Boolean(appointment.preConsultData);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.12 }}
-      className="relative overflow-hidden rounded-3xl bg-[#5B1112] p-6 text-white"
-    >
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute right-[-8%] top-[-30%] h-[220px] w-[220px] rounded-full bg-white/[0.06] blur-[60px]" />
-        <div className="absolute bottom-[-20%] left-[35%] h-[150px] w-[150px] rounded-full bg-white/[0.04] blur-[40px]" />
-      </div>
-
-      <div className="relative">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">
-            {isInProgress ? "En cours" : "Prochain patient"}
-          </span>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-              appointment.status === "in_consultation"
-                ? "bg-blue-400/20 text-blue-200"
-                : appointment.status === "checked_in"
-                  ? "bg-amber-400/20 text-amber-200"
-                  : "bg-white/[0.15] text-white/75"
-            }`}
-          >
-            {appointmentStatusLabel(appointment.status)}
-          </span>
-        </div>
-
-        <h2 className="text-xl font-bold">{appointment.patientLabel}</h2>
-
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-white/60">
-          <span className="flex items-center gap-1.5">
-            <Clock3 size={13} />
-            {formatTime(appointment.scheduledFor)}
-          </span>
-          <span className="flex items-center gap-1.5">
-            {appointment.appointmentType === "video" ? (
-              <>
-                <Video size={13} />
-                Vidéo
-              </>
-            ) : (
-              <>
-                <MapPin size={13} />
-                {appointment.practitionerLocation ?? "Présentiel"}
-              </>
-            )}
-          </span>
-          {hasPreConsult ? (
-            <span className="flex items-center gap-1 rounded-full bg-white/[0.15] px-2.5 py-0.5 text-xs text-white/75">
-              <FileText size={11} />
-              Pré-consult disponible
-            </span>
-          ) : null}
-        </div>
-
-        <div className="mt-5">
-          <Link
-            to={`/patient-flow/practitioner/appointments/${appointment.id}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#5B1112] shadow-lg transition hover:bg-white/90 active:scale-[0.97]"
-          >
-            Ouvrir le dossier
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function TodayQueueSection({
-  appointments,
-}: {
-  appointments: AppointmentRecord[];
-}) {
-  const sorted = useMemo(
-    () =>
-      [...appointments].sort(
-        (a, b) =>
-          new Date(a.scheduledFor).getTime() -
-          new Date(b.scheduledFor).getTime(),
-      ),
-    [appointments],
-  );
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.18 }}
-      className="rounded-3xl border border-[rgba(17,18,20,0.08)] bg-white/70 p-5 backdrop-blur-sm"
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-[#111214]">
-          File du jour
-          {sorted.length > 0 ? (
-            <span className="rounded-full bg-[#5B1112]/10 px-2 py-0.5 text-xs font-bold text-[#5B1112]">
-              {sorted.length}
-            </span>
-          ) : null}
-        </h2>
-        <Link
-          to="/patient-flow/practitioner/appointments"
-          className="text-xs font-medium text-[#5B1112] hover:underline"
-        >
-          Voir tout
-        </Link>
-      </div>
-
-      {sorted.length === 0 ? (
-        <div className="py-8 text-center">
-          <CheckCircle2 size={32} className="mx-auto mb-2 text-emerald-400" />
-          <p className="text-sm font-medium text-[#111214]/55">
-            Aucun rendez-vous aujourd'hui
-          </p>
-          <p className="mt-0.5 text-xs text-[#111214]/35">
-            Profitez de votre journée
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {sorted.map((appt, i) => (
-            <motion.div
-              key={appt.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.28, delay: 0.04 * i }}
-            >
-              <Link
-                to={`/patient-flow/practitioner/appointments/${appt.id}`}
-                className="flex items-center gap-3 rounded-2xl border border-[rgba(17,18,20,0.07)] bg-[#FCFCFC] p-3 transition hover:border-[rgba(17,18,20,0.14)] hover:bg-white"
-              >
-                <div
-                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold ${statusTone(appt.status)}`}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[#111214]">
-                    {appt.patientLabel}
-                  </p>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-[rgba(17,18,20,0.52)]">
-                    <Clock3 size={10} />
-                    {formatTime(appt.scheduledFor)}
-                    {" · "}
-                    {appt.appointmentType === "video" ? "Vidéo" : "Présentiel"}
-                  </p>
-                </div>
-                <div className="flex flex-shrink-0 flex-col items-end gap-1">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusTone(appt.status)}`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${statusDotColor(appt.status)}`}
-                    />
-                    {appointmentStatusLabel(appt.status)}
-                  </span>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      )}
-    </motion.section>
-  );
 }
 
 // ── Appointments view (hash = #appointments) ──────────────────────────────────
@@ -756,16 +592,60 @@ function AppointmentsView({
 function HomeView({
   todayAppointments,
   counts,
-  nextAppointment,
+  interPractCases,
+  educationPrograms,
 }: {
   appointments: AppointmentRecord[];
   todayAppointments: AppointmentRecord[];
   counts: Record<AppointmentStatus, number>;
   nextAppointment: AppointmentRecord | null;
+  interPractCases: InterPractitionerCaseRecord[];
+  educationPrograms: EducationProgramRecord[];
 }) {
   const fullName = useAuth().user?.fullName ?? "Praticien";
   const greeting = getGreeting();
   const drName = getDrName(fullName);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [dossierTab, setDossierTab] = useState<"tous" | "urgents">("tous");
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const timeStr = currentTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = currentTime.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
+
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const dow = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    return (["L", "M", "M", "J", "V", "S"] as const).map((label, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return { label, day: d.getDate(), isToday: d.toDateString() === today.toDateString() };
+    });
+  }, []);
+
+  const sortedToday = useMemo(
+    () => [...todayAppointments].sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()),
+    [todayAppointments],
+  );
+
+  const teleDermQueue = useMemo(() => sortedToday.filter((a) => a.appointmentType === "video"), [sortedToday]);
+  const urgencesCount = counts.checked_in + counts.in_consultation;
+  const allDossiers = useMemo(() => sortedToday.map(parseDossierFromAppointment), [sortedToday]);
+  const filteredDossiers = dossierTab === "urgents" ? allDossiers.filter((d) => d.isUrgent) : allDossiers;
+  const featuredProgram = educationPrograms[0] ?? null;
+
+  const quickActions = [
+    { icon: Plus, label: "Nouveau dossier" },
+    { icon: FileText, label: "Ordonnance" },
+    { icon: Video, label: "Téléconsult" },
+    { icon: BookOpen, label: "Plan éducatif" },
+    { icon: Mic, label: "Créer événement" },
+  ];
 
   return (
     <motion.div
@@ -774,108 +654,336 @@ function HomeView({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.3 }}
-      className="space-y-5 py-2 lg:py-4"
+      className="space-y-6 py-2 lg:py-4"
     >
-      {/* Hero banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-        className="relative overflow-hidden rounded-3xl bg-[#5B1112] px-7 py-7"
-      >
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute right-[-8%] top-[-30%] h-[220px] w-[220px] rounded-full bg-white/[0.06] blur-[70px]" />
-          <div className="absolute bottom-[-25%] left-[20%] h-[180px] w-[180px] rounded-full bg-white/[0.04] blur-[50px]" />
+      {/* ── Greeting header ── */}
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#111214]/38">
+          {dateStr}
+        </p>
+        <div className="mt-1.5 flex items-center justify-between gap-4">
+          <h1 className="text-[2rem] font-bold leading-tight text-[#111214] lg:text-[2.25rem]">
+            {greeting},{" "}
+            <span style={{ color: "#1B4F6A" }}>Dr. {drName}</span>
+          </h1>
+          <span className="flex-shrink-0 font-mono text-xl font-light tabular-nums text-[#111214]/45 lg:text-2xl">
+            {timeStr}
+          </span>
         </div>
-        <div className="relative flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <p className="text-sm text-white/55">{greeting},</p>
-            <h1 className="mt-0.5 text-2xl font-bold text-white">
-              Dr. {drName}
-            </h1>
-            <p className="mt-1 text-sm capitalize text-white/40">
-              {formatTodayFull()}
-            </p>
-          </div>
-          {todayAppointments.length > 0 ? (
-            <div className="rounded-2xl bg-white/[0.12] px-5 py-4 backdrop-blur-sm">
-              <p className="text-3xl font-bold text-white">
-                {todayAppointments.length}
-              </p>
-              <p className="mt-0.5 text-xs text-white/55">
-                patient{todayAppointments.length > 1 ? "s" : ""} aujourd'hui
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-white/[0.10] px-5 py-4 backdrop-blur-sm">
-              <p className="text-sm font-medium text-white/60">Journée libre</p>
-              <p className="mt-0.5 text-xs text-white/35">
-                Aucun patient prévu
-              </p>
-            </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
-          icon={Clock3}
-          label="Planifiés"
-          value={counts.scheduled}
-          delay={0.05}
-        />
-        <StatCard
-          icon={Users}
-          label="Arrivés"
-          value={counts.checked_in}
-          delay={0.1}
-        />
-        <StatCard
-          icon={Stethoscope}
-          label="En consultation"
-          value={counts.in_consultation}
-          accent={counts.in_consultation > 0}
-          delay={0.15}
-        />
-        <StatCard
-          icon={CalendarCheck2}
-          label="Terminés"
-          value={counts.completed}
-          delay={0.2}
-        />
       </div>
 
-      {/* Next patient */}
-      {nextAppointment ? (
-        <NextPatientCard appointment={nextAppointment} />
-      ) : null}
+      {/* ── Quick actions ── */}
+      <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {quickActions.map(({ icon: Icon, label }) => (
+          <button
+            key={label}
+            type="button"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[rgba(17,18,20,0.12)] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111214] shadow-sm transition hover:border-[rgba(17,18,20,0.22)] hover:shadow-md"
+          >
+            <Icon size={13} strokeWidth={2} />
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {/* Today's queue */}
-      <TodayQueueSection appointments={todayAppointments} />
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="flex flex-col rounded-2xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+          <Users size={20} className="text-[#6B8FB5]" strokeWidth={1.8} />
+          <p className="mt-3 text-[2rem] font-bold leading-none text-[#111214]">{todayAppointments.length}</p>
+          <p className="mt-1 text-xs text-[#111214]/45"><span className="font-semibold text-[#111214]/65">Patients</span>{" · "}Aujourd&apos;hui</p>
+        </div>
+        <div className="relative flex flex-col rounded-2xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+          {urgencesCount > 0 && <span className="absolute right-3.5 top-3.5 h-2 w-2 rounded-full bg-[#5B1112]" />}
+          <AlertTriangle size={20} className="text-[#D97706]" strokeWidth={1.8} />
+          <p className="mt-3 text-[2rem] font-bold leading-none text-[#111214]">{urgencesCount}</p>
+          <p className="mt-1 text-xs text-[#111214]/45"><span className="font-semibold text-[#111214]/65">Urgences</span>{" · "}À traiter</p>
+        </div>
+        <div className="flex flex-col rounded-2xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+          <Video size={20} className="text-[#6B8FB5]" strokeWidth={1.8} />
+          <p className="mt-3 text-[2rem] font-bold leading-none text-[#111214]">{teleDermQueue.length}</p>
+          <p className="mt-1 text-xs text-[#111214]/45"><span className="font-semibold text-[#111214]/65">Téléconsult</span>{" · "}En attente</p>
+        </div>
+        <div className="flex flex-col rounded-2xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+          <MessageSquare size={20} className="text-[#6B8FB5]" strokeWidth={1.8} />
+          <p className="mt-3 text-[2rem] font-bold leading-none text-[#111214]">{interPractCases.length}</p>
+          <p className="mt-1 text-xs text-[#111214]/45"><span className="font-semibold text-[#111214]/65">Avis</span>{" · "}Demandes</p>
+        </div>
+      </div>
+
+      {/* ── 3-column grid ── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+
+        {/* ── Left: Agenda ── */}
+        <div className="flex flex-col gap-4 rounded-3xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-base font-bold text-[#111214]">Agenda</h2>
+              <p className="text-xs text-[#111214]/45">Aujourd&apos;hui, {sortedToday.length} rdv</p>
+            </div>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-[#111214]/30 hover:bg-[rgba(17,18,20,0.05)]">
+              <MoreHorizontal size={16} />
+            </button>
+          </div>
+
+          {/* Week strip */}
+          <div className="flex items-center justify-between">
+            {weekDays.map(({ label, day, isToday }) => (
+              <div key={day} className="flex flex-col items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase text-[#111214]/30">{label}</span>
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${isToday ? "bg-[#111214] text-white" : "text-[#111214]/50 hover:bg-[rgba(17,18,20,0.06)]"}`}>
+                  {day}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Timeline */}
+          <div className="max-h-[340px] space-y-0.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {sortedToday.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[#111214]/38">Aucun rendez-vous aujourd&apos;hui</p>
+            ) : (
+              sortedToday.map((appt, i) => {
+                const isActive = appt.status === "checked_in" || appt.status === "in_consultation";
+                const isVideo = appt.appointmentType === "video";
+                const prev = sortedToday[i - 1];
+                const showLunch = i > 0 && prev && new Date(prev.scheduledFor).getHours() < 12 && new Date(appt.scheduledFor).getHours() >= 13;
+                return (
+                  <div key={appt.id}>
+                    {showLunch && (
+                      <div className="my-2 flex items-center gap-2">
+                        <div className="flex-1 border-t border-dashed border-[rgba(17,18,20,0.10)]" />
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-[#111214]/28">Déjeuner</span>
+                        <div className="flex-1 border-t border-dashed border-[rgba(17,18,20,0.10)]" />
+                      </div>
+                    )}
+                    <Link
+                      to={`/patient-flow/practitioner/appointments/${appt.id}`}
+                      className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-all ${isActive ? "bg-[#FEF3E2] hover:bg-[#FEEAD0]" : "hover:bg-[rgba(17,18,20,0.03)]"}`}
+                    >
+                      <div className="flex-shrink-0 w-10 text-right">
+                        <p className="text-xs font-bold text-[#111214]">{formatTime(appt.scheduledFor)}</p>
+                        <p className="text-[10px] text-[#111214]/30">30m</p>
+                      </div>
+                      <div className={`mt-0.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusDotColor(appt.status)}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          {isVideo ? <Video size={10} className="flex-shrink-0 text-[#6B8FB5]" /> : <Users size={10} className="flex-shrink-0 text-[#111214]/30" />}
+                          <p className="truncate text-[13px] font-semibold text-[#111214]">{appt.patientLabel}</p>
+                        </div>
+                        <p className="mt-0.5 truncate text-[11px] text-[#111214]/45">
+                          {isVideo ? "Téléconsultation" : "Consultation présentielle"}
+                        </p>
+                      </div>
+                      {isActive && (
+                        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#5B1112] text-white">
+                          <Play size={9} fill="currentColor" />
+                        </div>
+                      )}
+                    </Link>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ── Center column ── */}
+        <div className="flex flex-col gap-5">
+
+          {/* Télé-derm queue — dark card */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0f1e2e] to-[#16304a] p-5">
+            <div className="pointer-events-none absolute right-[-20%] top-[-30%] h-[200px] w-[200px] rounded-full bg-white/[0.03] blur-[60px]" />
+            <div className="relative">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/45">Télé-dermatologie</span>
+                </div>
+                <Link to="/patient-flow/practitioner/telederm" className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.10] text-white/60 transition hover:bg-white/[0.18]">
+                  <ExternalLink size={12} />
+                </Link>
+              </div>
+              <h2 className="mb-4 text-2xl font-bold text-white">File d&apos;attente</h2>
+              {teleDermQueue.length === 0 ? (
+                <div className="rounded-2xl bg-white/[0.07] px-4 py-5 text-center">
+                  <p className="text-sm text-white/45">Aucune consultation en attente</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {teleDermQueue.slice(0, 2).map((appt, i) => {
+                    const pal = getAvatarPalette(appt.patientLabel);
+                    return (
+                      <div key={appt.id} className={`flex items-center gap-3 rounded-2xl px-3.5 py-3 ${i === 0 ? "bg-white/[0.12]" : "bg-white/[0.06]"}`}>
+                        <div className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${pal.bg} ${pal.text}`}>
+                          {getInitials(appt.patientLabel)}
+                          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0f1e2e] bg-emerald-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-bold text-white">{appt.patientLabel}</p>
+                          <p className="flex items-center gap-1 text-[11px] text-white/45">
+                            <Clock3 size={9} />
+                            {formatTime(appt.scheduledFor)}{" · "}
+                            {appt.status === "checked_in" ? "Prêt" : appointmentStatusLabel(appt.status)}
+                          </p>
+                        </div>
+                        {i === 0 && (
+                          <Link to={`/patient-flow/practitioner/appointments/${appt.id}`} className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-[#111214] transition hover:bg-white/90">
+                            <Play size={9} fill="currentColor" />
+                            Démarrer
+                          </Link>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Suivi des Dossiers */}
+          <div className="flex flex-col gap-4 rounded-3xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-[#111214]">Suivi des Dossiers</h2>
+                <p className="text-xs text-[#111214]/45">Priorisation par IA</p>
+              </div>
+              <div className="flex gap-1.5">
+                {(["tous", "urgents"] as const).map((tab) => (
+                  <button key={tab} type="button" onClick={() => setDossierTab(tab)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${dossierTab === tab ? "bg-[#111214] text-white" : "border border-[rgba(17,18,20,0.12)] text-[#111214]/50 hover:text-[#111214]"}`}>
+                    {tab === "tous" ? "Tous" : "Urgents"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              {filteredDossiers.map((d) => (
+                <div key={d.id} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition hover:bg-[rgba(17,18,20,0.03)]">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: getAvatarColor(d.name) }}>
+                    {getInitials(d.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-[#111214]">{d.name}</p>
+                    <p className="truncate text-[11px] text-[#111214]/45">{d.condition}</p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {d.trend === "up" ? <TrendingUp size={12} className="text-emerald-500" /> : d.trend === "down" ? <TrendingDown size={12} className="text-[#5B1112]" /> : <Minus size={12} className="text-[#111214]/30" />}
+                      {d.score !== null && <span className="text-sm font-bold text-[#111214]">{d.score}</span>}
+                    </div>
+                    {d.fitz && <p className="text-[9px] font-semibold uppercase tracking-wider text-[#111214]/32">{d.fitz}</p>}
+                  </div>
+                </div>
+              ))}
+              {filteredDossiers.length === 0 && (
+                <p className="py-6 text-center text-sm text-[#111214]/38">Aucun dossier</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right column ── */}
+        <div className="flex flex-col gap-5">
+
+          {/* Avis Réseau */}
+          <div className="rounded-3xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-[#111214]">Avis Réseau</h2>
+                <p className="text-xs text-[#111214]/45">{interPractCases.length} demandes en attente</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EEF3FB]">
+                <MessageSquare size={18} className="text-[#6B8FB5]" strokeWidth={1.5} />
+              </div>
+            </div>
+            <div className="space-y-3">
+              {interPractCases.length === 0 ? (
+                <p className="py-4 text-center text-sm text-[#111214]/38">Aucune demande d&apos;avis</p>
+              ) : (
+                interPractCases.map((avis) => {
+                  const doctorName = avis.externalPractitionerLabel ?? "Praticien externe";
+                  const urgent = avis.status === "submitted";
+                  return (
+                    <div key={avis.id} className="rounded-2xl border border-[rgba(17,18,20,0.08)] p-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: getAvatarColor(doctorName) }}>
+                          {getInitials(doctorName)}
+                        </div>
+                        <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#111214]">{doctorName}</p>
+                        {urgent && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-[#5B1112]" />}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-[#111214]/58">{avis.question}</p>
+                      <div className="mt-2.5 flex items-center justify-between gap-2">
+                        {avis.patientLabel && (
+                          <span className="rounded-full bg-[#EEF3FB] px-2.5 py-1 text-[11px] font-medium text-[#5B7FA8]">Pour: {avis.patientLabel}</span>
+                        )}
+                        <span className="flex-shrink-0 text-[10px] text-[#111214]/32">{formatTimeAgo(avis.latestMessageAt)}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <Link to="/patient-flow/practitioner/inter-practitioner" className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#5B7FA8] hover:underline">
+              Voir toutes les demandes <ChevronRight size={12} />
+            </Link>
+          </div>
+
+          {/* Plans Éducatifs */}
+          <div className="rounded-3xl border border-[rgba(17,18,20,0.08)] bg-white p-5">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EEF3FB]">
+              <BookOpen size={18} className="text-[#6B8FB5]" strokeWidth={1.5} />
+            </div>
+            <h2 className="text-base font-bold text-[#111214]">Plans Éducatifs</h2>
+            {featuredProgram ? (
+              <>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-[#111214]/55">
+                  {featuredProgram.title} · {featuredProgram.estimatedMinutes} min
+                </p>
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="flex -space-x-2">
+                    {allDossiers.slice(0, 4).map((d) => (
+                      <div key={d.id} className="h-7 w-7 rounded-full border-2 border-white" style={{ backgroundColor: getAvatarColor(d.name) }} />
+                    ))}
+                  </div>
+                  {allDossiers.length > 4 && (
+                    <span className="text-[12px] font-semibold text-[#111214]/50">+{allDossiers.length - 4}</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="mt-1.5 text-[12px] text-[#111214]/40">Aucun programme actif</p>
+            )}
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PRAC01Dashboard() {
+export default function PractitionerDashboardScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+  const [interPractCases, setInterPractCases] = useState<InterPractitionerCaseRecord[]>([]);
+  const [educationPrograms, setEducationPrograms] = useState<EducationProgramRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const practitionerId = auth.user?.practitionerId ?? null;
+  const userId = auth.user?.id ?? null;
   const isAppointmentsView = location.hash === "#appointments";
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
-      if (!practitionerId) {
+      if (!practitionerId || !userId) {
         setLoading(false);
         setError("Aucun identifiant praticien associé à ce compte.");
         return;
@@ -883,12 +991,15 @@ export default function PRAC01Dashboard() {
 
       try {
         setLoading(true);
-        const list =
-          await auth.appointmentAdapter.listAppointmentsForPractitioner(
-            practitionerId,
-          );
+        const [list, cases, programs] = await Promise.all([
+          auth.appointmentAdapter.listAppointmentsForPractitioner(practitionerId),
+          auth.accountAdapter.listPractitionerInterPractitionerCases(userId, "submitted"),
+          auth.accountAdapter.listPractitionerEducationPrograms(userId),
+        ]);
         if (!cancelled) {
           setAppointments(list);
+          setInterPractCases(cases);
+          setEducationPrograms(programs);
           setError(null);
         }
       } catch (err) {
@@ -896,7 +1007,7 @@ export default function PRAC01Dashboard() {
           setError(
             err instanceof Error
               ? err.message
-              : "Impossible de charger les rendez-vous.",
+              : "Impossible de charger les données.",
           );
         }
       } finally {
@@ -908,7 +1019,7 @@ export default function PRAC01Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [auth.appointmentAdapter, practitionerId]);
+  }, [auth.appointmentAdapter, auth.accountAdapter, practitionerId, userId]);
 
   const todayAppointments = useMemo(
     () => appointments.filter((a) => isToday(a.scheduledFor)),
@@ -978,6 +1089,8 @@ export default function PRAC01Dashboard() {
               todayAppointments={todayAppointments}
               counts={counts}
               nextAppointment={nextAppointment}
+              interPractCases={interPractCases}
+              educationPrograms={educationPrograms}
             />
           )}
         </AnimatePresence>

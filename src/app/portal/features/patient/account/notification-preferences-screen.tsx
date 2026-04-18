@@ -9,7 +9,11 @@ import { useAuth } from "@portal/session/useAuth";
 
 type PrefKey = Exclude<keyof NotificationPreference, "id" | "profileId" | "updatedAt">;
 
-const PREF_SECTIONS: Array<{ key: PrefKey; label: string; description: string }> = [
+const NOTIFICATION_PREFERENCE_SECTIONS: Array<{
+  key: PrefKey;
+  label: string;
+  description: string;
+}> = [
   {
     key: "reminders",
     label: "Rappels RDV / check-ins",
@@ -43,7 +47,7 @@ const CHANNELS: Array<{ key: keyof NotificationChannelPreference; label: string 
   { key: "email", label: "Email" },
 ];
 
-export default function AU11NotificationPreferences() {
+export default function NotificationPreferencesScreen() {
   const auth = useAuth();
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,7 +154,7 @@ export default function AU11NotificationPreferences() {
 
       {!loading && preferences ? (
         <div className="space-y-3">
-          {PREF_SECTIONS.map((section) => {
+          {NOTIFICATION_PREFERENCE_SECTIONS.map((section) => {
             const sectionValue = preferences[section.key] as NotificationChannelPreference;
             return (
               <section

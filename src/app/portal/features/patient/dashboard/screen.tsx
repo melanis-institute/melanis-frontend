@@ -94,6 +94,11 @@ interface DashboardHomeProps {
   recentDocuments: ClinicalDocumentRecord[];
   recentDocumentsLoading: boolean;
   recentDocumentsError: string | null;
+  clinicalDocuments?: ClinicalDocumentRecord[];
+  timelineEvents?: PatientRecordEvent[];
+  screeningReminders?: ScreeningReminder[];
+  careHubLoading?: boolean;
+  careHubError?: string | null;
   skinScores: SkinScoreRecord[];
   skinScoresLoading: boolean;
   skinScoresError: string | null;
@@ -1191,73 +1196,33 @@ function selectLatestTimelineEvent(
 function RoutineCard({
   delay = 0,
   upcoming,
+  hasActingProfile,
+  clinicalDocuments,
+  timelineEvents,
+  screeningReminders,
+  loading,
+  error,
 }: {
   delay?: number;
   upcoming: UpcomingAppointment | null;
+  hasActingProfile: boolean;
+  clinicalDocuments: ClinicalDocumentRecord[];
+  timelineEvents: PatientRecordEvent[];
+  screeningReminders: ScreeningReminder[];
+  loading: boolean;
+  error: string | null;
 }) {
-  const auth = useAuth();
-  const userId = auth.user?.id ?? null;
-  const actingProfileId = auth.actingProfileId;
-  const hasPatientContext = Boolean(userId && actingProfileId);
-  const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>(
-    [],
-  );
-  const [clinicalDocuments, setClinicalDocuments] = useState<
-    ClinicalDocumentRecord[]
-  >([]);
-  const [screeningReminders, setScreeningReminders] = useState<
-    ScreeningReminder[]
-  >([]);
-  const [isHubLoading, setIsHubLoading] = useState(false);
-  const [hubError, setHubError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!userId || !actingProfileId) {
-      return;
-    }
-
-    let cancelled = false;
-    void Promise.resolve().then(async () => {
-      if (cancelled) return;
-      setIsHubLoading(true);
-      setHubError(null);
-
-      try {
-        const [documents, events, reminders] = await Promise.all([
-          auth.accountAdapter.listClinicalDocuments(userId, actingProfileId),
-          auth.accountAdapter.listTimelineEvents(userId, actingProfileId, 20),
-          auth.accountAdapter.listScreeningReminders(userId, actingProfileId),
-        ]);
-        if (cancelled) return;
-        setClinicalDocuments(documents);
-        setTimelineEvents(events);
-        setScreeningReminders(reminders);
-      } catch {
-        if (cancelled) return;
-        setHubError("Impossible de charger le dossier patient pour le moment.");
-      } finally {
-        if (!cancelled) {
-          setIsHubLoading(false);
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [auth.accountAdapter, actingProfileId, userId]);
-
-  const visibleTimelineEvents = hasPatientContext
+  const visibleTimelineEvents = hasActingProfile
     ? timelineEvents
     : EMPTY_TIMELINE_EVENTS;
-  const visibleClinicalDocuments = hasPatientContext
+  const visibleClinicalDocuments = hasActingProfile
     ? clinicalDocuments
     : EMPTY_CLINICAL_DOCUMENTS;
-  const visibleScreeningReminders = hasPatientContext
+  const visibleScreeningReminders = hasActingProfile
     ? screeningReminders
     : EMPTY_SCREENING_REMINDERS;
-  const visibleHubError = hasPatientContext ? hubError : null;
-  const visibleIsHubLoading = hasPatientContext ? isHubLoading : false;
+  const visibleHubError = hasActingProfile ? error : null;
+  const visibleIsHubLoading = hasActingProfile ? loading : false;
 
   const latestDocuments = useMemo(
     () =>
@@ -1356,7 +1321,7 @@ function RoutineCard({
     return items;
   }, [latestPrescription, latestTimelineEvent, nextReminder, upcoming]);
 
-  if (!actingProfileId) {
+  if (!hasActingProfile) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -2051,6 +2016,11 @@ export function DashboardHome({
   recentDocuments,
   recentDocumentsLoading,
   recentDocumentsError,
+  clinicalDocuments = recentDocuments,
+  timelineEvents = EMPTY_TIMELINE_EVENTS,
+  screeningReminders = EMPTY_SCREENING_REMINDERS,
+  careHubLoading = recentDocumentsLoading,
+  careHubError = recentDocumentsError,
   skinScores,
   skinScoresLoading,
   skinScoresError,
@@ -2136,7 +2106,16 @@ export function DashboardHome({
         </div>
 
         <div id="records" className="scroll-mt-28">
-          <RoutineCard delay={0.28} upcoming={upcoming} />
+          <RoutineCard
+            delay={0.28}
+            upcoming={upcoming}
+            hasActingProfile={hasActingProfile}
+            clinicalDocuments={clinicalDocuments}
+            timelineEvents={timelineEvents}
+            screeningReminders={screeningReminders}
+            loading={careHubLoading}
+            error={careHubError}
+          />
         </div>
 
         <div id="scan" className="scroll-mt-28">
@@ -2162,7 +2141,7 @@ export function DashboardHome({
   );
 }
 
-export default function AU06() {
+export default function PatientDashboardScreen() {
   const navigate = useNavigate();
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
@@ -2175,13 +2154,15 @@ export default function AU06() {
   const [skinScores, setSkinScores] = useState<SkinScoreRecord[]>([]);
   const [skinScoresLoading, setSkinScoresLoading] = useState(false);
   const [skinScoresError, setSkinScoresError] = useState<string | null>(null);
-  const [recentDocuments, setRecentDocuments] = useState<
+  const [clinicalDocuments, setClinicalDocuments] = useState<
     ClinicalDocumentRecord[]
   >([]);
-  const [recentDocumentsLoading, setRecentDocumentsLoading] = useState(false);
-  const [recentDocumentsError, setRecentDocumentsError] = useState<
-    string | null
-  >(null);
+  const [timelineEvents, setTimelineEvents] = useState<PatientRecordEvent[]>([]);
+  const [screeningReminders, setScreeningReminders] = useState<
+    ScreeningReminder[]
+  >([]);
+  const [careHubLoading, setCareHubLoading] = useState(false);
+  const [careHubError, setCareHubError] = useState<string | null>(null);
   const [educationPrograms, setEducationPrograms] = useState<EducationProgramRecord[]>([]);
   const [preventionCurrent, setPreventionCurrent] =
     useState<PreventionCurrentRecord | null>(null);
@@ -2206,9 +2187,11 @@ export default function AU06() {
         setSkinScores([]);
         setSkinScoresLoading(false);
         setSkinScoresError(null);
-        setRecentDocuments([]);
-        setRecentDocumentsLoading(false);
-        setRecentDocumentsError(null);
+        setClinicalDocuments([]);
+        setTimelineEvents([]);
+        setScreeningReminders([]);
+        setCareHubLoading(false);
+        setCareHubError(null);
         setEducationPrograms([]);
         setPreventionCurrent(null);
         setPreventionLoading(false);
@@ -2220,8 +2203,8 @@ export default function AU06() {
       setAppointmentsError(null);
       setSkinScoresLoading(true);
       setSkinScoresError(null);
-      setRecentDocumentsLoading(true);
-      setRecentDocumentsError(null);
+      setCareHubLoading(true);
+      setCareHubError(null);
       setPreventionLoading(true);
       setPreventionError(null);
 
@@ -2265,31 +2248,31 @@ export default function AU06() {
           setSkinScoresLoading(false);
         });
 
-      void auth.accountAdapter
-        .listClinicalDocuments(userId, actingProfileId)
-        .then((records) => {
+      void Promise.all([
+        auth.accountAdapter.listClinicalDocuments(userId, actingProfileId),
+        auth.accountAdapter.listTimelineEvents(userId, actingProfileId, 20),
+        auth.accountAdapter.listScreeningReminders(userId, actingProfileId),
+      ])
+        .then(([documents, events, reminders]) => {
           if (cancelled) return;
-          const sorted = [...records]
-            .sort((first, second) =>
-              (second.publishedAt ?? second.createdAt).localeCompare(
-                first.publishedAt ?? first.createdAt,
-              ),
-            )
-            .slice(0, 4);
-          setRecentDocuments(sorted);
+          setClinicalDocuments(documents);
+          setTimelineEvents(events);
+          setScreeningReminders(reminders);
         })
         .catch((adapterError) => {
           if (cancelled) return;
-          setRecentDocuments([]);
-          setRecentDocumentsError(
+          setClinicalDocuments([]);
+          setTimelineEvents([]);
+          setScreeningReminders([]);
+          setCareHubError(
             adapterError instanceof Error
               ? adapterError.message
-              : "Impossible de charger les documents du profil.",
+              : "Impossible de charger le dossier patient pour le moment.",
           );
         })
         .finally(() => {
           if (cancelled) return;
-          setRecentDocumentsLoading(false);
+          setCareHubLoading(false);
         });
 
       if (typeof auth.accountAdapter.listEducationPrograms === "function") {
@@ -2349,6 +2332,17 @@ export default function AU06() {
     const nextAppointment = selectUpcomingAppointment(appointments);
     return nextAppointment ? toUpcomingAppointment(nextAppointment) : null;
   }, [appointments]);
+  const recentDocuments = useMemo(
+    () =>
+      [...clinicalDocuments]
+        .sort((first, second) =>
+          (second.publishedAt ?? second.createdAt).localeCompare(
+            first.publishedAt ?? first.createdAt,
+          ),
+        )
+        .slice(0, 4),
+    [clinicalDocuments],
+  );
 
   const handleLogout = () => {
     void auth.logout().finally(() => {
@@ -2372,10 +2366,13 @@ export default function AU06() {
         upcomingLoading={hasActingProfile ? appointmentsLoading : false}
         upcomingError={hasActingProfile ? appointmentsError : null}
         recentDocuments={hasActingProfile ? recentDocuments : []}
-        recentDocumentsLoading={
-          hasActingProfile ? recentDocumentsLoading : false
-        }
-        recentDocumentsError={hasActingProfile ? recentDocumentsError : null}
+        recentDocumentsLoading={hasActingProfile ? careHubLoading : false}
+        recentDocumentsError={hasActingProfile ? careHubError : null}
+        clinicalDocuments={hasActingProfile ? clinicalDocuments : []}
+        timelineEvents={hasActingProfile ? timelineEvents : []}
+        screeningReminders={hasActingProfile ? screeningReminders : []}
+        careHubLoading={hasActingProfile ? careHubLoading : false}
+        careHubError={hasActingProfile ? careHubError : null}
         skinScores={hasActingProfile ? skinScores : []}
         skinScoresLoading={hasActingProfile ? skinScoresLoading : false}
         skinScoresError={hasActingProfile ? skinScoresError : null}

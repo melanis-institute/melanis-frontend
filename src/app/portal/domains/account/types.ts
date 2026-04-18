@@ -610,6 +610,7 @@ export interface InterPractitionerMessageRecord {
 export interface InterPractitionerCaseRecord {
   id: string;
   externalPractitionerUserId: string;
+  externalPractitionerLabel?: string;
   externalPractitionerProfileId?: string;
   assignedPractitionerId?: string;
   claimedByUserId?: string;

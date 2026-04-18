@@ -1,22 +1,21 @@
-import { MelaniaMascot } from "@portal/shared/components/MelaniaMascot";
 import { NotificationCenter } from "@portal/shared/components/NotificationCenter";
 import {
   Calendar,
   CalendarDays,
   Home,
   LogOut,
-  MessagesSquare,
   PanelLeftOpen,
   PanelRightOpen,
-  SearchCheck,
+  Presentation,
   Search,
+  SearchCheck,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 
-const PRAC_PATHS = {
+const PRACTITIONER_PATHS = {
   home: "/patient-flow/practitioner",
   appointments: "/patient-flow/practitioner/appointments",
   calendar: "/patient-flow/practitioner/calendar",
@@ -67,27 +66,35 @@ function SidebarItem({
   collapsed: boolean;
 }) {
   return (
-    <Link to={path} className="mb-1 block">
+    <Link to={path} className="block">
       <div
-        className={`group relative flex rounded-2xl transition-all duration-300 ${
+        className={`group relative flex rounded-2xl transition-all duration-200 ${
           collapsed
-            ? "justify-center px-3 py-3"
-            : "items-center gap-3.5 px-4 py-3"
+            ? "flex-col items-center gap-1 px-2 py-3"
+            : "items-center gap-3 px-3 py-3"
         } ${
           isActive
-            ? "bg-[#5B1112] text-white shadow-xl shadow-[#5B1112]/25"
-            : "text-[#111214]/50 hover:bg-white/60 hover:text-[#5B1112]"
+            ? "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/20"
+            : "text-[#111214]/45 hover:bg-white/70 hover:text-[#5B1112]"
         }`}
         title={collapsed ? label : undefined}
       >
-        <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} />
-        {!collapsed ? (
-          <span className="text-sm font-medium tracking-wide">{label}</span>
-        ) : null}
+        <Icon size={18} strokeWidth={isActive ? 2.5 : 1.8} />
+        {collapsed ? (
+          <motion.span
+            className={`text-[8px] font-bold uppercase leading-none tracking-wider transition-colors ${
+              isActive ? "text-white/70" : "text-[#111214]/25"
+            }`}
+          >
+            {label.slice(0, 4)}
+          </motion.span>
+        ) : (
+          <span className="text-[13px] font-medium">{label}</span>
+        )}
         {isActive && !collapsed ? (
           <motion.div
             layoutId="prac-sidebar-pip"
-            className="absolute right-3.5 h-1.5 w-1.5 rounded-full bg-white/70"
+            className="absolute right-3 h-1.5 w-1.5 rounded-full bg-white/60"
           />
         ) : null}
       </div>
@@ -163,29 +170,34 @@ export function PractitionerDashboardLayout({
     isPathActive(location.pathname, location.hash, target, exact);
 
   const menuItems = [
-    { icon: Home, label: "Accueil", path: PRAC_PATHS.home, exact: true },
+    {
+      icon: Home,
+      label: "Accueil",
+      path: PRACTITIONER_PATHS.home,
+      exact: true,
+    },
     {
       icon: Calendar,
       label: "Rendez-vous",
-      path: PRAC_PATHS.appointments,
+      path: PRACTITIONER_PATHS.appointments,
       exact: false,
     },
     {
       icon: CalendarDays,
       label: "Agenda",
-      path: PRAC_PATHS.calendar,
+      path: PRACTITIONER_PATHS.calendar,
       exact: false,
     },
     {
-      icon: MessagesSquare,
+      icon: Presentation,
       label: "Télé-derm",
-      path: PRAC_PATHS.telederm,
+      path: PRACTITIONER_PATHS.telederm,
       exact: false,
     },
     {
       icon: SearchCheck,
       label: "Avis externes",
-      path: PRAC_PATHS.collaboration,
+      path: PRACTITIONER_PATHS.collaboration,
       exact: false,
     },
   ];
@@ -207,16 +219,15 @@ export function PractitionerDashboardLayout({
       >
         <div
           className={`relative flex h-full flex-col overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/55 pb-6 pt-8 shadow-[0_8px_48px_rgba(0,0,0,0.04)] backdrop-blur-2xl transition-all duration-300 ${
-            isSidebarCollapsed ? "px-3" : "px-6"
+            isSidebarCollapsed ? "px-3" : "px-4"
           }`}
         >
           <div className="pointer-events-none absolute inset-0 rounded-[2.5rem] bg-gradient-to-b from-white/30 to-transparent" />
 
           {/* Logo */}
-          <div className="relative z-10 mb-8">
+          <div className="relative z-10 mb-6 flex-shrink-0">
             {isSidebarCollapsed ? (
               <div className="flex flex-col items-center gap-3 py-1">
-                <MelaniaMascot size={30} animated delay={0.1} />
                 <button
                   type="button"
                   onClick={() => setIsSidebarCollapsed((prev) => !prev)}
@@ -228,42 +239,39 @@ export function PractitionerDashboardLayout({
                 </button>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                <div className="flex min-w-0 items-center gap-3">
-                  <MelaniaMascot size={34} animated delay={0.1} />
-                  <span
-                    className="font-serif text-[#111214]"
-                    style={{ fontSize: 20, letterSpacing: "-0.02em" }}
-                  >
-                    melanis
-                  </span>
-                </div>
+              <div className="flex items-center gap-2.5 py-2">
+                <span
+                  className="flex-1 font-serif text-[#111214]"
+                  style={{ fontSize: 23, letterSpacing: "-0.02em" }}
+                >
+                  melanis
+                </span>
                 <button
                   type="button"
                   onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                  className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#111214]/10 bg-white text-[#111214]/55 transition hover:bg-[#FEF0D5] hover:text-[#111214]"
+                  className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-[#111214]/10 bg-white text-[#111214]/40 transition hover:bg-[#FEF0D5] hover:text-[#111214]"
                   title="Réduire la barre latérale"
                   aria-label="Réduire la barre latérale"
                 >
-                  <PanelRightOpen size={15} />
+                  <PanelRightOpen size={13} />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Role badge */}
+          {/* Section label */}
           {isSidebarCollapsed ? (
-            <div className="relative z-10 mx-2 mb-5 border-t border-[#111214]/[0.06]" />
+            <div className="relative z-10 mx-2 mb-3 flex-shrink-0 border-t border-[#111214]/[0.06]" />
           ) : (
-            <div className="relative z-10 mb-5 rounded-xl bg-[#5B1112]/[0.07] px-3 py-2">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#5B1112]/70">
-                Espace praticien
+            <div className="relative z-10 mb-2 flex-shrink-0 px-1">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#111214]/30">
+                Menu
               </span>
             </div>
           )}
 
           {/* Navigation */}
-          <nav className="relative z-10 flex-1 space-y-0.5">
+          <nav className="relative z-10 min-h-0 flex-1 space-y-0.5 overflow-y-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {menuItems.map((item) => (
               <SidebarItem
                 key={item.path}
@@ -277,57 +285,56 @@ export function PractitionerDashboardLayout({
           </nav>
 
           {/* User card */}
-          <div className="relative z-10 border-t border-[#111214]/5 pt-4">
+          <div className="relative z-10 mt-4 flex-shrink-0">
             {isSidebarCollapsed ? (
-              <div className="flex flex-col items-center gap-2.5">
+              <div className="flex flex-col items-center gap-2">
                 <div className="relative">
                   <img
                     src={DEFAULT_PROFILE_AVATAR}
                     alt="Profil"
-                    className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
+                    className="h-9 w-9 rounded-full border-2 border-white object-cover shadow-md"
                   />
-                  <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+                  <div className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-white bg-emerald-400" />
                 </div>
                 <button
                   type="button"
                   onClick={() => void onLogout()}
                   aria-label="Se déconnecter"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#111214]/[0.07] text-[#111214]/30 transition-colors hover:border-[#5B1112]/20 hover:bg-white/70 hover:text-[#5B1112]"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#111214]/25 transition-colors hover:bg-white/70 hover:text-[#5B1112]"
                   title="Se déconnecter"
                 >
-                  <LogOut size={14} />
+                  <LogOut size={13} />
                 </button>
               </div>
             ) : (
-              <div className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/50">
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={DEFAULT_PROFILE_AVATAR}
-                    alt="Profil"
-                    className="h-10 w-10 rounded-full border-2 border-white object-cover shadow-md"
-                  />
-                  <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+              <div className="rounded-2xl bg-white/50 p-3 shadow-sm ring-1 ring-black/[0.04]">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={DEFAULT_PROFILE_AVATAR}
+                      alt="Profil"
+                      className="h-9 w-9 rounded-full border-2 border-white object-cover shadow-sm"
+                    />
+                    <div className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-white bg-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold leading-tight text-[#111214]">
+                      {fullName}
+                    </p>
+                    <p className="truncate text-[11px] text-[#111214]/40">
+                      Dermatologue
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void onLogout()}
+                    aria-label="Se déconnecter"
+                    className="flex-shrink-0 rounded-lg p-1.5 text-[#111214]/25 transition-colors hover:bg-white hover:text-[#5B1112]"
+                    title="Se déconnecter"
+                  >
+                    <LogOut size={14} />
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[#111214]">
-                    {fullName}
-                  </p>
-                  <p className="truncate text-[10px] text-[#111214]/40">
-                    Dermatologue · Melanis
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void onLogout()}
-                  aria-label="Se déconnecter"
-                  className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-white/70"
-                  title="Se déconnecter"
-                >
-                  <LogOut
-                    size={15}
-                    className="text-[#111214]/25 group-hover:text-[#5B1112]"
-                  />
-                </button>
               </div>
             )}
           </div>
@@ -339,10 +346,9 @@ export function PractitionerDashboardLayout({
         {/* Mobile header */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/30 bg-[#FEF0D5]/85 px-5 py-3 backdrop-blur-xl lg:hidden">
           <div className="flex items-center gap-2.5">
-            <MelaniaMascot size={34} animated={false} />
             <span
               className="font-serif text-[#111214]"
-              style={{ fontSize: 18, letterSpacing: "-0.02em" }}
+              style={{ fontSize: 19, letterSpacing: "-0.02em" }}
             >
               melanis
             </span>
@@ -354,12 +360,7 @@ export function PractitionerDashboardLayout({
         </header>
 
         {/* Desktop header */}
-        <header className="hidden items-center justify-between px-10 py-6 lg:flex">
-          <div>
-            <h2 className="font-serif text-[#111214]" style={{ fontSize: 22 }}>
-              Tableau de bord
-            </h2>
-          </div>
+        <header className="hidden items-center justify-end px-10 py-5 lg:flex">
           <div className="flex items-center gap-3">
             <div className="flex w-72 items-center rounded-full border border-white/70 bg-white/60 px-4 py-2.5 shadow-sm transition-all backdrop-blur-md focus-within:bg-white focus-within:shadow-md">
               <Search

@@ -12,7 +12,7 @@ function roleIcon(role: UserRole) {
   return ShieldCheck;
 }
 
-export default function AU12SelectRole() {
+export default function SelectRoleScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

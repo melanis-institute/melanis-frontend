@@ -26,23 +26,8 @@ export default function AdminHome() {
   const [articleTitle, setArticleTitle] = useState("");
   const [eventTitle, setEventTitle] = useState("");
 
-  async function fetchData() {
-    if (!auth.user) return;
-    return Promise.all([
-      auth.accountAdapter.listAdminUsers(auth.user.id),
-      auth.accountAdapter.listExternalPractitionerApplications(auth.user.id),
-      auth.accountAdapter.listKnowledgeArticles(auth.user.id),
-      auth.accountAdapter.listSecurityPolicies(auth.user.id),
-      auth.accountAdapter.listAdminEvents(auth.user.id),
-      auth.accountAdapter.listAdminInvoices(auth.user.id),
-      auth.accountAdapter.listAdminQuotes(auth.user.id),
-      auth.accountAdapter.listAdminAuditLogs(auth.user.id),
-    ]);
-  }
-
   async function refresh() {
-    const result = await fetchData();
-    if (!result) return;
+    if (!auth.user) return;
     const [
       nextUsers,
       nextApplications,
@@ -52,7 +37,16 @@ export default function AdminHome() {
       nextInvoices,
       nextQuotes,
       nextAuditLogs,
-    ] = result;
+    ] = await Promise.all([
+      auth.accountAdapter.listAdminUsers(auth.user.id),
+      auth.accountAdapter.listExternalPractitionerApplications(auth.user.id),
+      auth.accountAdapter.listKnowledgeArticles(auth.user.id),
+      auth.accountAdapter.listSecurityPolicies(auth.user.id),
+      auth.accountAdapter.listAdminEvents(auth.user.id),
+      auth.accountAdapter.listAdminInvoices(auth.user.id),
+      auth.accountAdapter.listAdminQuotes(auth.user.id),
+      auth.accountAdapter.listAdminAuditLogs(auth.user.id),
+    ]);
     setUsers(nextUsers);
     setApplications(nextApplications);
     setArticles(nextArticles);
@@ -65,9 +59,18 @@ export default function AdminHome() {
 
   useEffect(() => {
     let active = true;
-    void fetchData().then((result) => {
-      if (!active || !result) return;
-      const [
+    if (!auth.user) return;
+    void Promise.all([
+      auth.accountAdapter.listAdminUsers(auth.user.id),
+      auth.accountAdapter.listExternalPractitionerApplications(auth.user.id),
+      auth.accountAdapter.listKnowledgeArticles(auth.user.id),
+      auth.accountAdapter.listSecurityPolicies(auth.user.id),
+      auth.accountAdapter.listAdminEvents(auth.user.id),
+      auth.accountAdapter.listAdminInvoices(auth.user.id),
+      auth.accountAdapter.listAdminQuotes(auth.user.id),
+      auth.accountAdapter.listAdminAuditLogs(auth.user.id),
+    ]).then(
+      ([
         nextUsers,
         nextApplications,
         nextArticles,
@@ -76,16 +79,18 @@ export default function AdminHome() {
         nextInvoices,
         nextQuotes,
         nextAuditLogs,
-      ] = result;
-      setUsers(nextUsers);
-      setApplications(nextApplications);
-      setArticles(nextArticles);
-      setPolicies(nextPolicies);
-      setEvents(nextEvents);
-      setInvoices(nextInvoices);
-      setQuotes(nextQuotes);
-      setAuditLogs(nextAuditLogs.slice(0, 10));
-    });
+      ]) => {
+        if (!active) return;
+        setUsers(nextUsers);
+        setApplications(nextApplications);
+        setArticles(nextArticles);
+        setPolicies(nextPolicies);
+        setEvents(nextEvents);
+        setInvoices(nextInvoices);
+        setQuotes(nextQuotes);
+        setAuditLogs(nextAuditLogs.slice(0, 10));
+      },
+    );
     return () => {
       active = false;
     };

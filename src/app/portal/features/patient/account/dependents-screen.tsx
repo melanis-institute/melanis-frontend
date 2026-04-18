@@ -6,7 +6,7 @@ import { useAuth } from "@portal/session/useAuth";
 
 type DependentRelationship = "enfant" | "proche";
 
-export default function AU10Dependents() {
+export default function DependentsScreen() {
   const auth = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");

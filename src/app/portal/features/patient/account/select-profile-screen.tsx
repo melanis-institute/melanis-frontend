@@ -12,7 +12,7 @@ import { AccountShell } from "@portal/shared/layouts/AccountShell";
 import { relationshipToLabel } from "@portal/domains/account/labels";
 import { useAuth } from "@portal/session/useAuth";
 
-export default function AU05SelectProfile() {
+export default function SelectProfileScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

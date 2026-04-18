@@ -19,27 +19,24 @@ export default function ExternalPractitionerHome() {
   const [question, setQuestion] = useState("");
   const [reply, setReply] = useState("");
 
-  async function fetchData() {
+  async function refresh() {
     if (!auth.user) return;
-    return Promise.all([
+    const [applications, nextCases] = await Promise.all([
       auth.accountAdapter.listExternalPractitionerApplications(auth.user.id),
       auth.accountAdapter.listExternalPractitionerCases(auth.user.id),
     ]);
-  }
-
-  async function refresh() {
-    const result = await fetchData();
-    if (!result) return;
-    const [applications, nextCases] = result;
     setApplication(applications.find((item) => item.userId === auth.user?.id) ?? null);
     setCases(nextCases);
   }
 
   useEffect(() => {
     let active = true;
-    void fetchData().then((result) => {
-      if (!active || !result) return;
-      const [applications, nextCases] = result;
+    if (!auth.user) return;
+    void Promise.all([
+      auth.accountAdapter.listExternalPractitionerApplications(auth.user.id),
+      auth.accountAdapter.listExternalPractitionerCases(auth.user.id),
+    ]).then(([applications, nextCases]) => {
+      if (!active) return;
       setApplication(applications.find((item) => item.userId === auth.user?.id) ?? null);
       setCases(nextCases);
     });

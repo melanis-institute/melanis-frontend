@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import PF04 from "./confirmation-screen";
+import PreconsultConfirmationScreen from "./confirmation-screen";
 import { AuthContext } from "../../../session/AuthProvider";
 import { makeAuthContextValue } from "../../../../../test/renderWithAuthRouter";
 import type { PractitionerDirectoryEntry } from "@portal/domains/scheduling/types";
@@ -32,7 +32,7 @@ const practitioner: PractitionerDirectoryEntry = {
   availableToday: true,
 };
 
-describe("PF04 booking persistence", () => {
+describe("Preconsult confirmation booking persistence", () => {
   it("persists the appointment and pre-consult before navigating to success", async () => {
     const createAppointmentFromBooking = vi.fn().mockResolvedValue({
       id: "appt-123",
@@ -130,7 +130,7 @@ describe("PF04 booking persistence", () => {
           ]}
         >
           <Routes>
-            <Route path="/patient-flow/detail-confirmation" element={<PF04 />} />
+            <Route path="/patient-flow/detail-confirmation" element={<PreconsultConfirmationScreen />} />
             <Route path="/patient-flow/confirmation-succes" element={<div>Success route</div>} />
           </Routes>
         </MemoryRouter>

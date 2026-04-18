@@ -13,7 +13,7 @@ export default function PatientEventDetailScreen() {
   const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function fetchData() {
+  async function refresh() {
     if (!auth.user || !eventId) return;
     const nextDetail = await auth.accountAdapter.getEvent(auth.user.id, eventId);
     const nextPayment = nextDetail.myRegistration?.paymentId
@@ -22,22 +22,24 @@ export default function PatientEventDetailScreen() {
           nextDetail.myRegistration.paymentId,
         )
       : null;
-    return { nextDetail, nextPayment };
-  }
-
-  async function refresh() {
-    const result = await fetchData();
-    if (!result) return;
-    setDetail(result.nextDetail);
-    setPayment(result.nextPayment);
+    setDetail(nextDetail);
+    setPayment(nextPayment);
   }
 
   useEffect(() => {
     let active = true;
-    void fetchData().then((result) => {
-      if (!active || !result) return;
-      setDetail(result.nextDetail);
-      setPayment(result.nextPayment);
+    if (!auth.user || !eventId) return;
+    const userId = auth.user.id;
+    void auth.accountAdapter.getEvent(userId, eventId).then(async (nextDetail) => {
+      const nextPayment = nextDetail.myRegistration?.paymentId
+        ? await auth.accountAdapter.getPayment(
+            userId,
+            nextDetail.myRegistration.paymentId,
+          )
+        : null;
+      if (!active) return;
+      setDetail(nextDetail);
+      setPayment(nextPayment);
     });
     return () => {
       active = false;

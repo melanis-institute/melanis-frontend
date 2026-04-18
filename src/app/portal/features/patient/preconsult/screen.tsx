@@ -128,7 +128,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export default function PF03() {
+export default function PreconsultScreen() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();

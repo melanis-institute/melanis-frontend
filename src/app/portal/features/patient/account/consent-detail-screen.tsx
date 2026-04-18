@@ -32,7 +32,7 @@ const TYPE_LABELS: Record<ConsentType, string> = {
   caregiver_access: "Accès tuteur / accompagnant",
 };
 
-export default function AU09ConsentDetail() {
+export default function ConsentDetailScreen() {
   const { consentId } = useParams();
   const auth = useAuth();
   const navigate = useNavigate();

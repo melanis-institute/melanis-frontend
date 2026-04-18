@@ -83,6 +83,25 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
+  async getText(
+    path: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ): Promise<string> {
+    const url = this.buildUrl(path, params);
+    const res = await fetch(url, {
+      method: "GET",
+      headers: this.buildHeaders(),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({
+        detail: res.statusText,
+        error_code: "UNKNOWN_ERROR",
+      }))) as ApiErrorBody;
+      this.handleError(res.status, body);
+    }
+    return res.text();
+  }
+
   async post<T>(path: string, body?: unknown, params?: Record<string, string | number | boolean | null | undefined>): Promise<T> {
     const url = this.buildUrl(path, params);
     const res = await fetch(url, {

@@ -504,7 +504,7 @@ function UpcomingEventsPanel({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PRAC04Calendar() {
+export default function PractitionerCalendarScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
 

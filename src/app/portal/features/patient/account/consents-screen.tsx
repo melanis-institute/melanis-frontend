@@ -25,7 +25,7 @@ const TYPE_GROUPS: Record<ConsentType, "Soin" | "Médias" | "Collaboration"> = {
   caregiver_access: "Collaboration",
 };
 
-export default function AU08ConsentCenter() {
+export default function ConsentsScreen() {
   const auth = useAuth();
   const location = useLocation();
   const [consents, setConsents] = useState<ConsentRecord[]>([]);

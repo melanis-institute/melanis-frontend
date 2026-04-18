@@ -14,7 +14,7 @@ import { useAuth } from "@portal/session/useAuth";
 
 type AppointmentType = "presentiel" | "video";
 
-export default function PF01() {
+export default function ChooseAppointmentTypeScreen() {
   const [selected, setSelected] = useState<AppointmentType | null>(null);
   const navigate = useNavigate();
   const auth = useAuth();

@@ -130,7 +130,7 @@ type ScoreSeriesPoint = {
   score: number;
 };
 
-const PRECONSULT_DRAFT_KEY = "melanis_preconsult_draft";
+const PRECONSULT_DRAFT_STORAGE_KEY = "melanis_preconsult_draft";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -203,7 +203,7 @@ function splitDetailText(value: string) {
 
 function loadDraftPreConsultSnapshot(): PreConsultSnapshot | null {
   const parsed = readStorageJson<{ data?: unknown; savedAt?: unknown } | null>(
-    PRECONSULT_DRAFT_KEY,
+    PRECONSULT_DRAFT_STORAGE_KEY,
     null,
   );
   if (!parsed || typeof parsed !== "object") {
@@ -1556,7 +1556,7 @@ function ProfilePageContent({
   );
 }
 
-export default function AU07ProfileOverview() {
+export default function ProfileOverviewScreen() {
   const navigate = useNavigate();
   const auth = useAuth();
   const userId = auth.user?.id ?? null;

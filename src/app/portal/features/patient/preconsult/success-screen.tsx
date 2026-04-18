@@ -148,7 +148,7 @@ function ChecklistItem({
   );
 }
 
-export default function PF05() {
+export default function PreconsultSuccessScreen() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const auth = useAuth();

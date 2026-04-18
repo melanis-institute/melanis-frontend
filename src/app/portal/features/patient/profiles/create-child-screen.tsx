@@ -1,6 +1,6 @@
 import { CreateDependentProfile } from "./CreateDependentProfile";
 
-export default function PRF03CreateChild() {
+export default function CreateChildScreen() {
   return (
     <CreateDependentProfile
       relationship="enfant"

@@ -4,7 +4,7 @@ import { AccountShell } from "@portal/shared/layouts/AccountShell";
 import { relationshipToLabel } from "@portal/domains/account/labels";
 import { useAuth } from "@portal/session/useAuth";
 
-export default function PRF06Guardian() {
+export default function GuardianScreen() {
   const { profileId } = useParams();
   const auth = useAuth();
   const profile = auth.profiles.find((item) => item.id === profileId) ?? null;

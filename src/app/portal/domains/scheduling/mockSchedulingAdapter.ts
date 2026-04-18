@@ -2,7 +2,7 @@ import type { AppointmentType } from "@portal/shared/types/flow";
 import type { SchedulingAdapter, ListAvailabilityInput } from "./adapter.types";
 import type { AvailabilitySlotRecord, PractitionerDirectoryEntry } from "./types";
 
-const PRACTITIONERS: PractitionerDirectoryEntry[] = [
+const MOCK_PRACTITIONERS: PractitionerDirectoryEntry[] = [
   {
     id: "mock-pract-001",
     practitionerId: "pract-001",
@@ -52,8 +52,10 @@ function addThirtyMinutes(dateKey: string, timeLabel: string): string {
 
 export class MockSchedulingAdapter implements SchedulingAdapter {
   async listPractitioners(appointmentType?: AppointmentType): Promise<PractitionerDirectoryEntry[]> {
-    if (!appointmentType) return PRACTITIONERS;
-    return PRACTITIONERS.filter((entry) => entry.appointmentTypes.includes(appointmentType));
+    if (!appointmentType) return MOCK_PRACTITIONERS;
+    return MOCK_PRACTITIONERS.filter((entry) =>
+      entry.appointmentTypes.includes(appointmentType),
+    );
   }
 
   async listAvailability(input: ListAvailabilityInput): Promise<AvailabilitySlotRecord[]> {

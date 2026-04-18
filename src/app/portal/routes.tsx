@@ -140,7 +140,7 @@ function RouteLoading() {
   return <LoadingState />;
 }
 
-function AU06Lazy() {
+function PatientDashboardRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientDashboardScreen />
@@ -148,7 +148,7 @@ function AU06Lazy() {
   );
 }
 
-function AU07ProfileOverviewLazy() {
+function ProfileOverviewRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <ProfileOverviewScreen />
@@ -156,7 +156,7 @@ function AU07ProfileOverviewLazy() {
   );
 }
 
-function AU12SelectRoleLazy() {
+function SelectRoleRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <SelectRoleScreen />
@@ -164,7 +164,7 @@ function AU12SelectRoleLazy() {
   );
 }
 
-function PF01Lazy() {
+function ChooseAppointmentTypeRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <ChooseAppointmentTypeScreen />
@@ -172,7 +172,7 @@ function PF01Lazy() {
   );
 }
 
-function PF02Lazy() {
+function ChooseSlotRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <ChooseSlotScreen />
@@ -180,7 +180,7 @@ function PF02Lazy() {
   );
 }
 
-function PF03Lazy() {
+function PreconsultRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PreconsultScreen />
@@ -188,7 +188,7 @@ function PF03Lazy() {
   );
 }
 
-function PF04Lazy() {
+function PreconsultConfirmationRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PreconsultConfirmationScreen />
@@ -196,7 +196,7 @@ function PF04Lazy() {
   );
 }
 
-function PF05Lazy() {
+function PreconsultSuccessRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PreconsultSuccessScreen />
@@ -204,7 +204,7 @@ function PF05Lazy() {
   );
 }
 
-function TD01Lazy() {
+function PatientTeledermInboxRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientTeledermInboxScreen />
@@ -212,7 +212,7 @@ function TD01Lazy() {
   );
 }
 
-function TD02Lazy() {
+function PatientTeledermComposeRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientTeledermComposeScreen />
@@ -220,7 +220,7 @@ function TD02Lazy() {
   );
 }
 
-function TD03Lazy() {
+function PatientTeledermCaseDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientTeledermCaseDetailScreen />
@@ -228,7 +228,7 @@ function TD03Lazy() {
   );
 }
 
-function P401Lazy() {
+function PatientEducationProgramsRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientEducationProgramsScreen />
@@ -236,7 +236,7 @@ function P401Lazy() {
   );
 }
 
-function P402Lazy() {
+function PatientEducationProgramDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientEducationProgramDetailScreen />
@@ -244,7 +244,7 @@ function P402Lazy() {
   );
 }
 
-function P403Lazy() {
+function PatientCheckInsRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientCheckInsScreen />
@@ -252,7 +252,7 @@ function P403Lazy() {
   );
 }
 
-function P404Lazy() {
+function PatientPreventionRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientPreventionScreen />
@@ -260,7 +260,7 @@ function P404Lazy() {
   );
 }
 
-function P405Lazy() {
+function PatientPreventionAlertDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientPreventionAlertDetailScreen />
@@ -268,7 +268,7 @@ function P405Lazy() {
   );
 }
 
-function P406Lazy() {
+function PatientRemindersRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientRemindersScreen />
@@ -276,7 +276,7 @@ function P406Lazy() {
   );
 }
 
-function P501Lazy() {
+function PatientEventsRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientEventsScreen />
@@ -284,7 +284,7 @@ function P501Lazy() {
   );
 }
 
-function P502Lazy() {
+function PatientEventDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientEventDetailScreen />
@@ -292,7 +292,7 @@ function P502Lazy() {
   );
 }
 
-function P503Lazy() {
+function PatientBillingRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PatientBillingScreen />
@@ -300,7 +300,7 @@ function P503Lazy() {
   );
 }
 
-function PRAC01Lazy() {
+function PractitionerDashboardRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerDashboardScreen />
@@ -308,7 +308,7 @@ function PRAC01Lazy() {
   );
 }
 
-function PRAC02Lazy() {
+function PractitionerAppointmentsRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerAppointmentsScreen />
@@ -316,7 +316,7 @@ function PRAC02Lazy() {
   );
 }
 
-function PRAC03Lazy() {
+function PractitionerAppointmentDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerAppointmentDetailScreen />
@@ -324,7 +324,7 @@ function PRAC03Lazy() {
   );
 }
 
-function PRAC04Lazy() {
+function PractitionerCalendarRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerCalendarScreen />
@@ -332,7 +332,7 @@ function PRAC04Lazy() {
   );
 }
 
-function PRAC05Lazy() {
+function PractitionerTeledermInboxRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerTeledermInboxScreen />
@@ -340,7 +340,7 @@ function PRAC05Lazy() {
   );
 }
 
-function PRAC06Lazy() {
+function PractitionerTeledermCaseDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerTeledermCaseDetailScreen />
@@ -348,7 +348,7 @@ function PRAC06Lazy() {
   );
 }
 
-function PRAC07Lazy() {
+function PractitionerInterPractitionerInboxRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerInterPractitionerInboxScreen />
@@ -356,7 +356,7 @@ function PRAC07Lazy() {
   );
 }
 
-function PRAC08Lazy() {
+function PractitionerInterPractitionerCaseDetailRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <PractitionerInterPractitionerCaseDetailScreen />
@@ -422,7 +422,7 @@ export const portalRoutes: RouteObject[] = [
         children: [
           {
             path: "auth/select-role",
-            Component: AU12SelectRoleLazy,
+            Component: SelectRoleRoute,
           },
           {
             Component: RequireActiveRole,
@@ -432,14 +432,14 @@ export const portalRoutes: RouteObject[] = [
                 children: [
                   {
                     path: "auth/dashboard",
-                    Component: AU06Lazy,
+                    Component: PatientDashboardRoute,
                   },
                   {
                     path: "account",
                     children: [
                       {
                         index: true,
-                        Component: AU07ProfileOverviewLazy,
+                        Component: ProfileOverviewRoute,
                       },
                       {
                         path: "select-profile",
@@ -494,7 +494,7 @@ export const portalRoutes: RouteObject[] = [
                   },
                   {
                     index: true,
-                    Component: PF01Lazy,
+                    Component: ChooseAppointmentTypeRoute,
                   },
                   {
                     Component: RequireActingProfile,
@@ -505,67 +505,67 @@ export const portalRoutes: RouteObject[] = [
                       },
                       {
                         path: "creneau",
-                        Component: PF02Lazy,
+                        Component: ChooseSlotRoute,
                       },
                       {
                         path: "confirmation",
-                        Component: PF03Lazy,
+                        Component: PreconsultRoute,
                       },
                       {
                         path: "detail-confirmation",
-                        Component: PF04Lazy,
+                        Component: PreconsultConfirmationRoute,
                       },
                       {
                         path: "confirmation-succes",
-                        Component: PF05Lazy,
+                        Component: PreconsultSuccessRoute,
                       },
                       {
                         path: "auth/telederm",
-                        Component: TD01Lazy,
+                        Component: PatientTeledermInboxRoute,
                       },
                       {
                         path: "auth/telederm/new",
-                        Component: TD02Lazy,
+                        Component: PatientTeledermComposeRoute,
                       },
                       {
                         path: "auth/telederm/cases/:caseId",
-                        Component: TD03Lazy,
+                        Component: PatientTeledermCaseDetailRoute,
                       },
                       {
                         path: "auth/programs",
-                        Component: P401Lazy,
+                        Component: PatientEducationProgramsRoute,
                       },
                       {
                         path: "auth/programs/:programId",
-                        Component: P402Lazy,
+                        Component: PatientEducationProgramDetailRoute,
                       },
                       {
                         path: "auth/check-ins",
-                        Component: P403Lazy,
+                        Component: PatientCheckInsRoute,
                       },
                       {
                         path: "auth/prevention",
-                        Component: P404Lazy,
+                        Component: PatientPreventionRoute,
                       },
                       {
                         path: "auth/prevention/alerts/:alertId",
-                        Component: P405Lazy,
+                        Component: PatientPreventionAlertDetailRoute,
                       },
                       {
                         path: "auth/reminders",
-                        Component: P406Lazy,
+                        Component: PatientRemindersRoute,
                       },
                       {
                         path: "auth/events",
-                        Component: P501Lazy,
+                        Component: PatientEventsRoute,
                       },
                       {
                         path: "auth/events/:eventId",
-                        Component: P502Lazy,
+                        Component: PatientEventDetailRoute,
                       },
                       {
                         path: "auth/billing",
-                        Component: P503Lazy,
+                        Component: PatientBillingRoute,
                       },
                     ],
                   },
@@ -579,35 +579,35 @@ export const portalRoutes: RouteObject[] = [
                     children: [
                       {
                         index: true,
-                        Component: PRAC01Lazy,
+                        Component: PractitionerDashboardRoute,
                       },
                       {
                         path: "appointments",
-                        Component: PRAC02Lazy,
+                        Component: PractitionerAppointmentsRoute,
                       },
                       {
                         path: "appointments/:appointmentId",
-                        Component: PRAC03Lazy,
+                        Component: PractitionerAppointmentDetailRoute,
                       },
                       {
                         path: "calendar",
-                        Component: PRAC04Lazy,
+                        Component: PractitionerCalendarRoute,
                       },
                       {
                         path: "telederm",
-                        Component: PRAC05Lazy,
+                        Component: PractitionerTeledermInboxRoute,
                       },
                       {
                         path: "telederm/:caseId",
-                        Component: PRAC06Lazy,
+                        Component: PractitionerTeledermCaseDetailRoute,
                       },
                       {
                         path: "inter-practitioner",
-                        Component: PRAC07Lazy,
+                        Component: PractitionerInterPractitionerInboxRoute,
                       },
                       {
                         path: "inter-practitioner/:caseId",
-                        Component: PRAC08Lazy,
+                        Component: PractitionerInterPractitionerCaseDetailRoute,
                       },
                     ],
                   },

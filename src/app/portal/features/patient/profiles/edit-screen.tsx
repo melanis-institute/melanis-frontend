@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { AccountShell } from "@portal/shared/layouts/AccountShell";
 import { useAuth } from "@portal/session/useAuth";
 
-export default function PRF05EditProfile() {
+export default function EditProfileScreen() {
   const { profileId } = useParams();
   const auth = useAuth();
   const profile = useMemo(

@@ -117,7 +117,7 @@ function periodFromTime(time: string): FilterKey {
   return "soir";
 }
 
-export default function PF02() {
+export default function ChooseSlotScreen() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();

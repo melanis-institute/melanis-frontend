@@ -314,7 +314,7 @@ function AppointmentCard({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export default function PRAC02Appointments() {
+export default function PractitionerAppointmentsScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
 

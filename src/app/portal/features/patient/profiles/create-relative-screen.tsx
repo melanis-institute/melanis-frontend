@@ -1,6 +1,6 @@
 import { CreateDependentProfile } from "./CreateDependentProfile";
 
-export default function PRF04CreateRelative() {
+export default function CreateRelativeScreen() {
   return (
     <CreateDependentProfile
       relationship="proche"

@@ -247,7 +247,7 @@ function isPendingAuthState(value: unknown): value is PendingAuthState {
   );
 }
 
-export default function AU01() {
+export default function AuthLandingScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

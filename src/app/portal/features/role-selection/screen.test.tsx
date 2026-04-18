@@ -5,7 +5,7 @@ import type * as ReactRouterModule from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthContext } from "../../session/AuthProvider";
 import { makeAuthContextValue } from "../../../../test/renderWithAuthRouter";
-import AU12SelectRole from "./screen";
+import SelectRoleScreen from "./screen";
 
 const mockNavigate = vi.fn();
 
@@ -29,7 +29,7 @@ const user = {
   updatedAt: new Date().toISOString(),
 };
 
-describe("AU12SelectRole", () => {
+describe("SelectRoleScreen", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
   });
@@ -48,7 +48,7 @@ describe("AU12SelectRole", () => {
     render(
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          <AU12SelectRole />
+          <SelectRoleScreen />
         </MemoryRouter>
       </AuthContext.Provider>,
     );
@@ -77,7 +77,7 @@ describe("AU12SelectRole", () => {
     render(
       <AuthContext.Provider value={authValue}>
         <MemoryRouter>
-          <AU12SelectRole />
+          <SelectRoleScreen />
         </MemoryRouter>
       </AuthContext.Provider>,
     );

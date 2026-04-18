@@ -467,7 +467,7 @@ async function uploadPreConsultPhotos(
 }
 
 // ——— Main Component ———
-export default function PF04() {
+export default function PreconsultConfirmationScreen() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const auth = useAuth();

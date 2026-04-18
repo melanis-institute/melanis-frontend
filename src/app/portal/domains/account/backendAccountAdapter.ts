@@ -80,6 +80,16 @@ import type {
 } from "./types";
 import { createApiClient } from "../api/client";
 
+function toReminderPatch(
+  patch: UpdateScreeningReminderInput["patch"],
+): Record<string, unknown> {
+  const { nextDueAt, ...rest } = patch;
+  return {
+    ...rest,
+    next_due_at: nextDueAt,
+  };
+}
+
 export class BackendAccountAdapter implements AccountAdapter {
   private readonly http;
 
@@ -226,7 +236,7 @@ export class BackendAccountAdapter implements AccountAdapter {
   async updateScreeningReminder(input: UpdateScreeningReminderInput): Promise<ScreeningReminder> {
     return this.http.patch<ScreeningReminder>(
       `/api/v1/patients/screening-reminders/${input.reminderId}`,
-      input.patch,
+      toReminderPatch(input.patch),
       { profileId: input.profileId },
     );
   }
@@ -527,7 +537,7 @@ export class BackendAccountAdapter implements AccountAdapter {
   ): Promise<ScreeningReminder> {
     return this.http.patch<ScreeningReminder>(
       `/api/v1/practitioner/patients/${input.profileId}/screening-reminders/${input.reminderId}`,
-      input.patch,
+      toReminderPatch(input.patch),
     );
   }
 
@@ -907,8 +917,7 @@ export class BackendAccountAdapter implements AccountAdapter {
   }
 
   async exportAdminAuditLogsCsv(_actorUserId: string): Promise<string> {
-    const result = await this.http.get<{ content: string }>("/api/v1/admin/audit-logs/export");
-    return result.content;
+    return this.http.getText("/api/v1/admin/audit-logs/export");
   }
 
   async listSecurityPolicies(_actorUserId: string): Promise<SecurityPolicyRecord[]> {

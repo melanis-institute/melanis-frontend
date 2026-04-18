@@ -663,7 +663,7 @@ function SectionHeader({
   );
 }
 
-export default function PRAC03AppointmentDetail() {
+export default function PractitionerAppointmentDetailScreen() {
   const auth = useAuth();
   const navigate = useNavigate();
   const params = useParams();

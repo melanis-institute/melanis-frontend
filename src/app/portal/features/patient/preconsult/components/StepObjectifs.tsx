@@ -90,7 +90,7 @@ interface PrefMeta {
   accentColor: string;
 }
 
-const PREF_META: PrefMeta[] = [
+const ROUTINE_PREFERENCE_META: PrefMeta[] = [
   { label: "Routine simple", icon: IconRoutineSimple, description: "Peu d'étapes", accentColor: "#00415E" },
   { label: "Budget limité", icon: IconBudget, description: "Solutions accessibles", accentColor: "#5B1112" },
   { label: "Produits naturels", icon: IconNaturel, description: "Ingrédients d'origine naturelle", accentColor: "#00415E" },
@@ -766,7 +766,7 @@ export function StepObjectifs({
               />
 
               <div className="grid grid-cols-3 gap-2">
-                {PREF_META.map((meta, i) => (
+                {ROUTINE_PREFERENCE_META.map((meta, i) => (
                   <PreferenceCard
                     key={meta.label}
                     meta={meta}

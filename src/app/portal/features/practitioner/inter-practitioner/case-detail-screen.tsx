@@ -11,25 +11,26 @@ export default function PractitionerInterPractitionerCaseDetailScreen() {
   const [detail, setDetail] = useState<InterPractitionerCaseDetailRecord | null>(null);
   const [message, setMessage] = useState("");
 
-  async function fetchData() {
-    if (!auth.user || !caseId) return;
-    return auth.accountAdapter.getPractitionerInterPractitionerCase(auth.user.id, caseId);
-  }
-
   useEffect(() => {
     let active = true;
-    void fetchData().then((result) => {
-      if (!active || !result) return;
-      setDetail(result);
-    });
+    if (!auth.user || !caseId) return;
+    void auth.accountAdapter
+      .getPractitionerInterPractitionerCase(auth.user.id, caseId)
+      .then((result) => {
+        if (!active) return;
+        setDetail(result);
+      });
     return () => {
       active = false;
     };
   }, [auth.accountAdapter, auth.user, caseId]);
 
   async function refresh() {
-    const result = await fetchData();
-    if (!result) return;
+    if (!auth.user || !caseId) return;
+    const result = await auth.accountAdapter.getPractitionerInterPractitionerCase(
+      auth.user.id,
+      caseId,
+    );
     setDetail(result);
   }
 
