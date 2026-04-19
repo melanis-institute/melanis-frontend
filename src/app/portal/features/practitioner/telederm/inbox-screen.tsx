@@ -9,10 +9,12 @@ import { PractitionerDashboardLayout } from "@portal/shared/layouts/Practitioner
 import {
   ArrowRight,
   Check,
+  Download,
   FileText,
   MessageSquareMore,
   Pill,
   Plus,
+  Printer,
   Send,
   Stethoscope,
   Trash2,
@@ -54,17 +56,6 @@ const BODY_AREA_LABELS: Record<string, string> = {
   intime: "Zone intime",
   ongles: "Ongles",
   autre: "Autre zone",
-};
-
-const BODY_AREA_POSITIONS: Record<string, { cx: number; cy: number }> = {
-  visage: { cx: 50, cy: 10 },
-  "cuir-chevelu": { cx: 50, cy: 5 },
-  bras: { cx: 18, cy: 40 },
-  jambes: { cx: 50, cy: 80 },
-  torse: { cx: 50, cy: 37 },
-  intime: { cx: 50, cy: 57 },
-  ongles: { cx: 74, cy: 88 },
-  autre: { cx: 50, cy: 50 },
 };
 
 const FITZPATRICK_TONES = [
@@ -136,93 +127,157 @@ function getSkinType(q: Record<string, unknown>): string {
   );
 }
 
-// ── Body Mannequin ─────────────────────────────────────────────────────────
+// ── Body Silhouette (from patient telederm compose) ───────────────────────
 
-function BodyMannequin({ bodyAreas }: { bodyAreas: string[] }) {
-  const markers = bodyAreas
-    .map((a) => BODY_AREA_POSITIONS[a])
-    .filter((p): p is { cx: number; cy: number } => Boolean(p));
+function BodySilhouette({ selectedAreas }: { selectedAreas: string[] }) {
+  const has = (area: string) => selectedAreas.includes(area);
+  const SK = "#F4E8D2";
+  const OL = "#BBA07A";
+  const HR = "#C8A67A";
+  const DT = "rgba(187,160,122,0.42)";
+  const SF = "rgba(91,17,18,0.14)";
+  const SS = "#7B2324";
+
+  const f = (z: string) => (has(z) ? SF : SK);
+  const s = (z: string) => (has(z) ? SS : OL);
+  const d = (z: string) => (has(z) ? "rgba(123,35,36,0.28)" : DT);
 
   return (
-    <svg viewBox="0 0 100 110" className="h-full w-full" aria-hidden>
-      <ellipse cx={50} cy={11} rx={9} ry={9.5} fill="#111214" opacity={0.08} />
-      <rect x={46} y={20} width={8} height={6} rx={2.5} fill="#111214" opacity={0.06} />
-      <rect x={31} y={25} width={38} height={32} rx={7} fill="#111214" opacity={0.07} />
-      <rect
-        x={12} y={26} width={18} height={9} rx={4.5}
-        fill="#111214" opacity={0.06}
-        transform="rotate(18 21 30)"
+    <svg viewBox="0 0 260 444" fill="none" className="mx-auto w-full drop-shadow-sm" aria-hidden>
+      {/* HAIR */}
+      <path
+        d="M100 50 C99 30 111 18 130 18 C149 18 161 30 160 50 C156 38 146 30 130 30 C114 30 104 38 100 50Z"
+        fill={has("cuir-chevelu") ? SF : HR}
+        stroke={s("cuir-chevelu")}
+        strokeWidth="1.6"
+        className="transition-colors duration-300"
       />
-      <rect
-        x={70} y={26} width={18} height={9} rx={4.5}
-        fill="#111214" opacity={0.06}
-        transform="rotate(-18 79 30)"
+      {/* FACE */}
+      <ellipse cx="130" cy="57" rx="27" ry="33"
+        fill={f("visage")} stroke={s("visage")} strokeWidth="2"
+        className="transition-colors duration-300"
       />
-      <rect x={31} y={56} width={16} height={40} rx={6} fill="#111214" opacity={0.07} />
-      <rect x={53} y={56} width={16} height={40} rx={6} fill="#111214" opacity={0.07} />
-      {markers.map((pos, i) => (
-        <g key={i}>
-          <circle cx={pos.cx} cy={pos.cy} r={8} fill="#5B1112" opacity={0.12} />
-          <circle cx={pos.cx} cy={pos.cy} r={4} fill="#5B1112" opacity={0.65} />
-          <circle cx={pos.cx} cy={pos.cy} r={1.8} fill="white" opacity={0.85} />
-        </g>
-      ))}
+      {/* NECK */}
+      <path d="M116 88 L144 88 L146 104 L114 104Z"
+        fill={f("torse")} stroke="none"
+        className="transition-colors duration-300"
+      />
+      {/* LEFT ARM */}
+      <path
+        d="M78 112 C70 112 60 116 52 126 C46 134 44 150 44 168 L44 222 C44 238 46 252 48 264 C50 272 52 280 52 286 C52 294 55 301 62 304 C69 307 75 302 77 296 C79 289 77 280 75 272 C73 262 73 246 73 230 L73 188 C75 166 79 146 83 128 C85 120 83 114 78 112Z"
+        fill={f("bras")} stroke={s("bras")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+      {/* RIGHT ARM */}
+      <path
+        d="M182 112 C190 112 200 116 208 126 C214 134 216 150 216 168 L216 222 C216 238 214 252 212 264 C210 272 208 280 208 286 C208 294 205 301 198 304 C191 307 185 302 183 296 C181 289 183 280 185 272 C187 262 187 246 187 230 L187 188 C185 166 181 146 177 128 C175 120 177 114 182 112Z"
+        fill={f("bras")} stroke={s("bras")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+      {/* TORSO */}
+      <path
+        d="M114 104 C104 106 90 112 78 120 C74 123 73 126 75 130 C79 116 81 116 83 120 C87 138 89 160 89 182 C89 200 87 214 85 224 C83 232 82 240 84 250 C86 260 92 268 106 272 L154 272 C168 268 174 260 176 250 C178 240 177 232 175 224 C173 214 171 200 171 182 C171 160 173 138 177 120 C179 116 181 116 185 130 C187 126 186 123 182 120 C170 112 156 106 146 104Z"
+        fill={f("torse")} stroke={s("torse")} strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="transition-colors duration-300"
+      />
+      {/* INTIME */}
+      <path
+        d="M106 272 C98 264 88 256 84 248 C82 256 84 266 92 276 C102 284 116 288 130 288 C144 288 158 284 168 276 C176 266 178 256 176 248 C172 256 162 264 154 272Z"
+        fill={has("intime") ? "rgba(0,65,94,0.14)" : SK}
+        stroke={has("intime") ? "#00415E" : OL}
+        strokeWidth="1.5"
+        className="transition-colors duration-300"
+      />
+      <path d="M106 272 C114 276 122 278 130 278 C138 278 146 276 154 272"
+        stroke={has("intime") ? "#00415E" : DT} strokeWidth="1.2" strokeLinecap="round"
+      />
+      {/* LEFT LEG */}
+      <path
+        d="M106 272 C98 274 90 282 87 295 L85 323 C85 335 85 343 87 354 C91 370 93 388 93 404 C93 414 91 422 89 430 C87 436 91 440 101 440 L122 440 C130 440 132 436 131 430 C130 424 126 415 123 406 C120 394 120 378 120 362 C120 345 118 328 116 314 L114 295 C112 283 110 275 106 272Z"
+        fill={f("jambes")} stroke={s("jambes")} strokeWidth="2"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      {/* RIGHT LEG */}
+      <path
+        d="M154 272 C162 274 170 282 173 295 L175 323 C175 335 175 343 173 354 C169 370 167 388 167 404 C167 414 169 422 171 430 C173 436 169 440 159 440 L138 440 C130 440 128 436 129 430 C130 424 134 415 137 406 C140 394 140 378 140 362 C140 345 142 328 144 314 L146 295 C148 283 150 275 154 272Z"
+        fill={f("jambes")} stroke={s("jambes")} strokeWidth="2"
+        strokeLinejoin="round"
+        className="transition-colors duration-300"
+      />
+      {/* DETAIL LINES */}
+      <path d="M130 106 L130 224" stroke={d("torse")} strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M93 130 C101 126 112 126 121 130" stroke={d("torse")} strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M139 130 C148 126 159 126 167 130" stroke={d("torse")} strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M118 162 C121 159 126 159 130 159 C134 159 139 159 142 162" stroke={d("torse")} strokeWidth="1" strokeLinecap="round" />
+      <path d="M118 184 C121 181 126 181 130 181 C134 181 139 181 142 184" stroke={d("torse")} strokeWidth="1" strokeLinecap="round" />
+      <ellipse cx="100" cy="342" rx="13" ry="10"
+        fill={has("jambes") ? "rgba(91,17,18,0.07)" : "rgba(244,232,210,0.7)"}
+        stroke={s("jambes")} strokeWidth="1.2"
+        className="transition-colors duration-300"
+      />
+      <ellipse cx="160" cy="342" rx="13" ry="10"
+        fill={has("jambes") ? "rgba(91,17,18,0.07)" : "rgba(244,232,210,0.7)"}
+        stroke={s("jambes")} strokeWidth="1.2"
+        className="transition-colors duration-300"
+      />
+      <path d="M48 224 C50 230 52 234 54 238" stroke={has("bras") ? "rgba(122,35,36,0.2)" : DT} strokeWidth="1" strokeLinecap="round" />
+      <path d="M212 224 C210 230 208 234 206 238" stroke={has("bras") ? "rgba(122,35,36,0.2)" : DT} strokeWidth="1" strokeLinecap="round" />
+      <path d="M55 292 C56 298 58 302 62 304" stroke={has("ongles") ? SS : OL} strokeWidth={has("ongles") ? 1.8 : 1.1} strokeLinecap="round" />
+      <path d="M205 292 C204 298 202 302 198 304" stroke={has("ongles") ? SS : OL} strokeWidth={has("ongles") ? 1.8 : 1.1} strokeLinecap="round" />
+      <path d="M100 436 C104 439 110 440 116 440" stroke={has("ongles") ? SS : OL} strokeWidth={has("ongles") ? 1.8 : 1.1} strokeLinecap="round" />
+      <path d="M160 436 C156 439 150 440 144 440" stroke={has("ongles") ? SS : OL} strokeWidth={has("ongles") ? 1.8 : 1.1} strokeLinecap="round" />
     </svg>
   );
 }
 
-// ── Severity Arc Gauge ─────────────────────────────────────────────────────
+// ── Severity Indicator ─────────────────────────────────────────────────────
 
-function SeverityGauge({ value }: { value: number }) {
-  const r = 36;
-  const cx = 50;
-  const cy = 52;
-  // Arc from left (180°) to right (0°) sweeping through top (counter-clockwise in SVG)
-  const startX = cx - r;
-  const startY = cy;
-  const fullX = cx + r;
-  const fullY = cy;
-  // End point for current value
-  const svgAngle = ((180 + (value / 10) * 180) % 360) * (Math.PI / 180);
-  const endX = cx + r * Math.cos(svgAngle);
-  const endY = cy + r * Math.sin(svgAngle);
-  const color = value >= 8 ? "#DC2626" : value >= 5 ? "#F59E0B" : "#5B1112";
+function SeverityIndicator({ value }: { value: number }) {
+  const label =
+    value <= 2 ? "Très légère" :
+    value <= 4 ? "Légère" :
+    value <= 6 ? "Modérée" :
+    value <= 8 ? "Intense" : "Sévère";
+
+  const palette =
+    value >= 8
+      ? { dot: "bg-red-500", numBg: "bg-red-50", numText: "text-red-600", labelText: "text-red-500/80" }
+      : value >= 5
+      ? { dot: "bg-amber-500", numBg: "bg-amber-50", numText: "text-amber-600", labelText: "text-amber-500/80" }
+      : { dot: "bg-[#5B1112]", numBg: "bg-[#5B1112]/[0.07]", numText: "text-[#5B1112]", labelText: "text-[#5B1112]/60" };
 
   return (
-    <svg viewBox="0 0 100 62" className="w-full">
-      <path
-        d={`M ${startX} ${startY} A ${r} ${r} 0 0 0 ${fullX} ${fullY}`}
-        fill="none"
-        stroke="#111214"
-        strokeOpacity={0.07}
-        strokeWidth={5}
-        strokeLinecap="round"
-      />
-      {value > 0 ? (
-        <path
-          d={`M ${startX} ${startY} A ${r} ${r} 0 0 0 ${endX.toFixed(2)} ${endY.toFixed(2)}`}
-          fill="none"
-          stroke={color}
-          strokeWidth={5}
-          strokeLinecap="round"
-        />
-      ) : null}
-      <text
-        x={cx}
-        y={cy - 5}
-        textAnchor="middle"
-        fontSize={20}
-        fontWeight="700"
-        fill="#111214"
-        opacity={0.85}
-        fontFamily="serif"
-      >
-        {value}
-      </text>
-      <text x={cx} y={cy + 7} textAnchor="middle" fontSize={8} fill="#111214" opacity={0.35}>
-        /10
-      </text>
-    </svg>
+    <div className="flex items-center gap-3">
+      {/* Large number */}
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl ${palette.numBg}`}>
+        <span className={`font-serif text-[1.5rem] font-bold leading-none ${palette.numText}`}>
+          {value}
+        </span>
+      </div>
+      {/* Bar + label */}
+      <div className="min-w-0 flex-1">
+        <div className="flex gap-[3px]">
+          {Array.from({ length: 10 }, (_, i) => (
+            <div
+              key={i}
+              className={`h-[6px] flex-1 rounded-full transition-colors duration-300 ${
+                i < value ? palette.dot : "bg-[#111214]/8"
+              }`}
+            />
+          ))}
+        </div>
+        <div className="mt-1.5 flex items-center justify-between">
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${palette.labelText}`}>
+            {label}
+          </span>
+          <span className="text-[9px] text-[#111214]/25">{value}/10</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -233,26 +288,24 @@ function FitzpatrickDisplay({ skinType }: { skinType: string }) {
   const match = FITZPATRICK_TONES.find((t) => normalized.includes(t.id));
 
   return (
-    <div className="flex items-end gap-1.5">
+    <div className="flex items-center gap-2">
       {FITZPATRICK_TONES.map((t) => {
         const isActive = match?.id === t.id;
         return (
-          <div key={t.id} className="flex flex-1 flex-col items-center gap-1">
+          <div key={t.id} className="flex flex-col items-center gap-1">
             <div
-              className={`aspect-square w-full rounded-full transition-all duration-200 ${
-                isActive ? "scale-125 shadow-md" : "opacity-40"
+              className={`h-7 w-7 rounded-full transition-all duration-200 ${
+                isActive ? "shadow-md ring-2 ring-[#5B1112] ring-offset-2" : "opacity-55"
               }`}
-              style={{
-                backgroundColor: t.bg,
-                outline: isActive ? `2px solid #5B1112` : `1px solid ${t.ring}`,
-                outlineOffset: isActive ? "2px" : "0px",
-              }}
+              style={{ backgroundColor: t.bg, border: `1px solid ${t.ring}` }}
             />
-            {isActive ? (
-              <span className="text-[8px] font-bold text-[#5B1112]">{t.id}</span>
-            ) : (
-              <span className="text-[7px] text-[#111214]/20">{t.id}</span>
-            )}
+            <span
+              className={`text-[8px] font-semibold ${
+                isActive ? "text-[#5B1112]" : "text-[#111214]/25"
+              }`}
+            >
+              {t.id}
+            </span>
           </div>
         );
       })}
@@ -326,6 +379,68 @@ function SnippetPill({ label, onClick }: { label: string; onClick: () => void })
   );
 }
 
+// ── Print / Download helper ────────────────────────────────────────────────
+
+function openPrescriptionPrint(drugs: DrugEntry[], practitionerName: string) {
+  const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
+  const valid = drugs.filter((d) => d.name.trim());
+
+  const rows = valid
+    .map(
+      (d, i) => `
+      <div class="drug">
+        <span class="drug-num">${i + 1}.</span>
+        <strong class="drug-name">${d.name}</strong>
+        ${d.posologie ? `<p class="drug-pos">${d.posologie}</p>` : ""}
+        ${d.duree ? `<p class="drug-dur">Durée : ${d.duree}</p>` : ""}
+      </div>`,
+    )
+    .join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Ordonnance — ${practitionerName}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:56px 64px;max-width:640px;margin:auto}
+    .header{border-bottom:1.5px solid #e5e5e5;padding-bottom:28px;margin-bottom:36px}
+    .lbl{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#5B1112;margin-bottom:6px}
+    .prac{font-size:22px;font-family:Georgia,serif;font-weight:600}
+    .sub{font-size:12px;color:#888;margin-top:3px}
+    .date{font-size:12px;color:#aaa;margin-top:14px}
+    .drug{margin-bottom:22px;padding-left:12px;border-left:2px solid #f0e0c8}
+    .drug-num{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#bbb;display:block;margin-bottom:3px}
+    .drug-name{font-size:14px;font-weight:600;display:block}
+    .drug-pos{font-size:12px;color:#555;margin-top:3px}
+    .drug-dur{font-size:11px;color:#999;margin-top:2px}
+    .footer{border-top:1px solid #eee;padding-top:16px;margin-top:56px;font-size:9px;color:#ccc}
+    @media print{
+      body{padding:32px 40px}
+      @page{size:A4;margin:20mm}
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="lbl">Ordonnance médicale</div>
+    <div class="prac">${practitionerName}</div>
+    <div class="sub">Dermatologue · Melanis</div>
+    <div class="date">${today}</div>
+  </div>
+  ${rows}
+  <div class="footer">Ordonnance générée via Melanis · Usage médical uniquement</div>
+  <script>window.onload=()=>{window.print()}<\/script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=680,height=860");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+}
+
 // ── Prescription Preview Modal ─────────────────────────────────────────────
 
 function PrescriptionPreview({
@@ -345,45 +460,77 @@ function PrescriptionPreview({
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative w-[400px] max-w-[90vw] overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.14)]"
+        className="relative w-[440px] max-w-[92vw] overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.14)]"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-2 text-[#111214]/30 transition hover:bg-[#111214]/5 hover:text-[#111214]"
-        >
-          <X size={16} />
-        </button>
-        <div className="p-7">
+        {/* Header bar */}
+        <div className="flex items-center justify-between border-b border-[#111214]/8 px-6 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B1112]/55">
+            Aperçu ordonnance
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 text-[#111214]/30 transition hover:bg-[#111214]/5 hover:text-[#111214]"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Prescription body */}
+        <div className="px-7 pb-2 pt-6">
           <div className="mb-5 border-b border-[#111214]/8 pb-5">
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5B1112]/50">
+            <p className="text-[8.5px] font-bold uppercase tracking-[0.2em] text-[#5B1112]/45">
               Ordonnance médicale
             </p>
-            <p className="mt-1 font-serif text-xl leading-tight text-[#111214]">{practitionerName}</p>
+            <p className="mt-1 font-serif text-[1.25rem] leading-tight text-[#111214]">
+              {practitionerName}
+            </p>
             <p className="text-[11px] text-[#111214]/40">Dermatologue · Melanis</p>
-            <p className="mt-2 text-[11px] text-[#111214]/35">{today}</p>
+            <p className="mt-2 text-[11px] text-[#111214]/32">{today}</p>
           </div>
           <div className="space-y-4">
             {validDrugs.map((drug, i) => (
-              <div key={drug.id}>
+              <div key={drug.id} className="border-l-2 border-[#F0E0C8] pl-3">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[10px] font-bold text-[#111214]/30">{i + 1}.</span>
-                  <p className="text-[13px] font-semibold text-[#111214]">{drug.name}</p>
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-[#111214]/28">
+                    {i + 1}.
+                  </span>
+                  <p className="text-[13.5px] font-semibold text-[#111214]">{drug.name}</p>
                 </div>
                 {drug.posologie ? (
-                  <p className="ml-4 text-[11px] text-[#111214]/55">{drug.posologie}</p>
+                  <p className="mt-1 text-[11.5px] text-[#111214]/55">{drug.posologie}</p>
                 ) : null}
                 {drug.duree ? (
-                  <p className="ml-4 text-[11px] text-[#111214]/38">Durée : {drug.duree}</p>
+                  <p className="mt-0.5 text-[11px] text-[#111214]/35">Durée : {drug.duree}</p>
                 ) : null}
               </div>
             ))}
           </div>
-          <div className="mt-7 border-t border-[#111214]/8 pt-4">
-            <p className="text-[9px] text-[#111214]/22">
+          <div className="mt-6 border-t border-[#111214]/8 pt-4">
+            <p className="text-[8.5px] text-[#111214]/20">
               Ordonnance générée via Melanis · Usage médical uniquement
             </p>
           </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 px-6 pb-6 pt-4">
+          <button
+            type="button"
+            onClick={() => openPrescriptionPrint(drugs, practitionerName)}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-[#111214]/10 bg-white py-2.5 text-[11.5px] font-semibold text-[#111214]/65 shadow-sm transition hover:bg-[#111214]/[0.03] hover:text-[#111214]"
+          >
+            <Printer size={13} />
+            Imprimer
+          </button>
+          <button
+            type="button"
+            onClick={() => openPrescriptionPrint(drugs, practitionerName)}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#111214] py-2.5 text-[11.5px] font-semibold text-white shadow-sm transition hover:bg-[#1c1e21]"
+          >
+            <Download size={13} />
+            Télécharger PDF
+          </button>
         </div>
       </motion.div>
     </div>
@@ -714,33 +861,32 @@ export default function PractitionerTeledermInboxScreen() {
             ) : detail ? (
               <>
                 {/* Sub-header */}
-                <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-[#111214]/[0.05] px-5 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const ss = TELEDERM_STATUS_STYLES[detail.case.status];
-                        const Icon = ss.icon;
-                        return (
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${ss.tone}`}
-                          >
-                            <Icon size={10} />
-                            {TELEDERM_STATUS_LABELS[detail.case.status]}
-                          </span>
-                        );
-                      })()}
-                      {detail.case.bodyArea ? (
-                        <span className="rounded-full bg-[#FEF0D5] px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-[#111214]/42">
-                          {detail.case.bodyArea}
+                <div className="flex-shrink-0 border-b border-[#111214]/[0.05] px-5 py-3 space-y-2">
+                  {/* Row 1: badges + title */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    {(() => {
+                      const ss = TELEDERM_STATUS_STYLES[detail.case.status];
+                      const Icon = ss.icon;
+                      return (
+                        <span
+                          className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${ss.tone}`}
+                        >
+                          <Icon size={10} />
+                          {TELEDERM_STATUS_LABELS[detail.case.status]}
                         </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 truncate text-[13px] font-semibold text-[#111214]">
+                      );
+                    })()}
+                    {detail.case.bodyArea ? (
+                      <span className="flex-shrink-0 whitespace-nowrap rounded-full bg-[#FEF0D5] px-2.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-[#111214]/42">
+                        {detail.case.bodyArea}
+                      </span>
+                    ) : null}
+                    <p className="min-w-0 truncate text-[13px] font-semibold text-[#111214]">
                       {detail.case.patientSummary || "Cas télé-derm"}
                     </p>
                   </div>
-                  {/* Action buttons */}
-                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                  {/* Row 2: action buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {["submitted", "patient_replied"].includes(detail.case.status) ? (
                       <button
                         type="button"
@@ -807,42 +953,39 @@ export default function PractitionerTeledermInboxScreen() {
                   <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
                     {/* Left: body + severity + Fitzpatrick */}
                     <div className="space-y-3">
-                      {/* Body mannequin */}
+                      {/* Body silhouette */}
                       <div className="rounded-[1.75rem] border border-[#111214]/[0.05] bg-white/70 p-4">
-                        <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em] text-[#111214]/28">
+                        <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.2em] text-[#111214]/28">
                           Localisation
                         </p>
-                        <div className="flex items-start gap-3">
-                          <div className="h-[110px] w-[70px] flex-shrink-0">
-                            <BodyMannequin bodyAreas={bodyAreas} />
-                          </div>
-                          <div className="flex flex-1 flex-wrap gap-1.5 pt-1">
+                        <div className="w-28 mx-auto">
+                          <BodySilhouette selectedAreas={bodyAreas} />
+                        </div>
+                        {bodyAreas.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
                             {bodyAreas.map((area) => (
                               <span
                                 key={area}
-                                className="rounded-full bg-[#5B1112]/[0.07] px-2.5 py-1 text-[10px] font-semibold text-[#5B1112]/70"
+                                className="rounded-full bg-[#5B1112]/[0.07] px-2.5 py-1 text-[9.5px] font-semibold text-[#5B1112]/70"
                               >
                                 {BODY_AREA_LABELS[area] ?? area}
                               </span>
                             ))}
-                            {bodyAreas.length === 0 ? (
-                              <span className="text-[10px] italic text-[#111214]/28">
-                                Non précisée
-                              </span>
-                            ) : null}
                           </div>
-                        </div>
+                        ) : (
+                          <p className="mt-3 text-center text-[10px] italic text-[#111214]/28">
+                            Zone non précisée
+                          </p>
+                        )}
                       </div>
 
-                      {/* Severity gauge */}
+                      {/* Severity indicator */}
                       {severity > 0 ? (
                         <div className="rounded-[1.75rem] border border-[#111214]/[0.05] bg-white/70 p-4">
-                          <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.2em] text-[#111214]/28">
+                          <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.2em] text-[#111214]/28">
                             Sévérité déclarée
                           </p>
-                          <div className="h-14">
-                            <SeverityGauge value={severity} />
-                          </div>
+                          <SeverityIndicator value={severity} />
                         </div>
                       ) : null}
 
@@ -1171,14 +1314,24 @@ export default function PractitionerTeledermInboxScreen() {
                         Ajouter un médicament
                       </button>
                       {drugs.some((d) => d.name.trim()) ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowPreview(true)}
-                          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#111214] py-2.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#1c1e21]"
-                        >
-                          <FileText size={12} />
-                          Aperçu de l&apos;ordonnance
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowPreview(true)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-[#111214]/10 bg-white/80 py-2.5 text-[11px] font-semibold text-[#111214]/60 transition hover:bg-white"
+                          >
+                            <FileText size={12} />
+                            Aperçu
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPrescriptionPrint(drugs, auth.user?.fullName ?? "Praticien")}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[#111214] py-2.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#1c1e21]"
+                          >
+                            <Printer size={12} />
+                            Imprimer / PDF
+                          </button>
+                        </div>
                       ) : null}
                     </div>
                   ) : null}
