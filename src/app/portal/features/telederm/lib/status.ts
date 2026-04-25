@@ -1,8 +1,13 @@
-import type {
-  AsyncCaseStatus,
-  PatientRecordEventType,
-} from "@portal/domains/account/types";
-import { AlertCircle, CheckCircle2, CircleDashed, Clock3, FileClock, Inbox } from "lucide-react";
+import type { AsyncCaseStatus, PatientRecordEventType } from "@portal/domains/account/types";
+import {
+  AlertCircle,
+  CheckCircle2,
+  CircleDashed,
+  Clock3,
+  FileClock,
+  Inbox,
+  type LucideIcon,
+} from "lucide-react";
 
 export const TELEDERM_STATUS_LABELS: Record<AsyncCaseStatus, string> = {
   draft: "Brouillon",
@@ -16,7 +21,7 @@ export const TELEDERM_STATUS_LABELS: Record<AsyncCaseStatus, string> = {
 
 export const TELEDERM_STATUS_STYLES: Record<
   AsyncCaseStatus,
-  { tone: string; icon: typeof Inbox }
+  { tone: string; icon: LucideIcon }
 > = {
   draft: { tone: "bg-[#111214]/6 text-[#111214]/58", icon: CircleDashed },
   submitted: { tone: "bg-[#5B1112]/10 text-[#5B1112]", icon: Inbox },

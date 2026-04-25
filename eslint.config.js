@@ -24,4 +24,22 @@ export default defineConfig([
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
     },
   },
+  {
+    files: ['src/app/portal/features/**/*.{ts,tsx}'],
+    ignores: ['src/app/portal/features/**/*.test.ts', 'src/app/portal/features/**/*.test.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@portal/domains/**/mock*'],
+              message:
+                'Feature code must depend on adapter interfaces/runtime adapters, not mock adapter modules.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

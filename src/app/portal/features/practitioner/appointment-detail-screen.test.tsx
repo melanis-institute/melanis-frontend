@@ -158,7 +158,7 @@ describe("practitioner appointment detail screen", () => {
     const user = userEvent.setup();
 
     await screen.findByDisplayValue("Dermatite de contact");
-    await user.click(screen.getByRole("button", { name: /publier cote patient/i }));
+    await user.click(screen.getByRole("button", { name: /publier côté patient/i }));
 
     await waitFor(() =>
       expect(appointmentAdapter.createClinicalOutcome).toHaveBeenCalledWith({
@@ -245,5 +245,22 @@ describe("practitioner appointment detail screen", () => {
       name: /imprimer l'ordonnance/i,
     });
     expect(button).toBeEnabled();
+  });
+
+  it("links video appointments to the practitioner video room", async () => {
+    renderScreen({
+      appointment: buildAppointment({
+        appointmentType: "video",
+        status: "checked_in",
+      }),
+    });
+
+    const link = await screen.findByRole("link", {
+      name: /rejoindre la consultation vidéo/i,
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      `/patient-flow/practitioner/appointments/${appointmentId}/video`,
+    );
   });
 });

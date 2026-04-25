@@ -4,6 +4,7 @@ import {
   TELEDERM_STATUS_STYLES,
   formatTeledermDate,
 } from "@portal/features/telederm/shared";
+import { BODY_AREA_LABELS } from "@portal/features/telederm/lib/bodyAreas";
 import { useAuth } from "@portal/session/useAuth";
 import { PractitionerDashboardLayout } from "@portal/shared/layouts/PractitionerDashboardLayout";
 import {
@@ -26,17 +27,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 // ── Constants ──────────────────────────────────────────────────────────────
-
-const BODY_AREA_LABELS: Record<string, string> = {
-  visage: "Visage",
-  "cuir-chevelu": "Cuir chevelu",
-  bras: "Bras & épaules",
-  jambes: "Jambes & pieds",
-  torse: "Torse & dos",
-  intime: "Zone intime",
-  ongles: "Ongles",
-  autre: "Autre zone",
-};
 
 const QUESTION_LABELS: Record<string, string> = {
   duration: "Durée",

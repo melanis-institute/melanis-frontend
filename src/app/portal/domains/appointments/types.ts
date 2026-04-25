@@ -60,6 +60,18 @@ export interface ClinicalOutcomeRecord {
   followUpReminder?: ScreeningReminder;
 }
 
+export interface VideoTokenRecord {
+  domain: string;
+  roomName: string;
+  jwt: string;
+  expiresAt: number;
+  joinAvailableAt: string;
+  userInfo: {
+    displayName: string;
+    email?: string;
+  };
+}
+
 export const NEXT_STATUS_BY_CURRENT: Record<AppointmentStatus, AppointmentStatus | null> = {
   scheduled: "checked_in",
   checked_in: "in_consultation",

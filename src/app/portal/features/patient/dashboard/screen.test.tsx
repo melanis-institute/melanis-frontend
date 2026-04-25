@@ -303,4 +303,68 @@ describe("patient dashboard", () => {
       expect(listScreeningReminders).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("links close video appointments to the embedded consultation room", async () => {
+    const soon = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    renderWithAuthRouter({
+      routes: [
+        {
+          path: "/patient-flow/auth/dashboard",
+          element: (
+            <DashboardHome
+              firstName="Awa"
+              hasActingProfile
+              upcoming={{
+                id: "appt-video-1",
+                practitioner: "Dr. Aissatou Ly",
+                location: "Consultation video",
+                dateLabel: "Aujourd'hui",
+                timeLabel: "14h30",
+                isVideo: true,
+                scheduledFor: soon,
+              }}
+              upcomingLoading={false}
+              upcomingError={null}
+              recentDocuments={[]}
+              recentDocumentsLoading={false}
+              recentDocumentsError={null}
+              timelineEvents={[]}
+              screeningReminders={[]}
+              careHubLoading={false}
+              careHubError={null}
+              skinScores={[]}
+              skinScoresLoading={false}
+              skinScoresError={null}
+              educationPrograms={[]}
+              preventionCurrent={null}
+              preventionLoading={false}
+              preventionError={null}
+            />
+          ),
+        },
+      ],
+      initialEntries: ["/patient-flow/auth/dashboard"],
+      authOverrides: {
+        isAuthenticated: true,
+        user: {
+          id: "user-1",
+          fullName: "Awa Ndiaye",
+          phoneE164: "+221771234567",
+          countryCode: "+221",
+          roles: ["patient"],
+          hasPin: true,
+          createdAt: "2026-04-07T08:00:00.000Z",
+          updatedAt: "2026-04-07T08:00:00.000Z",
+        },
+        actingProfileId: "profile-1",
+      },
+    });
+
+    const link = await screen.findByRole("link", { name: /rejoindre la video/i });
+    expect(link).toHaveAttribute(
+      "href",
+      "/patient-flow/auth/appointments/appt-video-1/video",
+    );
+  });
 });

@@ -4,7 +4,7 @@ import type {
   CreateAppointmentFromBookingInput,
   TransitionAppointmentStatusInput,
 } from "./adapter.types";
-import type { AppointmentRecord, ClinicalOutcomeRecord } from "./types";
+import type { AppointmentRecord, ClinicalOutcomeRecord, VideoTokenRecord } from "./types";
 import { createApiClient } from "../api/client";
 
 export class BackendAppointmentAdapter implements AppointmentAdapter {
@@ -76,6 +76,12 @@ export class BackendAppointmentAdapter implements AppointmentAdapter {
         followUpDueAt: input.followUpDueAt,
         notifyPatient: input.notifyPatient ?? true,
       },
+    );
+  }
+
+  async issueVideoToken(appointmentId: string): Promise<VideoTokenRecord> {
+    return this.http.post<VideoTokenRecord>(
+      `/api/v1/appointments/${appointmentId}/video-token`,
     );
   }
 }

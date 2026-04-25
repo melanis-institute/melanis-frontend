@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AsyncCaseRecord } from "@portal/domains/account/types";
-import { relationshipToLabel } from "@portal/domains/account/mockAccountAdapter";
+import { relationshipToLabel } from "@portal/domains/account/labels";
 import { useAuth } from "@portal/session/useAuth";
 import { DashboardLayout } from "@portal/shared/layouts/DashboardLayout";
 import { ArrowRight, Plus, Sparkles } from "lucide-react";

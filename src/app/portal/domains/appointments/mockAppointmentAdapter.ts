@@ -10,6 +10,7 @@ import {
   type AppointmentAuditEvent,
   type AppointmentRecord,
   type ClinicalOutcomeRecord,
+  type VideoTokenRecord,
 } from "./types";
 import type { ClinicalDocumentRecord, ScreeningReminder } from "@portal/domains/account/types";
 import { readStorageJson, writeStorageJson } from "@shared/lib/storage";
@@ -44,6 +45,10 @@ function deterministicAppointmentId(sourceRef: string): string {
     .replace(/^_+|_+$/g, "");
 
   return `appt_${(normalized || randomId("fallback")).slice(0, 100)}`;
+}
+
+function deterministicRoomName(appointmentId: string): string {
+  return `consult_demo_${appointmentId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
 function readAppointments() {
@@ -339,6 +344,36 @@ export class MockAppointmentAdapter implements AppointmentAdapter {
       appointment: target,
       documents: nextDocuments as ClinicalOutcomeRecord["documents"],
       followUpReminder: followUpReminder as ClinicalOutcomeRecord["followUpReminder"],
+    };
+  }
+
+  async issueVideoToken(appointmentId: string): Promise<VideoTokenRecord> {
+    const target = readAppointments().find((item) => item.id === appointmentId);
+
+    if (!target) {
+      throw new Error("Rendez-vous introuvable");
+    }
+    if (target.appointmentType !== "video") {
+      throw new Error("Ce rendez-vous n'est pas une consultation vidéo");
+    }
+    if (target.status === "completed") {
+      throw new Error("Cette consultation est terminée");
+    }
+
+    const joinAvailableAt = new Date(Date.parse(target.scheduledFor) - 30 * 60 * 1000);
+    if (Date.now() < joinAvailableAt.getTime()) {
+      throw new Error("La consultation vidéo n'est pas encore disponible");
+    }
+
+    return {
+      domain: "meet.jit.si",
+      roomName: deterministicRoomName(appointmentId),
+      jwt: "mock-jitsi-token",
+      expiresAt: Math.floor(Date.now() / 1000) + 900,
+      joinAvailableAt: joinAvailableAt.toISOString(),
+      userInfo: {
+        displayName: target.patientLabel,
+      },
     };
   }
 }

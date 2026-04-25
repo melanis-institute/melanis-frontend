@@ -77,6 +77,7 @@ const STATUS_LABELS: Record<ScreeningReminderStatus, string> = {
 };
 
 interface UpcomingAppointment {
+  id?: string;
   practitioner: string;
   location: string;
   dateLabel: string;
@@ -308,6 +309,7 @@ function toUpcomingAppointment(
   const fallbackLocation =
     appointment.appointmentType === "video" ? "Consultation video" : "Cabinet";
   return {
+    id: appointment.id,
     practitioner: appointment.practitionerName,
     location: appointment.practitionerLocation ?? fallbackLocation,
     dateLabel:
@@ -750,7 +752,14 @@ function AppointmentCard({
     ? minutesUntilDate(appointment.scheduledFor)
     : null;
   const isClose = minsUntil !== null && minsUntil > 0 && minsUntil <= 30;
+  const isInJoinWindow = minsUntil !== null && minsUntil <= 30;
+  const isJoinableVideo = Boolean(isInJoinWindow && appointment?.isVideo && appointment.id);
   const showCountdown = minsUntil !== null && minsUntil > 0 && minsUntil <= 120;
+  const actionClassName = `flex items-center justify-center gap-2 rounded-[1.25rem] py-3 text-sm font-medium transition-all ${
+    isClose || isJoinableVideo
+      ? "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/40"
+      : "border border-white/8 bg-white/10 text-white/75 hover:bg-white/18"
+  }`;
 
   return (
     <motion.div
@@ -870,24 +879,26 @@ function AppointmentCard({
               <p className="text-[10px] uppercase tracking-[0.16em] text-[#FEF0D5]/35">
                 {formatDateTime(appointment.scheduledFor)}
               </p>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                className={`flex items-center justify-center gap-2 rounded-[1.25rem] py-3 text-sm font-medium transition-all ${
-                  isClose
-                    ? "bg-[#5B1112] text-white shadow-lg shadow-[#5B1112]/40"
-                    : "border border-white/8 bg-white/10 text-white/75 hover:bg-white/18"
-                }`}
-              >
-                {isClose && appointment.isVideo ? (
-                  <Video size={14} />
-                ) : (
+              {isJoinableVideo ? (
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                  <Link
+                    to={`/patient-flow/auth/appointments/${appointment.id}/video`}
+                    className={actionClassName}
+                  >
+                    <Video size={14} />
+                    Rejoindre la video
+                  </Link>
+                </motion.div>
+              ) : (
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={actionClassName}
+                >
                   <Clock size={14} />
-                )}
-                {isClose && appointment.isVideo
-                  ? "Rejoindre la video"
-                  : "Preparer le RDV"}
-              </motion.div>
+                  Preparer le RDV
+                </motion.div>
+              )}
             </div>
           </>
         )}

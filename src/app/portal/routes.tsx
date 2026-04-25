@@ -87,6 +87,9 @@ const PractitionerAppointmentsScreen = lazy(
 const PractitionerAppointmentDetailScreen = lazy(
   () => import("@portal/features/practitioner/appointment-detail-screen"),
 );
+const VideoConsultationScreen = lazy(
+  () => import("@portal/features/appointments/video-consultation-screen"),
+);
 const PractitionerCalendarScreen = lazy(
   () => import("@portal/features/practitioner/calendar-screen"),
 );
@@ -324,6 +327,22 @@ function PractitionerAppointmentDetailRoute() {
   );
 }
 
+function PatientVideoConsultationRoute() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <VideoConsultationScreen role="patient" />
+    </Suspense>
+  );
+}
+
+function PractitionerVideoConsultationRoute() {
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <VideoConsultationScreen role="practitioner" />
+    </Suspense>
+  );
+}
+
 function PractitionerCalendarRoute() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -504,6 +523,10 @@ export const portalRoutes: RouteObject[] = [
                         Component: PatientDocumentDetailScreen,
                       },
                       {
+                        path: "auth/appointments/:appointmentId/video",
+                        Component: PatientVideoConsultationRoute,
+                      },
+                      {
                         path: "creneau",
                         Component: ChooseSlotRoute,
                       },
@@ -588,6 +611,10 @@ export const portalRoutes: RouteObject[] = [
                       {
                         path: "appointments/:appointmentId",
                         Component: PractitionerAppointmentDetailRoute,
+                      },
+                      {
+                        path: "appointments/:appointmentId/video",
+                        Component: PractitionerVideoConsultationRoute,
                       },
                       {
                         path: "calendar",

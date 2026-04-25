@@ -335,4 +335,38 @@ describe("Consultation backend adapter contracts", () => {
       );
     }
   });
+
+  it("requests a Jitsi video token for a booked video appointment", async () => {
+    writeStorageJson(SESSION_KEY, { accessToken: "token-p1" });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        domain: "meet.melanis.test",
+        roomName: "consult_abc123",
+        jwt: "signed-jitsi-token",
+        expiresAt: 1770000000,
+        joinAvailableAt: "2026-05-01T09:30:00.000Z",
+        userInfo: {
+          displayName: "Fatou Diop",
+          email: "fatou@example.test",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const appointmentAdapter = new BackendAppointmentAdapter(API_BASE_URL);
+    const token = await appointmentAdapter.issueVideoToken("appt-video-1");
+
+    expect(token.roomName).toBe("consult_abc123");
+    expect(token.domain).toBe("meet.melanis.test");
+    expect(token.expiresAt).toBe(1770000000);
+
+    const call = fetchMock.mock.calls[0];
+    expect(String(call[0])).toContain(
+      "/api/v1/appointments/appt-video-1/video-token",
+    );
+    expect((call[1] as RequestInit).method).toBe("POST");
+    expect(((call[1] as RequestInit).headers as Headers).get("Authorization")).toBe(
+      "Bearer token-p1",
+    );
+  });
 });

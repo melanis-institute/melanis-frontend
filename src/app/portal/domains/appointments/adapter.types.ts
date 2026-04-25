@@ -4,7 +4,12 @@ import type {
   PrescriptionItem,
   ScreeningCadence,
 } from "@portal/domains/account/types";
-import type { AppointmentRecord, AppointmentStatus, ClinicalOutcomeRecord } from "./types";
+import type {
+  AppointmentRecord,
+  AppointmentStatus,
+  ClinicalOutcomeRecord,
+  VideoTokenRecord,
+} from "./types";
 
 export interface CreateAppointmentFromBookingInput {
   bookingSourceRef: string;
@@ -48,4 +53,5 @@ export interface AppointmentAdapter {
   getAppointmentById(appointmentId: string): Promise<AppointmentRecord | null>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<AppointmentRecord>;
   createClinicalOutcome(input: CreateClinicalOutcomeInput): Promise<ClinicalOutcomeRecord>;
+  issueVideoToken(appointmentId: string): Promise<VideoTokenRecord>;
 }

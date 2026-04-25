@@ -5,7 +5,7 @@ Melanis Frontend is the React + TypeScript + Vite frontend for the Melanis produ
 It currently hosts two product surfaces inside one runtime:
 
 - `marketing`: the public landing experience
-- `patient`: the authenticated patient and practitioner application
+- `portal`: the authenticated patient and practitioner application
 
 The codebase is intentionally organized to keep both surfaces in one repo while making their boundaries explicit.
 
@@ -27,7 +27,7 @@ Route composition now lives in:
 
 - `src/app/router`
 - `src/marketing/routes.tsx`
-- `src/patient/app/routes.tsx`
+- `src/app/portal/routes.tsx`
 
 ## Source Layout
 
@@ -35,33 +35,33 @@ Route composition now lives in:
 src/
   app/         app bootstrap, providers, root router
   marketing/   landing-only screens and sections
-  patient/     patient/practitioner flows, adapters, features
+  portal/      patient/practitioner flows, adapters, features
   shared/      approved cross-surface utilities and UI primitives
   test/        shared test helpers
 ```
 
 Important internal conventions:
 
-- `marketing` must not import from `patient`
-- `patient` and `marketing` may import from `shared`
+- `marketing` must not import from `portal`
+- `portal` and `marketing` may import from `shared`
 - new imports should use aliases, not deep relative paths
 
 Available aliases:
 
 - `@app/*`
 - `@marketing/*`
-- `@patient/*`
+- `@portal/*`
 - `@shared/*`
 - `@test/*`
 
-## Patient App Structure
+## Portal App Structure
 
-The patient surface keeps app-level concerns under `src/patient/app` and feature entrypoints under `src/patient/features`.
+The portal surface keeps app-level concerns under `src/app/portal` and feature entrypoints under `src/app/portal/features`.
 
 Use this pattern for new feature work:
 
 ```text
-src/patient/features/<feature>/
+src/app/portal/features/<feature>/
   screen.tsx
   components/
   hooks/
@@ -69,7 +69,7 @@ src/patient/features/<feature>/
   types.ts
 ```
 
-Page routes under `src/patient/app/pages` should stay thin over time and delegate to feature modules.
+Route files should stay thin over time and delegate to feature modules.
 
 ## Shared UI and Storage
 
@@ -92,12 +92,12 @@ Do not call `localStorage` directly from feature code.
 
 ## Adapters and Runtime Modes
 
-The patient app supports two runtime modes:
+The portal app supports two runtime modes:
 
 - mock adapters when `VITE_API_BASE_URL` is not set
 - backend adapters when `VITE_API_BASE_URL` is set
 
-Runtime adapter selection lives in `src/patient/app/runtime/adapters.ts`.
+Runtime adapter selection lives in `src/app/portal/domains/runtime/adapters.ts`.
 
 Example:
 

@@ -10,7 +10,7 @@ import { BlogCarousel } from './components/landing/BlogCarousel';
 import { FAQSection } from './components/landing/FAQSection';
 import { ContactCTA } from './components/landing/ContactCTA';
 import { Footer } from './components/landing/Footer';
-import heroImage from './assets/melanis-landing-hero.png';
+import heroImage from './assets/melanis-landing-hero.webp';
 
 export default function LandingPage() {
   // We use scrollY directly to avoid target/container resolution issues in some environments
